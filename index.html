@@ -761,13 +761,20 @@ function layoutSvg(u){
   });
   var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs), minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
   var span = Math.max(maxX - minX, maxY - minY, 48), pad = span * 0.2, fs = span * 0.034, sw = span * 0.011;
-  var vb = [minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2];
-  var out = '<svg viewBox="' + vb.map(function(n){ return n.toFixed(2); }).join(' ') + '" role="img" aria-label="Bird’s-eye layout of unit ' + esc(u.unit || '') + '" style="width:100%;max-height:340px;display:block">';
+  // grow the drawing area to fit every label, so long runs shrink to fit instead of cutting text off
+  var bx0 = minX - pad * 0.5, by0 = minY - pad * 0.5, bx1 = maxX + pad * 0.5, by1 = maxY + pad * 0.5;
+  function fit(x, y, text, size, anchor){
+    var w = String(text).length * size * 0.6, h = size * 0.7;
+    var x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    bx0 = Math.min(bx0, x0); bx1 = Math.max(bx1, x0 + w); by0 = Math.min(by0, y - h); by1 = Math.max(by1, y + h);
+  }
+  var out = '';
   segs.forEach(function(sg){
     out += '<line x1="' + sg.x1 + '" y1="' + sg.y1 + '" x2="' + sg.x2 + '" y2="' + sg.y2 + '" stroke="var(--accent)" stroke-width="' + sw + '" stroke-linecap="round"' + (sg.known ? '' : ' stroke-dasharray="' + sw * 2 + ' ' + sw * 2 + '" opacity=".55"') + '/>';
     var mx = (sg.x1 + sg.x2) / 2, my = (sg.y1 + sg.y2) / 2, dx = sg.x2 - sg.x1, dy = sg.y2 - sg.y1, d = Math.sqrt(dx * dx + dy * dy) || 1, side = totalTurn < 0 ? -1 : 1, nx = side * dy / d, ny = -side * dx / d, off = fs * 1.2;
     var anchor = Math.abs(nx) > 0.6 ? (nx > 0 ? 'start' : 'end') : 'middle';
-    out += '<text x="' + (mx + nx * off) + '" y="' + (my + ny * off) + '" font-size="' + fs + '" text-anchor="' + anchor + '" dominant-baseline="middle" fill="var(--ink)" font-weight="800">' + esc(sg.tag) + ' · ' + esc(sg.len) + (sg.ns ? ' · floating' : '') + '</text>';
+    var lt = sg.tag + ' · ' + sg.len + (sg.ns ? ' · floating' : ''); fit(mx + nx * off, my + ny * off, lt, fs, anchor);
+    out += '<text x="' + (mx + nx * off) + '" y="' + (my + ny * off) + '" font-size="' + fs + '" text-anchor="' + anchor + '" dominant-baseline="middle" fill="var(--ink)" font-weight="800">' + esc(lt) + '</text>';
   });
   pts.forEach(function(pt, k){
     var r = sw * 1.6;
@@ -775,6 +782,7 @@ function layoutSvg(u){
     else if (pt.kind === 'corner') out += '<circle cx="' + pt.x + '" cy="' + pt.y + '" r="' + r * (pt.bad ? 1.6 : 1.1) + '" fill="' + (pt.bad ? 'var(--badbg)' : 'var(--card)') + '" stroke="' + (pt.bad ? 'var(--bad)' : 'var(--ink)') + '" stroke-width="' + sw * (pt.bad ? 0.9 : 0.6) + '"/>';
     else out += '<circle cx="' + pt.x + '" cy="' + pt.y + '" r="' + r * 0.8 + '" fill="var(--ink)"/>';
     var cs = (pt.kind === 'corner') ? 1 : (totalTurn < 0 ? -1 : 1), cx = pt.x + pt.nx * cs * fs * 1.5, cy = pt.y + pt.ny * cs * fs * 1.5, ca = Math.abs(pt.nx) > 0.6 ? (pt.nx > 0 ? 'start' : 'end') : 'middle';
+    fit(cx, cy, pt.code, fs * 0.85, ca);
     out += '<text x="' + cx + '" y="' + cy + '" font-size="' + fs * 0.85 + '" text-anchor="' + ca + '" dominant-baseline="middle" fill="var(--muted)" font-weight="700">' + esc(pt.code) + '</text>';
   });
 
@@ -786,13 +794,17 @@ function layoutSvg(u){
     if (segs.length > 1){ var far = 0; xs.forEach(function(px, k){ var dd = (px - big.x1) * dnx + (ys[k] - big.y1) * dny; if (dd > far) far = dd; }); if (far > 0) depth = Math.min(depth, far * 0.5); }
     var fx = (big.x1 + big.x2) / 2 + dnx * Math.max(depth, span * 0.2), fy = (big.y1 + big.y2) / 2 + dny * Math.max(depth, span * 0.2);
     var ang = ((u._feet || 0) + (u._rot || 0)) % 360, f = span * 0.034;   // default: facing up (north); turned with its own button
+    // keep the caption on the deck side so it never crosses the rail
+    var ta = dnx > 0.6 ? 'start' : dnx < -0.6 ? 'end' : 'middle', tx = ta === 'start' ? fx - f * 1.6 : ta === 'end' ? fx + f * 1.6 : fx;
+    fit(tx, fy + f * 3.6, 'Standing on the deck, looking out', fs * 0.8, ta); fit(fx, fy - f * 2.8, '', 0, 'middle'); fit(fx - f * 2.8, fy, '', 0, 'middle'); fit(fx + f * 2.8, fy, '', 0, 'middle');
     out += '<g transform="translate(' + fx + ' ' + fy + ') rotate(' + ang + ')" fill="var(--muted)" aria-hidden="true">' +
       '<ellipse cx="' + (-f * 0.9) + '" cy="' + (-f * 0.5) + '" rx="' + f * 0.55 + '" ry="' + f * 1.05 + '"/><ellipse cx="' + (-f * 0.9) + '" cy="' + f * 1.05 + '" rx="' + f * 0.42 + '" ry="' + f * 0.45 + '"/>' +
       '<ellipse cx="' + (f * 0.9) + '" cy="' + (-f * 0.5) + '" rx="' + f * 0.55 + '" ry="' + f * 1.05 + '"/><ellipse cx="' + (f * 0.9) + '" cy="' + f * 1.05 + '" rx="' + f * 0.42 + '" ry="' + f * 0.45 + '"/>' +
       '<path d="M0 ' + (-f * 2.6) + ' l' + (-f * 0.7) + ' ' + f * 0.9 + ' h' + f * 1.4 + 'z"/></g>' +
-      '<text x="' + fx + '" y="' + (fy + f * 3.6) + '" dominant-baseline="middle" font-size="' + fs * 0.8 + '" text-anchor="middle" fill="var(--muted)" font-weight="700">Standing on the deck, looking out</text>';
+      '<text x="' + tx + '" y="' + (fy + f * 3.6) + '" dominant-baseline="middle" font-size="' + fs * 0.8 + '" text-anchor="' + ta + '" fill="var(--muted)" font-weight="700">Standing on the deck, looking out</text>';
   }
-  out += '</svg>';
+  var m = (bx1 - bx0 + by1 - by0) * 0.03;
+  out = '<svg viewBox="' + [bx0 - m, by0 - m, bx1 - bx0 + m * 2, by1 - by0 + m * 2].map(function(n){ return n.toFixed(2); }).join(' ') + '" role="img" aria-label="Bird’s-eye layout of unit ' + esc(u.unit || '') + '" style="width:100%;max-height:340px;display:block">' + out + '</svg>';
   var turns = u.secs.slice(0, -1).map(function(run, j){
     var eff = run._turn || '', auto = autoTurnName(run, mnt);
     var opts = [['L', 'Left'], ['S', 'Straight'], ['R', 'Right']].map(function(o){
@@ -1320,7 +1332,28 @@ function showDrivePicker(){
 }
 document.querySelector('label[for="file"]').addEventListener('click', function(e){ if (e.target.id === 'file') return; e.preventDefault(); showDrivePicker(); }, true);
 (function(){ var s = document.querySelector('label[for="file"] .s'); if (s) s.textContent = 'From the Cut Sheets folder in Drive'; })();
-if ('serviceWorker' in navigator) window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+// keep the installed copy current: check for a new version on open and whenever the app comes back to the front
+function showUpdateBar(){
+  if (el('updBar')) return;
+  var bar = document.createElement('div'); bar.id = 'updBar'; bar.className = 'outbox'; bar.setAttribute('role', 'status');
+  bar.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>' +
+    '<span>A new version of the app is ready. Your work is saved.</span><button type="button" class="btn pri" id="updGo">Refresh</button>';
+  var wrap = document.querySelector('.wrap'); wrap.insertBefore(bar, wrap.firstChild);
+  el('updGo').onclick = function(){ location.reload(); };
+}
+if ('serviceWorker' in navigator) window.addEventListener('load', function(){
+  var had = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    var check = function(){ if (navigator.onLine) reg.update().catch(function(){}); };
+    reg.addEventListener('updatefound', function(){
+      var w = reg.installing; if (!w) return;
+      w.addEventListener('statechange', function(){ if ((w.state === 'installed' || w.state === 'activated') && had) showUpdateBar(); });
+    });
+    document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') check(); });
+    window.addEventListener('online', check);
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(function(){});
+});
 })();
 
 </script>
