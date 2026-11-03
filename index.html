@@ -6,7 +6,9 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="robots" content="noindex,nofollow">
-<title>Cut Sheet Input</title>
+<meta name="apple-mobile-web-app-title" content="Rail Measure">
+<meta name="application-name" content="Rail Measure">
+<title>Rail Measure</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap">
 <style>
@@ -783,12 +785,12 @@ function layoutSvg(u){
     var depth = span * 0.3;
     if (segs.length > 1){ var far = 0; xs.forEach(function(px, k){ var dd = (px - big.x1) * dnx + (ys[k] - big.y1) * dny; if (dd > far) far = dd; }); if (far > 0) depth = Math.min(depth, far * 0.5); }
     var fx = (big.x1 + big.x2) / 2 + dnx * Math.max(depth, span * 0.2), fy = (big.y1 + big.y2) / 2 + dny * Math.max(depth, span * 0.2);
-    var ang = Math.atan2(-dny, -dnx) * 180 / Math.PI + 90, f = span * 0.034;
+    var ang = ((u._feet || 0) + (u._rot || 0)) % 360, f = span * 0.034;   // default: facing up (north); turned with its own button
     out += '<g transform="translate(' + fx + ' ' + fy + ') rotate(' + ang + ')" fill="var(--muted)" aria-hidden="true">' +
       '<ellipse cx="' + (-f * 0.9) + '" cy="' + (-f * 0.5) + '" rx="' + f * 0.55 + '" ry="' + f * 1.05 + '"/><ellipse cx="' + (-f * 0.9) + '" cy="' + f * 1.05 + '" rx="' + f * 0.42 + '" ry="' + f * 0.45 + '"/>' +
       '<ellipse cx="' + (f * 0.9) + '" cy="' + (-f * 0.5) + '" rx="' + f * 0.55 + '" ry="' + f * 1.05 + '"/><ellipse cx="' + (f * 0.9) + '" cy="' + f * 1.05 + '" rx="' + f * 0.42 + '" ry="' + f * 0.45 + '"/>' +
       '<path d="M0 ' + (-f * 2.6) + ' l' + (-f * 0.7) + ' ' + f * 0.9 + ' h' + f * 1.4 + 'z"/></g>' +
-      '<text x="' + fx + '" y="' + (fy + (dny < -0.5 ? -1 : 1) * f * 3.6) + '" dominant-baseline="middle" font-size="' + fs * 0.8 + '" text-anchor="middle" fill="var(--muted)" font-weight="700">Standing on the deck, looking out</text>';
+      '<text x="' + fx + '" y="' + (fy + f * 3.6) + '" dominant-baseline="middle" font-size="' + fs * 0.8 + '" text-anchor="middle" fill="var(--muted)" font-weight="700">Standing on the deck, looking out</text>';
   }
   out += '</svg>';
   var turns = u.secs.slice(0, -1).map(function(run, j){
@@ -801,7 +803,7 @@ function layoutSvg(u){
     return '<div class="trow' + (wrong ? ' bad' : '') + '"><span class="tlab">' + esc(secLabel(u, j)) + ' → ' + esc(secLabel(u, j + 1)) + (eff ? '' : ' <em>auto</em>') + '</span><span class="tchips">' + opts + '</span>' +
       (wrong ? '<div class="twarn" role="alert">On a ' + esc(mnt || 'Fascia') + ' mount, ' + esc(run.r) + ' turns ' + (cornerDir(String(run.r), mnt) > 0 ? 'right' : 'left') + '. Check the end type or the turn.</div>' : '') + '</div>';
   }).join('');
-  return out + '<div class="laybar"><span class="lbl">Turns between sections</span><button type="button" class="btn" data-act="rot">Rotate drawing</button>' + (u.secs.some(function(r){ return r._turn; }) ? '<button type="button" class="btn ghost" data-act="turnreset">Reset turns</button>' : '') + '</div>' + turns +
+  return out + '<div class="laybar"><span class="lbl">Turns between sections</span><button type="button" class="btn" data-act="rot">Rotate drawing</button><button type="button" class="btn" data-act="feet">Turn feet · facing ' + ['N', 'E', 'S', 'W'][Math.round(((u._feet || 0) + (u._rot || 0)) % 360 / 90) % 4] + '</button>' + (u.secs.some(function(r){ return r._turn; }) ? '<button type="button" class="btn ghost" data-act="turnreset">Reset turns</button>' : '') + '</div>' + turns +
     '<div class="laykey"><span><i class="k-end"></i>End post</span><span><i class="k-cor"></i>Corner</span><span><i class="k-jt"></i>Joint</span><span>Dashed = no measurement yet</span></div>';
 }
 function updLayout(i){ var b = el('u' + i + '_lay'); if (b && units[i]) b.innerHTML = layoutSvg(units[i]); }
@@ -918,6 +920,7 @@ el('units').addEventListener('click', function(e){
   else if (act === 'scrdel'){ if (!confirmDel(b, 'scr' + p.i + '.' + b.getAttribute('data-k'))) return; u.screens.splice(+b.getAttribute('data-k'), 1); if (!u.screens.length){ u.screen = false; } }
   else if (act === 'turn'){ var tj = +b.getAttribute('data-j'), tv = b.getAttribute('data-t'), sec = u.secs[tj]; sec._turn = autoTurnName(sec, unitSetup(u).mount) === { L:'Left', S:'Straight', R:'Right' }[tv] ? '' : tv; updLayout(p.i); changed(); return; }
   else if (act === 'rot'){ u._rot = ((u._rot || 0) + 90) % 360; updLayout(p.i); changed(); return; }
+  else if (act === 'feet'){ u._feet = ((u._feet || 0) + 90) % 360; updLayout(p.i); changed(); return; }
   else if (act === 'turnreset'){ u.secs.forEach(function(r){ r._turn = ''; }); updLayout(p.i); changed(); return; }
   else if (act === 'del'){ if (!confirmDel(b, 'del' + p.i + '.' + j)) return; u.secs.splice(j, 1); if (!u.secs.length) u.secs.push(blankRun()); }
   else if (act === 'udel'){ if (!confirmDel(b, 'udel' + p.i)) return; units.splice(p.i, 1); if (!units.length) units.push(blankUnit('')); }
