@@ -232,6 +232,16 @@ body.hasfloors .wrap{padding-bottom:210px}
 .modal p{margin:0;font-size:18px;font-weight:700}
 .modal .row{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+.splitfold{margin-top:12px;border-color:var(--aline,#CFE0D8)}
+.splitfold.warn{border-color:var(--need,#E8B864)}
+.splitfold>summary em{font-style:normal;color:var(--muted);font-weight:700;display:inline-flex;align-items:center;gap:8px}
+.splitfold.warn>summary em{color:var(--amberink,#6B4210)}
+.splitfold>summary em span{display:inline-block;transition:transform .15s}
+details.splitfold[open]>summary span{transform:rotate(90deg)}
+.splitfold .splitnote{margin:0}
+.splitnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;margin:-2px 0 10px;padding:10px 14px;border-radius:14px;background:var(--tint2,#E4EDE9);color:var(--deep,#21443A);font-size:15px;font-weight:700;line-height:1.4}
+.splitnote.warn{background:var(--amberbg,#FBEBD0);color:var(--amberink,#6B4210)}
+.splitnote .btn{min-height:44px}
 </style>
 </head><body>
 
@@ -512,7 +522,13 @@ function loadData(data, name, isNew, opts, restore){
     lists.railTypes = colRange(RT, 'A', 4, 21);
     var dv = sheetXml.match(/<dataValidation\b[^>]*sqref="B20:C119"[^>]*>\s*<formula1>"([^"<]*)"<\/formula1>/);
     lists.ends = dv ? dv[1].split(',') : ['E','F','FA','I6','I6A','6EP','6EPA','W','EC','ECO','IC','ICO','FC','FCO','CJ','CJO','CJO-1','3x2E','3x2FE','3x2IE','3x2TE','T','TO'];
-    endDesc = {};
+    endDesc = {}; endCh = {}; railMax = {};
+    for (var q = 4; q <= 94; q++){ var ek = readCell(ET, 'A' + q), eb = readCell(ET, 'E' + q), ec = readCell(ET, 'F' + q); if (ek !== '' && typeof eb === 'number') endCh[String(ek)] = [eb, typeof ec === 'number' ? ec : 0]; }
+    var gnum = function(ref, d){ var v = readCell(ET, ref); return typeof v === 'number' ? v : d; };
+    geo = { p: gnum('S7', 2), ang: gnum('S10', 90), gap: gnum('S11', 1.25), top: gnum('W15', 0), dir: {} };
+    for (var q2 = 11; q2 <= 13; q2++){ var gc = readCell(ET, 'V' + q2), gd = readCell(ET, 'W' + q2); if (gc !== '' && typeof gd === 'number') geo.dir[String(gc)] = gd; }
+    if (!Object.keys(geo.dir).length) geo.dir = { FA: 1, I6A: -1, '6EPA': -1 };
+    for (var q3 = 4; q3 <= 21; q3++){ var rn = readCell(RT, 'A' + q3), rm = readCell(RT, 'E' + q3); if (rn !== '' && typeof rm === 'number') railMax[String(rn)] = rm; }
     for (var r = 4; r <= 94; r++){ var mt = readCell(ET,'B'+r), cd = readCell(ET,'C'+r), ds = readCell(ET,'D'+r); if (cd !== '' && ds !== ''){ endDesc[mt + '|' + cd] = String(ds).trim(); if (!endDesc['*|' + cd]) endDesc['*|' + cd] = String(ds).trim(); } }
     header = {};
     WRITE.forEach(function(f){ header[f.cell] = readCell(sheetXml, f.cell); });
@@ -521,11 +537,13 @@ function loadData(data, name, isNew, opts, restore){
     for (var i = 0; i < MAX_RUNS; i++){
       var row = FIRST_ROW + i, run = {}, any = false;
       RUN_COLS.forEach(function(c){ var v = readCell(sheetXml, c.col + row); run[c.key] = v; if (v !== '') any = true; });
+      var fm = (sheetXml.match(cellRe('F' + row)) || [])[2], ff = fm && fm.match(/<f(?:\s[^>]*)?>\s*=?\(\s*(\d+(?:\.\d+)?)\s*(?:[+-]\s*\d+(?:\.\d+)?)?\s*\)\s*\/\s*(\d)\s*<\/f>/);
+      if (ff) run._spLoad = { total: parseFloat(ff[1]), n: +ff[2] };
       if (any) runs.push(run);
     }
     if (isNew){ header.B4 = ''; runs = []; }
     if (String(header.B10 || '') === '') header.B10 = POST_WALLS[0];
-    units = groupUnits(runs);
+    units = groupUnits(runs); units.forEach(relinkSplits);
     if (!units.length) units.push(blankUnit(''));
     if (restore){ header = Object.assign(header, restore.header); units = restore.units || units; }
     // new jobs from the template are a "building": one tab per floor along the bottom
@@ -678,7 +696,7 @@ function fmtFtIn(v){
 function lenWarn(raw, v){
   var w = [], m = String(raw).trim().match(/^(\d{2,})(\d)\s*\/\s*(\d+)$/);
   if (m) w.push('No space before the fraction. Did you mean ' + m[1] + ' ' + m[2] + '/' + m[3] + '"?');
-  if (v < 6) w.push('Very short. Is that right?'); else if (v > 240) w.push('Over 20 ft. Is that right?');
+  if (v < 6) w.push('Very short. Is that right?'); else if (v > MAX_RAIL) w.push('Over ' + MAX_RAIL + '". Confirm splits it into matching pieces joined CJ → CJO.'); else if (v > 240) w.push('Over 20 ft. Is that right?');
   return w;
 }
 var CHECK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
@@ -691,6 +709,103 @@ function confHtml(run){
 function needsConf(run){ var raw = String(run.len == null ? '' : run.len).trim(); return raw !== '' && !run.lenOk; }
 function totalSecs(){ return units.reduce(function(n, u){ return n + u.secs.length; }, 0); }
 function secLabel(u, j){ return (String(u.unit).trim() || '?') + '.' + (j + 1); }
+
+// ---------- long-rail splitter: over 255" splits into pieces joined by CJ / CJO, every piece gets the same channels ----------
+var MAX_RAIL = 255, endCh = {}, railMax = {}, geo = { p: 2, ang: 90, gap: 1.25, top: 0, dir: { FA: 1, I6A: -1, '6EPA': -1 } };
+// channel deduction for one end, the same way the ENGINE tab works it out (base + coeff x standoff; angled double corners by geometry)
+function chDed(code, mount, g, ang){
+  var d = geo.dir[code] || 0;
+  if (d){
+    var bc = g + (mount === 'Top' ? geo.top : 0), bg = d === 1 ? bc : -(bc + geo.p), a = parseLen(String(ang == null ? '' : ang)), A = ((a > 0 ? a : geo.ang) / 2) * Math.PI / 180;
+    return -((geo.gap / 2 - bg * Math.cos(A)) / Math.sin(A) + geo.p);
+  }
+  var s = endCh[mount + '|' + code]; return s ? s[0] + s[1] * g : null;
+}
+// what the ENGINE adds to the measurement to get the channel run (W0) for this piece; floats replace the end's deduction
+function pieceAdj(run, mount, so){
+  var m = run.ns === 'Yes' ? 'Top' : mount, g = m === 'Top' ? 0 : (parseLen(String(so == null ? '' : so)) || 0);
+  var fl = parseLen(String(run.fl == null ? '' : run.fl)), fr = parseLen(String(run.fr == null ? '' : run.fr));
+  var a = fl > 0 ? -fl - 2 : chDed(run.l, m, g, run.al), b = fr > 0 ? -fr - 2 : chDed(run.r, m, g, run.ar);
+  return { v: (a === null ? 0 : a) + (b === null ? 0 : b), guess: a === null || b === null };
+}
+function chanInfo(W, run){
+  var I = railMax[String(header.B8 || '')] || 46, mid = parseInt(run.mid, 10) || 0;
+  var V = Math.max(0, Math.max(0, Math.ceil((W - I) / (I + 2) - 1e-9)) + mid), P = V + 1;
+  return { n: P, each: Math.round((W - 2 * V) / P * 16) / 16 };
+}
+// lengths for a set of pieces that add up to the total and all end up with the same channel run
+function splitLens(pieces, total, u){
+  var s = unitSetup(u), adj = pieces.map(function(r){ return pieceAdj(r, s.mount, s.standoff); });
+  var sum = adj.reduce(function(t, a){ return t + a.v; }, 0), N = pieces.length, W = (total + sum) / N;
+  return { W: W, guess: adj.some(function(a){ return a.guess; }), lens: adj.map(function(a){ return W - a.v; }), offs: adj.map(function(a){ return sum - N * a.v; }) };
+}
+function piecesFor(run, N){
+  var out = [];
+  for (var k = 0; k < N; k++){
+    var c = JSON.parse(JSON.stringify(run)); c._open = false; c.lenOk = true; c._carried = false; c._floatsOk = run._floatsOk;
+    if (k > 0){ c.l = 'CJO'; c.fl = ''; c.ol = ''; c.pl = ''; c.al = ''; c._carried = true; }
+    if (k < N - 1){ c.r = 'CJ'; c.fr = ''; c.or = ''; c.pr = ''; c.ar = ''; }
+    out.push(c);
+  }
+  return out;
+}
+function splitRun(u, j){
+  var run = u.secs[j], total = parseLen(String(run.len)); if (!(total > 0)) return false;
+  var N = 2, pcs, res;
+  while (true){ pcs = piecesFor(run, N); res = splitLens(pcs, total, u); if (N >= 6 || Math.max.apply(null, res.lens) <= MAX_RAIL) break; N++; }
+  if (totalSecs() + N - 1 > MAX_RUNS){ msg('The cut sheet holds ' + MAX_RUNS + ' sections. No room to split ' + secLabel(u, j) + '.'); return false; }
+  var id = 'sp' + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
+  pcs.forEach(function(c, k){ c._sp = { id: id, n: N, k: k, total: total }; delete c._spLoad; });
+  Array.prototype.splice.apply(u.secs, [j, 1].concat(pcs));
+  resplitUnit(u); return true;
+}
+function groupAt(u, id){ var out = []; u.secs.forEach(function(r, j){ if (r._sp && r._sp.id === id) out.push(j); }); return out; }
+function unlinkSplit(u, id){ groupAt(u, id).forEach(function(j){ delete u.secs[j]._sp; delete u.secs[j]._spInfo; }); }
+// keep split pieces matched when their codes, floats, angles or the standoff change; drop links that no longer make sense
+function resplitUnit(u){
+  var seen = {};
+  u.secs.forEach(function(r){
+    if (!r._sp || seen[r._sp.id]) return; var id = r._sp.id; seen[id] = 1;
+    var js = groupAt(u, id), n = r._sp.n, ok = js.length === n && js.every(function(j, k){ return j === js[0] + k && u.secs[j]._sp.k === k; });
+    if (!ok) return unlinkSplit(u, id);
+    var pcs = js.map(function(j){ return u.secs[j]; }), res = splitLens(pcs, r._sp.total, u);
+    var ch = pcs.map(function(p, k){ return chanInfo(res.W, p); }), match = ch.every(function(c){ return c.n === ch[0].n && c.each === ch[0].each; });
+    pcs.forEach(function(p, k){ p.len = String(Math.round(res.lens[k] * 1e4) / 1e4); p.lenOk = true; p._spOff = Math.round(res.offs[k] * 1e4) / 1e4; p._spInfo = { guess: res.guess, ch: ch[0], match: match, longest: Math.max.apply(null, res.lens) }; });
+  });
+}
+function relinkSplits(u){
+  for (var j = 0; j < u.secs.length; j++){
+    var r = u.secs[j], L = r._spLoad; if (!L) continue;
+    var js = []; for (var k = 0; k < L.n && j + k < u.secs.length; k++){ var q = u.secs[j + k]._spLoad; if (q && q.total === L.total && q.n === L.n) js.push(j + k); else break; }
+    if (js.length === L.n){ var id = 'sp' + j + '_' + Math.floor(Math.random() * 1e6); js.forEach(function(x, k){ u.secs[x]._sp = { id: id, n: L.n, k: k, total: L.total }; delete u.secs[x]._spLoad; }); j += L.n - 1; }
+    else delete r._spLoad;
+  }
+  resplitUnit(u);
+}
+function unsplit(u, j){
+  var id = u.secs[j]._sp && u.secs[j]._sp.id; if (!id) return;
+  var js = groupAt(u, id), first = u.secs[js[0]], last = u.secs[js[js.length - 1]];
+  ['r', 'fr', 'or', 'pr', 'ar'].forEach(function(k){ first[k] = last[k]; });
+  first.len = String(first._sp.total); first.lenOk = true; first._open = true; first._noSplit = true;
+  delete first._sp; delete first._spInfo; delete first._spOff;
+  u.secs.splice(js[0] + 1, js.length - 1);
+}
+// all of a unit's splits in one fold at the bottom of the unit; closed by default, remembers if you open it
+function splitBox(u){
+  var notes = u.secs.map(function(r, j){ return splitNote(u, j); }).filter(Boolean); if (!notes.length) return '';
+  var bad = u.secs.some(function(r){ return r._spInfo && (r._spInfo.guess || !r._spInfo.match || r._spInfo.longest > MAX_RAIL); });
+  return '<details class="fold splitfold' + (bad ? ' warn' : '') + '"' + (u._splitOpen || bad ? ' open' : '') + ' data-ufold="split"><summary>' + notes.length + ' rail' + (notes.length === 1 ? '' : 's') + ' split' +
+    '<em>' + (bad ? 'Check' : 'Channels matching') + ' <span>›</span></em></summary><div class="in">' + notes.join('') + '</div></details>';
+}
+function splitNote(u, j){
+  var r = u.secs[j]; if (!r._sp || r._sp.k !== r._sp.n - 1 || !r._spInfo) return '';
+  var i0 = j - r._sp.n + 1, inf = r._spInfo, names = []; for (var k = i0; k <= j; k++) names.push(secLabel(u, k));
+  var line = inf.guess ? 'Pick both end codes so the split lengths come out right.' :
+    (inf.match ? inf.ch.n + ' channel' + (inf.ch.n === 1 ? '' : 's') + ' @ ' + fmtFrac(inf.ch.each).replace(/"$/, '') + ' each on every piece, matching.' : 'Channels don’t match (check Mid ±).') +
+    (inf.longest > MAX_RAIL ? ' A piece is still over ' + MAX_RAIL + '.' : '');
+  return '<div class="splitnote' + (inf.guess || !inf.match ? ' warn' : '') + '" data-s="' + i0 + '"><div><b>' + esc(names.join(' + ')) + '</b> split from ' + esc(fmtFrac(r._sp.total)) + '. ' + esc(line) +
+    ' Joined with CJ → CJO.</div><button type="button" class="btn ghost" data-act="unsplit">Undo split</button></div>';
+}
 function unitSum(u){
   var len = 0, n = 0;
   u.secs.forEach(function(s){ var v = parseLen(s.len); if (v !== null && !isNaN(v)){ len += v; n++; } });
@@ -729,7 +844,7 @@ function secHtml(u, i, run, j){
   if (run.lenOk && !run._open && String(run.len).trim() !== ''){
     var v = parseLen(run.len);
     return '<button type="button" class="secrow" data-s="' + j + '" data-act="open" aria-label="Edit section ' + esc(secLabel(u, j)) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
-      '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + '</span>' +
+      '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + (run._sp ? ' · split' : '') + '</span>' +
       '<span class="len">' + esc(fmtFrac(v)) + '</span></button>';
   }
   // open "More options" only for values set there, not for Non-Sub set by "Rail is floating"
@@ -739,6 +854,7 @@ function secHtml(u, i, run, j){
   return '<div class="sec' + (needsConf(run) ? ' unconf' : '') + '" data-s="' + j + '">' +
     '<div class="top"><b>Section <span data-lab>' + esc(secLabel(u, j)) + '</span></b><span>' +
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
+      (!run._sp && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
       '<button type="button" class="btn" data-act="dup">Copy</button> <button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
     '<div class="g2"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select></div>' +
       '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select></div></div>' +
@@ -776,7 +892,7 @@ function unitHtml(u, i){
     (u._dr ? drawHtml(u, i) : '') +
     (u._layout ? '<div class="layout' + (u._full ? ' full' : '') + '" id="u' + i + '_lay">' + layoutSvg(u) + '</div>' : '') +
     u.secs.map(function(run, j){ return secHtml(u, i, run, j); }).join('') +
-    addButtons(u) + '</div>';
+    addButtons(u) + splitBox(u) + '</div>';
 }
 function addButtons(u){
   return '<div class="addrow"><button type="button" class="addsec" data-act="addsec">+ Add section ' + esc(secLabel(u, u.secs.length)) + '</button>' +
@@ -784,6 +900,7 @@ function addButtons(u){
 }
 function renderRuns(){
   parkFrac();
+  units.forEach(resplitUnit);
   el('units').innerHTML = units.map(unitHtml).join('');
   units.forEach(function(u, i){ if (u._dr) initDraw(u, i); if (u._full && !u._layout) u._full = false; });
   units.forEach(function(u){ if (!u._dr) u._drFull = false; });
@@ -1256,7 +1373,7 @@ el('units').addEventListener('input', function(e){
   else if (uf === 'post' || uf === 'block' || uf === 'standoff'){ p.u[uf] = t.value; showHint(t); updNote(p.i); }
   else if (key && p.j >= 0 && t.tagName === 'INPUT'){
     var run = p.u.secs[p.j]; run[key] = t.value; if (t.hasAttribute('data-frac')) showHint(t);
-    if (key === 'len'){ run.lenOk = false; el('u' + p.i + '_sum').textContent = unitSum(p.u); updConf(p); updLayout(p.i); }
+    if (key === 'len'){ if (run._sp){ unlinkSplit(p.u, run._sp.id); var sn = p.box.querySelector('.splitnote'); if (sn) sn.remove(); } run.lenOk = false; el('u' + p.i + '_sum').textContent = unitSum(p.u); updConf(p); updLayout(p.i); }
     if (key === 'ar' || key === 'al') updLayout(p.i);
     if (key === 'fl' || key === 'fr'){
       run._floatsOk = false; updLayout(p.i);
@@ -1275,6 +1392,10 @@ function sortUnits(){
   if (floors && floors[curFloor]) floors[curFloor].units = units;
   return units.some(function(u, k){ return u !== before[k]; });
 }
+el('units').addEventListener('toggle', function(e){
+  var d = e.target; if (!d.matches || !d.matches('details[data-ufold="split"]')) return;
+  var p = at(d); if (p) p.u._splitOpen = d.open;
+}, true);
 el('units').addEventListener('change', function(e){
   var t = e.target, p = at(t); if (!p) return;
   if (t.getAttribute('data-ufield') === 'unit'){
@@ -1316,9 +1437,11 @@ el('units').addEventListener('change', function(e){
     var fr = p.u.secs[p.j]; fr._floatRail = t.checked; fr.ns = t.checked ? 'Yes' : '';
     renderRuns(); changed(); return;
   }
+  if (key && t.tagName === 'INPUT' && p.j >= 0 && p.u.secs[p.j] && p.u.secs[p.j]._sp && /^(fl|fr|al|ar|mid)$/.test(key)){ renderRuns(); changed(); return; }
   if (key && t.tagName === 'SELECT' && p.j >= 0){
     var rs = p.u.secs[p.j], before = isFloatCombo(rs);
     rs[key] = t.value; if (key === 'l') rs._carried = false; updLayout(p.i);
+    if (rs._sp){ renderRuns(); changed(); var ag = el('u' + p.i + 's' + p.j + '_' + key); if (ag) ag.focus(); return; }
     if (before !== isFloatCombo(rs)){
       if (!isFloatCombo(rs) && rs._floatRail){ rs._floatRail = false; rs.ns = ''; }
       renderRuns(); changed();
@@ -1347,7 +1470,12 @@ el('units').addEventListener('click', function(e){
   var b = e.target.closest('[data-act]'); if (!b) return;
   var p = at(b); if (!p) return;
   var act = b.getAttribute('data-act'), u = p.u, j = p.j, focus = null, scrollTo = null;
-  if (act === 'ok'){ u.secs[j].lenOk = true; u.secs[j]._open = false; }
+  if (act === 'ok'){
+    var okr = u.secs[j]; okr.lenOk = true; okr._open = false;
+    if (!okr._sp && !okr._noSplit && parseLen(String(okr.len)) > MAX_RAIL) splitRun(u, j);
+  }
+  else if (act === 'split'){ if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); var spr = u.secs[j]; spr.lenOk = true; delete spr._noSplit; if (!splitRun(u, j)) return; }
+  else if (act === 'unsplit'){ unsplit(u, j); }
   else if (act === 'open'){ u.secs[j]._open = true; focus = 'u' + p.i + 's' + j + '_len'; }
   else if (act === 'close'){ u.secs[j]._open = false; }
   else if (act === 'layout'){ u._layout = !u._layout; }
@@ -1383,7 +1511,7 @@ el('units').addEventListener('click', function(e){
   else if (act === 'del'){ if (!confirmDel(b, 'del' + p.i + '.' + j)) return; u.secs.splice(j, 1); if (!u.secs.length) u.secs.push(blankRun()); }
   else if (act === 'udel'){ if (!confirmDel(b, 'udel' + p.i)) return; units.splice(p.i, 1); if (!units.length) units.push(blankUnit('')); }
   else if (totalSecs() >= MAX_RUNS){ return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.'); }
-  else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); c.len = ''; c.lenOk = false; c._open = true; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
+  else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); c.len = ''; c.lenOk = false; c._open = true; delete c._sp; delete c._spInfo; delete c._spOff; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
   else if (act === 'addsec'){
     var last = u.secs[u.secs.length - 1], r = blankRun();
     if (last){ last._open = false; if (CARRY[last.r]){ r.l = CARRY[last.r]; r._carried = true; } }
@@ -1489,11 +1617,22 @@ function buildXml(hdr, rows, errs){
   for (var i = 0; i < MAX_RUNS; i++){
     var row = FIRST_ROW + i, run = rows[i];
     RUN_COLS.forEach(function(c){
-      try { xml = writeCell(xml, c.col + row, run ? valueFor({ label: run.tag + ' ' + c.label, type: c.type, key: c.key }, run[c.key]) : ''); }
+      try { var cv = run ? valueFor({ label: run.tag + ' ' + c.label, type: c.type, key: c.key }, run[c.key]) : ''; xml = c.key === 'len' ? writeLen(xml, c.col + row, cv, run) : writeCell(xml, c.col + row, cv); }
       catch (e) { errs.push(e.message); }
     });
   }
   return xml;
+}
+// measurement cell: split pieces go in as =(original ± offset)/pieces; a formula left from an earlier save is cleared first
+function writeLen(xml, ref, v, run){
+  var re = cellRe(ref), m = xml.match(re);
+  if (m && /<f[\s>]/.test(m[2] || '')){ var a0 = (m[1] || '').replace(/\s(t|cm|vm)="[^"]*"/g, ''); xml = xml.replace(re, function(){ return '<c r="' + ref + '"' + a0 + '/>'; }); }
+  xml = writeCell(xml, ref, v);
+  if (!run || !run._sp || typeof v !== 'number' || run._spOff == null) return xml;
+  var o = run._spOff, num = function(x){ return String(Math.round(x * 1e4) / 1e4); };
+  var f = '(' + num(run._sp.total) + (Math.abs(o) > 1e-6 ? (o > 0 ? '+' : '-') + num(Math.abs(o)) : '') + ')/' + run._sp.n;
+  var m2 = xml.match(re), a = ((m2 && m2[1]) || '').replace(/\s(t|cm|vm)="[^"]*"/g, '');
+  return xml.replace(re, function(){ return '<c r="' + ref + '"' + a + '><f>' + f + '</f><v>' + v + '</v></c>'; });
 }
 var SCR_FIRST = 7, SCR_MAX = 50;
 function buildScreenBlob(rw, ww){
@@ -1584,6 +1723,7 @@ function saveToTablet(blob, name){
 }
 el('save').onclick = function(){
   clearMsg();
+  units.forEach(resplitUnit);
   var errs = [], seenU = {}, groups = {}, mainKey = setupKey(unitSetup({}));
   if (!String(header.B4 || '').trim()) errs.push('Enter the job name (it becomes the file name)');
   else if (floors && floors.some(function(f, k){ return k !== curFloor && String(f.header.B4 || '').trim().toLowerCase() === String(header.B4).trim().toLowerCase(); })) errs.push('Another floor tab already has the name “' + String(header.B4).trim() + '”. Give this floor its own name so it doesn’t replace that one in Drive');
