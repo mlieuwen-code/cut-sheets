@@ -40,9 +40,30 @@ h1,h2{text-wrap:balance}
 
 .outbox{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:18px;padding:12px 16px;margin:0 0 14px;background:var(--amberbg);color:var(--amberink);font-weight:800;line-height:1.4}
 .outbox span{flex:1 1 220px}
-.btn.stdbtn{width:100%;min-height:60px;margin-top:12px;justify-content:flex-start;text-align:left;flex-wrap:wrap;gap:4px 12px;background:var(--tint2);color:var(--deep);border:2px solid var(--aline)}
+.jobwarn{margin-top:8px;border-radius:12px;padding:10px 12px;background:var(--badbg);color:var(--bad);font-size:15px;font-weight:800;line-height:1.4}
+@keyframes flashin{0%{box-shadow:0 0 0 4px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+.flash{animation:flashin 1.6s ease-out}
+.jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
+ @media (max-width:560px){.apphead{flex-wrap:wrap!important;row-gap:8px}.apphead .ttl{order:3;flex:1 1 100%!important}.apphead #draftPill{margin-left:auto}}
+.btn.backbtn{flex-shrink:0;min-height:56px;padding:0 18px 0 12px;gap:4px;background:var(--card);border:2px solid var(--line);font-size:17px;font-weight:900;white-space:nowrap}
+.swipewrap{position:relative;margin-top:12px;border-radius:24px;overflow:hidden}
+.swipewrap .row{margin-top:0!important;position:relative;z-index:1;user-select:none;-webkit-user-select:none}
+.swipebg{position:absolute;inset:0;border-radius:24px;background:#F3C9C3;display:flex;align-items:center;justify-content:flex-end;padding:0 24px;color:var(--bad);font-weight:900;font-size:18px;transition:background .15s}
+.swipebg.arm{background:var(--bad);color:#fff}
+.swipehint{margin:8px 4px 0;font-size:14px;font-weight:700;color:var(--muted)}
+.undobar{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:14px;background:var(--ink);color:#fff;border-radius:16px;padding:10px 12px 10px 18px;font-weight:800;box-shadow:0 6px 24px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.undobar .btn{min-height:44px;background:#fff;color:var(--ink)}
+.stepbadge{flex-shrink:0;font-size:14px;font-weight:900;border-radius:10px;padding:4px 8px;margin-left:6px}
+.stepbadge.up,.stepbox.up{background:#E4EDE9;color:#21443A;border:2px solid #2F5D50}
+.stepbadge.down,.stepbox.down{background:#FBEBD0;color:#6B4210;border:2px solid #C98A2B}
+.stepbox{border-radius:12px;padding:8px 12px;font-size:16px;font-weight:900;margin:0 0 8px}
+.topdim .topnote{display:none}
+.topdim.off>.fld{opacity:.38;filter:grayscale(1)}
+.topdim.off .topnote{display:block;grid-column:1/-1;margin-top:-4px;font-size:15px;font-weight:800;color:var(--muted)}
+.stephint{font-size:15px;font-weight:700;color:var(--muted);margin:-4px 2px 8px;line-height:1.4}
+.btn.stdbtn{width:100%;min-height:60px;margin:2px 0 14px;justify-content:flex-start;text-align:left;flex-wrap:wrap;gap:4px 12px;background:var(--tint2);color:var(--deep);border:2px solid var(--aline)}
 .stdbtn span{font-weight:700;color:var(--deep);opacity:.85}
-.stdok{margin-top:12px;font-size:15px;font-weight:800;color:var(--deep);background:var(--tint);border-radius:12px;padding:10px 14px}
+.stdok{margin:2px 0 14px;font-size:15px;font-weight:800;color:var(--deep);background:var(--tint);border-radius:12px;padding:10px 14px}
 .obcard .dot.wait{background:var(--amber,#C98A2B)}
 .obcard .dot.ok{background:var(--accent)}
 .oblist{display:flex;flex-direction:column;gap:10px;overflow-y:auto;max-height:52vh}
@@ -90,7 +111,7 @@ h1,h2{text-wrap:balance}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:0;border-radius:14px;padding:0 18px;background:var(--chip);color:var(--ink);font-size:16px;font-weight:800}
 .btn.pri{background:var(--accent);color:var(--onaccent)}
 .btn.ghost{background:transparent}
-.btn.danger{background:transparent;color:var(--bad)}
+.btn.danger{background:var(--badbg,#FBE9E6);color:var(--bad);border:2px solid #EBC3BD}
 .btn.big{min-height:64px;border-radius:20px;font-size:20px;font-weight:900;width:100%}
 .btn:disabled{opacity:.55}
 
@@ -279,11 +300,11 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
     <div class="bigbtns">
       <button type="button" class="bigbtn pri" id="newJob">
         <span class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FFFDF9" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
-        <span><strong>Start a new job</strong><span class="s">Fresh cut sheet from the template</span></span>
+        <span><strong>Start a new job.</strong><span class="s">Fresh cut sheet from the template.</span></span>
       </button>
       <label class="bigbtn" for="file" style="cursor:pointer">
         <span class="ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2A2622" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
-        <span><strong>Open a saved sheet</strong><span class="s">Pick an .xlsx from this tablet</span></span>
+        <span><strong>Open a saved sheet.</strong><span class="s">Pick a sheet from this tablet.</span></span>
         <input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
       </label>
     </div>
@@ -319,8 +340,8 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 
   <section id="app" hidden>
     <div class="apphead">
-      <button type="button" class="round" id="back" aria-label="Back to start"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2A2622" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-      <div class="ttl"><div class="eyebrow" id="eyebrow">Step 1 of 2</div><h2><span id="screenTitle">Job info</span><span class="mbadge" id="mbadge" hidden></span></h2></div>
+      <button type="button" class="btn backbtn" id="back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Start page</button>
+      <div class="ttl"><div class="eyebrow" id="eyebrow">Step 1 of 2</div><h2><span id="screenTitle">Job Info</span><span class="mbadge" id="mbadge" hidden></span></h2></div>
       <span class="pill" id="draftPill" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Draft saved</span>
     </div>
 
@@ -502,18 +523,27 @@ function stdFor(m){
   ['B11', 'B12', 'B13'].forEach(function(c){ var v = s[c]; if (typeof v === 'number' || (v !== '' && v != null && !isNaN(parseFloat(v)))){ out[c] = +v; any = true; } });
   return any ? out : null;
 }
+// top mount: bracket height and standoff don't apply, so grey them out (unless a unit is set to another mount)
+function updTopDim(){
+  var d = el('topDim'); if (!d) return;
+  var top = String(header.B7 || '') === 'Top' && !units.some(function(u){ return u.mountDiff && u.mount && u.mount !== 'Top'; });
+  d.classList.toggle('off', top);
+  Array.prototype.forEach.call(d.querySelectorAll('button, input'), function(x){ x.disabled = top; });
+}
 function updStd(){
   var slot = el('stdSlot'); if (!slot) return;
   var m = String(header.B7 || ''), st = stdFor(m);
   if (!st){ slot.innerHTML = m && STD[m] ? '<div class="stdok" style="background:none;padding:4px 2px;color:var(--muted)">No standard for ' + esc(m) + ' mount: standoff, post and block height vary by site.</div>' : ''; return; }
-  var names = { B11: 'standoff', B12: 'post', B13: 'block' }, parts = [], same = true;
-  ['B11', 'B12', 'B13'].forEach(function(c){ if (!(c in st)) return; parts.push(names[c] + ' ' + fmtFrac(st[c])); var cur = parseLen(String(header[c] == null ? '' : header[c])); if (cur === null || isNaN(cur) || Math.abs(cur - st[c]) > 1e-6) same = false; });
+  var names = { B11: 'standoff', B12: 'post', B13: 'block' }, parts = [], same = true, br = STD_BRACKET[m];
+  if (br){ parts.push('bracket ' + br.replace('.5', '½') + '"'); if (String(header.B9 || '') !== br) same = false; }
+  ['B11', 'B12', 'B13'].forEach(function(c){ if (!(c in st) || (c === 'B11' && m === 'Top')) return; parts.push(names[c] + ' ' + fmtFrac(st[c])); var cur = parseLen(String(header[c] == null ? '' : header[c])); if (cur === null || isNaN(cur) || Math.abs(cur - st[c]) > 1e-6) same = false; });
   slot.innerHTML = same ? '<div class="stdok">✓ Standard ' + esc(m) + ' heights</div>' :
     '<button type="button" class="btn stdbtn" data-act="std">Use standard ' + esc(m) + ' <span>' + esc(parts.join(' · ')) + '</span></button>';
 }
 // shorter colour names on screen only; the cut sheet still gets the full name from the template list
 var COLOUR_LABEL = { 'Carbon Black': 'Black', 'WW White': 'White' };
 function colourLabel(c){ return COLOUR_LABEL[String(c)] || String(c); }
+var STD_BRACKET = { Fascia: '5' };   // standard bracket height per mount (Top has none)
 var MOUNTS = ['Fascia','Inside','Top'], MOUNT_COLOR = { Fascia:'#2F5D50', Inside:'#8A3A34', Top:'#2D5577' };
 
 var floors = null, curFloor = 0, OPEN_KEY = 'ridgeway-open';
@@ -540,7 +570,50 @@ function readDraft(name){ try { return JSON.parse(localStorage.getItem(DRAFT_PRE
   el('resumeInfo').textContent = (d.floors && d.floors.length > 1 ? d.floors.length + ' floors · ' : '') + 'Draft · ' + d.units.length + ' unit' + (d.units.length === 1 ? '' : 's') + ', ' + secs + ' section' + (secs === 1 ? '' : 's') + ' · ' + new Date(d.t).toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' });
   el('resume').hidden = false;
   el('resumeBtn').onclick = function(){ startNew(d); };
+  swipeToDelete(el('resume').querySelector('.row'), d);
 })();
+// swipe the draft card left to delete it, with a few seconds to undo
+function swipeToDelete(row, d){
+  if (!row) return;
+  var wrap = document.createElement('div'); wrap.className = 'swipewrap';
+  row.parentNode.insertBefore(wrap, row); wrap.appendChild(row);
+  var bg = document.createElement('div'); bg.className = 'swipebg'; bg.innerHTML = '<span>Delete draft</span>'; wrap.insertBefore(bg, row);
+  var x0 = null, y0 = 0, dx = 0, live = false, t0 = 0;
+  row.style.touchAction = 'pan-y';
+  row.addEventListener('pointerdown', function(e){ if (e.target.closest('button') && e.pointerType === 'mouse') return; x0 = e.clientX; y0 = e.clientY; dx = 0; live = false; t0 = Date.now(); });
+  row.addEventListener('pointermove', function(e){
+    if (x0 === null) return;
+    var mx = e.clientX - x0, my = e.clientY - y0;
+    if (!live){ if (Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.3 && mx < 0){ live = true; try { row.setPointerCapture(e.pointerId); } catch (er) {} row.style.transition = 'none'; } else if (Math.abs(my) > 12){ x0 = null; return; } else return; }
+    dx = Math.min(0, mx); row.style.transform = 'translateX(' + dx + 'px)'; bg.classList.toggle('arm', -dx > row.offsetWidth * 0.4);
+  });
+  var end = function(){
+    if (x0 === null) return; x0 = null; if (!live) return;
+    var fast = -dx / Math.max(1, Date.now() - t0) > 0.8 && -dx > 60;
+    row.style.transition = 'transform .2s ease';
+    if (-dx > row.offsetWidth * 0.4 || fast){
+      row.style.transform = 'translateX(-110%)';
+      setTimeout(function(){ el('resume').hidden = true; removeDraft(d); }, 200);
+    } else { row.style.transform = ''; bg.classList.remove('arm'); }
+    // a swipe isn't a tap on Resume
+    var stop = function(ev){ ev.stopPropagation(); ev.preventDefault(); row.removeEventListener('click', stop, true); }; row.addEventListener('click', stop, true); setTimeout(function(){ row.removeEventListener('click', stop, true); }, 400);
+  };
+  row.addEventListener('pointerup', end); row.addEventListener('pointercancel', end);
+}
+function removeDraft(d){
+  var key = DRAFT_PREFIX + 'new-job', raw = null, open = null;
+  try { raw = localStorage.getItem(key); open = localStorage.getItem(OPEN_KEY); localStorage.removeItem(key); if (open && /"new-job"/.test(open)) localStorage.removeItem(OPEN_KEY); } catch (e) {}
+  var t = document.createElement('div'); t.className = 'undobar'; t.setAttribute('role', 'status');
+  t.innerHTML = '<span>Draft “' + esc((d.header && String(d.header.B4 || '').trim()) || 'Untitled job') + '” deleted.</span><button type="button" class="btn">Undo</button>';
+  document.body.appendChild(t);
+  var gone = setTimeout(function(){ t.remove(); }, 7000);
+  t.querySelector('button').onclick = function(){
+    clearTimeout(gone); t.remove();
+    try { if (raw) localStorage.setItem(key, raw); if (open) localStorage.setItem(OPEN_KEY, open); } catch (e) {}
+    var row = el('resume').querySelector('.row'); if (row){ row.style.transition = 'none'; row.style.transform = ''; } var bg = el('resume').querySelector('.swipebg'); if (bg) bg.classList.remove('arm');
+    el('resume').hidden = false;
+  };
+}
 
 // ---------- load ----------
 function startNew(restore){ loadData(TEMPLATE_B64, 'new-job', true, { base64: true }, restore); }
@@ -555,11 +628,14 @@ function loadData(data, name, isNew, opts, restore){
     var paths = sheetPaths(a[1], a[2]);
     if (!paths.INPUT) throw new Error('This file has no INPUT tab. Is it the Ridgeway cut sheet?');
     inputPath = paths.INPUT;
-    var need = ['LISTS','SPEC_RailTypes','SPEC_EndTypes'].map(function(n){ return paths[n] && z.file(paths[n]) ? z.file(paths[n]).async('string') : Promise.resolve(''); });
+    customPath = paths['CUSTOM POSTS'] || '';
+    var need = ['LISTS','SPEC_RailTypes','SPEC_EndTypes','CUSTOM POSTS'].map(function(n){ return paths[n] && z.file(paths[n]) ? z.file(paths[n]).async('string') : Promise.resolve(''); });
     return Promise.all([z.file(inputPath).async('string')].concat(need));
   }).then(function(x){
     sheetXml = x[0];
-    var L = x[1], RT = x[2], ET = x[3];
+    var L = x[1], RT = x[2], ET = x[3], CPX = x[4] || '';
+    endCat = {};
+    for (var ec4 = 4; ec4 <= 94; ec4++){ var eck = readCell(ET, 'A' + ec4), ecv = readCell(ET, 'M' + ec4); if (eck !== '') endCat[String(eck)] = String(ecv || '').toLowerCase(); }
     lists.colours = colRange(L, 'A', 2, 40).filter(function(s){ return s.length < 40; });
     lists.glass = colRange(L, 'C', 2, 12);
     lists.channels = colRange(L, 'R', 3, 11);
@@ -598,6 +674,7 @@ function loadData(data, name, isNew, opts, restore){
     }
     if (isNew){ header.B4 = ''; runs = []; }
     if (String(header.B10 || '') === '') header.B10 = POST_WALLS[0];
+    readSteps(runs, CPX);
     units = groupUnits(runs); units.forEach(relinkSplits);
     if (!units.length) units.push(blankUnit(''));
     if (restore){ header = Object.assign(header, restore.header); units = restore.units || units; }
@@ -658,17 +735,18 @@ function renderHeader(){
   });
   var nChan = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length;
   el('tab-job').innerHTML =
-    '<div class="card"><div class="fld job"><label for="h_B4">Job name <em>· becomes the file name</em></label><input id="h_B4" data-cell="B4" type="text" autocomplete="off" placeholder="e.g. Maple Ridge Townhomes" value="' + esc(header.B4) + '"></div></div>' +
+    '<div class="card"><div class="fld job"><label for="h_B4">Job name <em>· becomes the file name</em></label><div class="jobhelp">Building name and floor</div><input id="h_B4" data-cell="B4" type="text" autocomplete="off" placeholder="e.g. Woodbine 4th Floor" value="' + esc(header.B4) + '"><div class="jobwarn" id="jobWarn" hidden></div></div></div>' +
     '<div class="card"><h3>Rail setup</h3>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
         '<input id="h_B6o" type="text" autocomplete="off" aria-label="Other colour" placeholder="Type the colour" value="' + esc(isOther ? col : '') + '"' + (isOther ? '' : ' hidden') + ' style="margin-top:4px;border-color:var(--need);background:var(--needbg)"></div>' +
         selField('h_B8', 'Rail type', lists.railTypes, header.B8, ' data-cell="B8"') + '</div>' +
       chips('B7', 'Mount', MOUNTS, null, MOUNT_COLOR) +
-      '<div class="g2" data-fracslot>' + chips('B9', 'Bracket height', ['4','4.5','5'], ['4','4½','5']) +
-        numField('h_B11', 'Standoff (in)', header.B11, { need: true, ph: 'Std Fascia 1 1/2 · Top 0', attrs: ' data-cell="B11"' }) + '</div>' +
+      '<div id="stdSlot"></div>' +
+      '<div class="g2 topdim" id="topDim" data-fracslot>' + chips('B9', 'Bracket height', ['4','4.5','5'], ['4"','4½"','5"']) +
+        numField('h_B11', 'Standoff (in)', header.B11, { need: true, ph: 'Std Fascia 1 1/2 · Top 0', attrs: ' data-cell="B11"' }) +
+        '<div class="topnote">Top mount has no bracket or standoff</div></div>' +
       '<div class="g2" data-fracslot>' + numField('h_B12', 'Post height (in)', header.B12, { need: true, ph: 'Std Fascia 49 1/2 · Top 40 1/2', attrs: ' data-cell="B12"' }) +
         numField('h_B13', 'Block height (in)', header.B13, { need: true, ph: 'Std 38 5/16', attrs: ' data-cell="B13"' }) + '</div>' +
-      '<div id="stdSlot"></div>' +
     '</div>' +
     '<div class="card"><h3>Glass &amp; substrate</h3><div class="g3" data-fracslot>' +
       selField('h_B14', 'Glass', lists.glass, header.B14, ' data-cell="B14"') + selField('h_B15', 'Glass bottom', lists.glass, header.B15, ' data-cell="B15"') +
@@ -688,7 +766,9 @@ function renderHeader(){
   if (floors && floors.length > 1){
     var rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn danger'; rm.id = 'rmFloor'; rm.textContent = 'Remove this floor tab'; rm.style.alignSelf = 'center';
     el('tab-job').appendChild(rm); rm.onclick = removeFloor;
-  }  updStd();
+  }
+  updStd(); updTopDim(); updJobWarn();
+  driveNamesQuick().then(function(){ updJobWarn(); });
 }
 el('tab-job').addEventListener('input', function(e){
   var t = e.target;
@@ -697,6 +777,7 @@ el('tab-job').addEventListener('input', function(e){
   header[c] = t.value;
   if (t.hasAttribute('data-frac')) showHint(t);
   if (c === 'B11' || c === 'B12' || c === 'B13') updStd();
+  if (c === 'B4') updJobWarn();
   changed();
 });
 el('tab-job').addEventListener('change', function(e){
@@ -713,13 +794,16 @@ el('tab-job').addEventListener('click', function(e){
   if (e.target.closest('[data-act="std"]')){
     var st = stdFor(String(header.B7 || '')); if (!st) return;
     Object.keys(st).forEach(function(c){ var tv = fmtFrac(st[c]).replace(/"$/, ''); header[c] = tv; var f = el('h_' + c); if (f){ f.value = tv; showHint(f); } });
+    var sb = STD_BRACKET[String(header.B7 || '')];
+    if (sb){ header.B9 = sb; Array.prototype.forEach.call(document.querySelectorAll('[data-chip="B9"]'), function(x){ x.setAttribute('aria-pressed', x.getAttribute('data-val') === sb ? 'true' : 'false'); }); }
     updStd(); changed(); return;
   }
   var b = e.target.closest('[data-chip]'); if (!b) return;
   var c = b.getAttribute('data-chip'), v = b.getAttribute('data-val');
   header[c] = String(header[c]) === v ? '' : v;
   Array.prototype.forEach.call(b.parentNode.children, function(x){ x.setAttribute('aria-pressed', String(header[c]) === x.getAttribute('data-val') ? 'true' : 'false'); });
-  if (c === 'B7'){ applyMount(); renderRuns(); updStd(); }
+  if (c === 'B7'){ applyMount(); renderRuns(); updStd(); updTopDim(); }
+  if (c === 'B9') updStd();
   if (c === 'B10' && el('pwSum')) el('pwSum').textContent = String(header.B10 || POST_WALLS[0]).replace('2x2 - ', '');
   changed();
 });
@@ -844,6 +928,81 @@ function relinkSplits(u){
   }
   resplitUnit(u);
 }
+// ---------- steps: a section with its own post / block height; the post where the run steps gets a block each side ----------
+var customPath = '', endCat = {}, CP_FIRST = 10, CP_LAST = 177, CP_RAILS = 24;
+// height change going from section j-1 into section j, in the direction the run is numbered (+ = up)
+function secHt(u, run){ var su = unitSetup(u), p = parseLen(String(run.ph == null ? '' : run.ph)), b = parseLen(String(run.bh == null ? '' : run.bh)), dp = parseLen(String(su.post)), db = parseLen(String(su.block)); return { p: p > 0 ? p : dp, b: b > 0 ? b : db }; }
+function stepDelta(u, j){
+  if (j <= 0 || !u.secs[j] || !u.secs[j - 1]) return null;
+  var a = secHt(u, u.secs[j - 1]), b = secHt(u, u.secs[j]);
+  var d = (isFinite(b.p) && isFinite(a.p) && Math.abs(b.p - a.p) > 1e-6) ? b.p - a.p : ((isFinite(b.b) && isFinite(a.b) && Math.abs(b.b - a.b) > 1e-6) ? b.b - a.b : 0);
+  return d ? d : null;
+}
+function stepTxt(d){ return (d > 0 ? '▲ Step up ' : '▼ Step down ') + fmtFrac(Math.abs(d)); }
+function hasStep(run){ return String(run.ph == null ? '' : run.ph).trim() !== '' || String(run.bh == null ? '' : run.bh).trim() !== ''; }
+function isOpen(code, mount){ return endCat[mount + '|' + code] === 'open'; }
+// how many posts the CUSTOM POSTS tab lists for one rail (mids + float posts + each end that isn't open), same as the sheet
+function railPosts(run, mount, so){
+  var L = parseLen(String(run.len == null ? '' : run.len)); if (!(L > 0)) return null;
+  var m = run.ns === 'Yes' ? 'Top' : mount, adj = pieceAdj(run, mount, so), ch = chanInfo(L + adj.v, run);
+  var fl = parseLen(String(run.fl == null ? '' : run.fl)), fr = parseLen(String(run.fr == null ? '' : run.fr));
+  var lo = !isOpen(run.l, m), ro = !isOpen(run.r, m);
+  return { n: (ch.n - 1) + (fl > 0 ? 1 : 0) + (fr > 0 ? 1 : 0) + (lo ? 1 : 0) + (ro ? 1 : 0), lo: lo, ro: ro };
+}
+// rows = one cut sheet's rails in order (with .tag, ._u unit key, ._j section index); returns the CUSTOM POSTS cells to fill, or an error
+function stepPlan(rows, hdr){
+  var mount = String(hdr.B7 || ''), so = hdr.B11, dP = parseLen(String(hdr.B12)), dB = parseLen(String(hdr.B13));
+  var hts = rows.map(function(r){ var p = parseLen(String(r.ph == null ? '' : r.ph)), b = parseLen(String(r.bh == null ? '' : r.bh)); return { p: p > 0 ? p : dP, b: b > 0 ? b : dB }; });
+  var diff = function(a, b){ return Math.abs(a.p - b.p) > 1e-6 || Math.abs(a.b - b.b) > 1e-6; };
+  var own = hts.map(function(h){ return diff(h, { p: dP, b: dB }); });
+  // shared post between two neighbouring sections (CJ/CJO, EC/ECO, IC/ICO…): it belongs to the side whose code isn't open
+  var linkR = rows.map(function(r, k){
+    var n = rows[k + 1]; if (!n || n._u !== r._u || n._j !== r._j + 1) return null;
+    var m1 = r.ns === 'Yes' ? 'Top' : mount, m2 = n.ns === 'Yes' ? 'Top' : mount, ro = !isOpen(r.r, m1), no = !isOpen(n.l, m2);
+    if (ro === no) return null;   // two posts (F/F) or no post: nothing shared
+    return { owner: ro ? k : k + 1, step: diff(hts[k], hts[k + 1]) };
+  });
+  var flag = rows.map(function(r, k){ return own[k] || (linkR[k] && linkR[k].step && linkR[k].owner === k) || (k > 0 && linkR[k - 1] && linkR[k - 1].step && linkR[k - 1].owner === k); });
+  var cust = rows.map(function(r, k){ return flag[k] || String(r.cust || '') === 'Yes'; });
+  var nC = cust.filter(Boolean).length; if (!flag.some(Boolean)) return { cust: cust, cells: [], any: false };
+  if (nC > CP_RAILS) return { err: 'More than ' + CP_RAILS + ' rails need custom posts on one sheet' };
+  var cells = [], at = CP_FIRST, f = function(v, d){ return Math.abs(v - d) < 1e-6 ? '' : v; };
+  for (var k = 0; k < rows.length; k++){
+    if (!cust[k]) continue;
+    var rp = railPosts(rows[k], mount, so); if (!rp) continue;
+    for (var t = 1; t <= rp.n; t++, at++){
+      if (at > CP_LAST) return { err: 'Too many custom posts on one sheet (the tab holds ' + (CP_LAST - CP_FIRST + 1) + ')' };
+      var h = hts[k], P = h.p, BL = h.b, BR = h.b;
+      if (t === 1 && rp.lo && k > 0 && linkR[k - 1] && linkR[k - 1].owner === k){ var ph = hts[k - 1]; P = Math.max(P, ph.p); BL = ph.b; }
+      if (t === rp.n && rp.ro && linkR[k] && linkR[k].owner === k){ var nh = hts[k + 1]; P = Math.max(P, nh.p); BR = nh.b; }
+      if (!flag[k] && P === dP && BL === dB && BR === dB) continue;
+      cells.push({ row: at, F: f(P, dP), G: f(BL, dB), H: f(BR, dB) });
+    }
+  }
+  return { cust: cust, cells: cells, any: true };
+}
+// reopening a saved sheet: give each custom rail back its post / block height from the CUSTOM POSTS tab
+function readSteps(runs, cpx){
+  if (!cpx || !runs.length) return;
+  var mount = String(header.B7 || ''), so = header.B11, at = CP_FIRST;
+  runs.forEach(function(r){
+    if (String(r.cust || '') !== 'Yes') return;
+    var rp = railPosts(r, mount, so); if (!rp) return;
+    var vals = [];
+    for (var t = 1; t <= rp.n; t++, at++) vals.push({ t: t, F: readCell(cpx, 'F' + at), G: readCell(cpx, 'G' + at), H: readCell(cpx, 'H' + at), x: ['E', 'I', 'J', 'K'].some(function(c){ return readCell(cpx, c + at) !== ''; }) });
+    var mids = vals.filter(function(v){ return !(v.t === 1 && rp.lo) && !(v.t === rp.n && rp.ro); }), pick = mids[0] || vals[0];
+    if (!pick) return;
+    // ends: post height is the taller one, so read the block on this rail's own side
+    var P = pick.F, B = pick.G;
+    if (!mids.length){ var e = vals[0]; B = rp.lo ? e.H : e.G; if (rp.ro && vals.length === 1) B = e.G; }
+    var fx = function(v){ return typeof v === 'number' ? numVal(v) : String(v); };
+    if (P !== '') r.ph = fx(P); if (B !== '') r.bh = fx(B);
+    var anyHt = vals.some(function(v){ return v.F !== '' || v.G !== '' || v.H !== ''; });
+    // flagged only for heights (its own step or a transition post): the app re-flags it on save when it's still needed
+    if (anyHt && !vals.some(function(v){ return v.x; })) r.cust = '';
+    if (hasStep(r)) r._step = true;
+  });
+}
 function unsplit(u, j){
   var id = u.secs[j]._sp && u.secs[j]._sp.id; if (!id) return;
   var js = groupAt(u, id), first = u.secs[js[0]], last = u.secs[js[js.length - 1]];
@@ -874,6 +1033,24 @@ function unitSum(u){
   return u.secs.length + ' section' + (u.secs.length === 1 ? '' : 's') + (n ? ' · ' + fmtFrac(len) + ' total' : '');
 }
 function nextUnitNum(){ var n = null; units.forEach(function(u){ var v = parseInt(u.unit, 10); if (!isNaN(v) && (n === null || v > n)) n = v; }); return n === null ? '' : String(n + 1); }
+// ---------- same-name check: Drive file names, and the names this job has saved or was opened from ----------
+var saveOk = false, dnCache = null;
+function driveNames(){ return Promise.resolve(null); }   // replaced in the installed / Google-hosted app
+function driveNamesQuick(){
+  if (dnCache && Date.now() - dnCache.t < 60000) return Promise.resolve(dnCache.list);
+  return Promise.race([driveNames().then(function(l){ if (l) dnCache = { t: Date.now(), list: l }; return l; }, function(){ return null; }), new Promise(function(r){ setTimeout(function(){ r(null); }, 6000); })]);
+}
+function myNames(){ var a = (header._saved || []).slice(); if (fileName && fileName !== 'new-job') a.push(fileName); return a.map(function(n){ return String(n).toLowerCase(); }); }
+function markMine(n){ header._saved = header._saved || []; if (header._saved.indexOf(n) < 0) header._saved.push(n); if (dnCache && dnCache.list.indexOf(n) < 0) dnCache.list.push(n); try { persist(); } catch (e) {} }
+// live warning under the job name
+function updJobWarn(){
+  var w = el('jobWarn'); if (!w) return;
+  var nm = String(header.B4 || '').trim(), f = jobFile() + '.xlsx', t = '';
+  if (nm && floors && floors.some(function(x, k){ return k !== curFloor && String(x.header.B4 || '').trim().toLowerCase() === nm.toLowerCase(); })) t = 'Another floor tab already uses this name. Each floor needs its own name or it will overwrite the other.';
+  else if (nm && header._prev && nm.toLowerCase() === String(header._prev).trim().toLowerCase()) t = 'That’s the last floor’s name. Change it, or saving will overwrite that floor’s cut sheet.';
+  else if (nm && dnCache && dnCache.list.map(function(x){ return String(x).toLowerCase(); }).indexOf(f.toLowerCase()) >= 0 && myNames().indexOf(f.toLowerCase()) < 0) t = 'A cut sheet called “' + f + '” is already in Drive. Saving will replace it.';
+  w.textContent = t; w.hidden = !t;
+}
 function jobFile(){ return String(header.B4 || '').trim().replace(/[\\\/:*?"<>|]+/g, '-') || '[Job name]'; }
 function endLabel(o, m){ var d = endDesc[(m == null ? (header.B7 || '') : m) + '|' + o] || endDesc['*|' + o]; return d ? o + ' – ' + d : o; }
 // ---------- per-unit setup: mount, post/block height, standoff; units with the same setup share a cut sheet ----------
@@ -906,7 +1083,8 @@ function secHtml(u, i, run, j){
   if (run.lenOk && !run._open && String(run.len).trim() !== ''){
     var v = parseLen(run.len);
     return '<button type="button" class="secrow" data-s="' + j + '" data-act="open" aria-label="Edit section ' + esc(secLabel(u, j)) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
-      '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + (run._sp ? ' · split' : '') + '</span>' +
+      '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + (run._sp ? ' · split' : '') + (hasStep(run) ? ' · step ' + (String(run.ph || '').trim() ? numVal(parseLen(String(run.ph))) + '/' : '') + (String(run.bh || '').trim() ? numVal(parseLen(String(run.bh))) : '') : '') + '</span>' +
+      (stepDelta(u, j) ? '<span class="stepbadge ' + (stepDelta(u, j) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j))) + '</span>' : '') +
       '<span class="len">' + esc(fmtFrac(v)) + '</span></button>';
   }
   // open "More options" only for values set there, not for Non-Sub set by "Rail is floating"
@@ -917,7 +1095,7 @@ function secHtml(u, i, run, j){
     '<div class="top"><b>Section <span data-lab>' + esc(secLabel(u, j)) + '</span></b><span>' +
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
       (!run._sp && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
-      '<button type="button" class="btn" data-act="dup">Copy</button> <button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
+      '<button type="button" class="btn" data-act="dup">Copy</button> ' + (j === 0 && String(run.len || '').trim() ? '<button type="button" class="btn" data-act="mirror">Mirror to end</button> ' : '') + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
     '<div class="g2"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select></div>' +
       '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select></div></div>' +
     (isFloatCombo(run) ? '<label class="chk floatrail" for="' + id + 'floatrail"><input type="checkbox" id="' + id + 'floatrail" data-sfield="floatrail"' + (run.ns === 'Yes' ? ' checked' : '') + '>Rail is floating <span style="font-weight:700;color:var(--muted)">(marks Non-Sub = Yes)</span></label>' : '') +
@@ -926,6 +1104,11 @@ function secHtml(u, i, run, j){
     '<label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' +
     (showFloats ? '<div class="g2" data-fracslot>' + numField(id + 'fl', 'Float L', run.fl, { attrs: ' data-key="fl"' }) + numField(id + 'fr', 'Float R', run.fr, { attrs: ' data-key="fr"' }) + '</div>' +
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
+    '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-sfield="step"' + (run._step || hasStep(run) ? ' checked' : '') + '>Steps up / down (own post &amp; block height)</label>' +
+    (run._step || hasStep(run) ? '<div class="g2" data-fracslot>' + numField(id + 'ph', 'Post height', run.ph, { ph: 'Job: ' + numVal(unitSetup(u).post), attrs: ' data-key="ph"' }) + numField(id + 'bh', 'Block height', run.bh, { ph: 'Job: ' + numVal(unitSetup(u).block), attrs: ' data-key="bh"' }) + '</div>' +
+      (stepDelta(u, j) ? '<div class="stepbox ' + (stepDelta(u, j) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j))) + ' from ' + esc(secLabel(u, j - 1)) + ' into ' + esc(secLabel(u, j)) + '</div>' : '') +
+      (stepDelta(u, j + 1) ? '<div class="stepbox ' + (stepDelta(u, j + 1) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j + 1))) + ' from ' + esc(secLabel(u, j)) + ' into ' + esc(secLabel(u, j + 1)) + '</div>' : '') +
+      '<div class="stephint">The post where this section meets the next one becomes a transition post: taller post, a block for each side. It all goes on the Custom Posts tab.</div>' : '') +
     '<details class="more"' + (more ? ' open' : '') + '><summary>More options: overrides, plates, angles, slope ›</summary><div class="g" data-fracslot>' +
       RUN_MORE.map(function(c){ return c.type === 'select' ? selField(id + c.key, c.label, c.opts, run[c.key], ' data-key="' + c.key + '"') : numField(id + c.key, c.label, run[c.key], { nofrac: c.nofrac, attrs: ' data-key="' + c.key + '"' }); }).join('') +
     '</div></details></div>';
@@ -1005,7 +1188,7 @@ function layoutSvg(u){
     var L = parseLen(run.len), known = !(L === null || isNaN(L) || L <= 0); if (!known) L = 36;
     var x2 = x + L * Math.cos(h * Math.PI / 180), y2 = y + L * Math.sin(h * Math.PI / 180);
     var flv = parseLen(String(run.fl == null ? '' : run.fl)), frv = parseLen(String(run.fr == null ? '' : run.fr));
-    segs.push({ x1: x, y1: y, x2: x2, y2: y2, h: h, L: L, tag: secLabel(u, j), len: known ? fmtFrac(L) : '?', known: known, ns: run.ns === 'Yes',
+    segs.push({ x1: x, y1: y, x2: x2, y2: y2, h: h, L: L, tag: secLabel(u, j), len: known ? fmtFrac(L) : '?', known: known, ns: run.ns === 'Yes', step: hasStep(run),
       fl: flv > 0 && flv < L ? flv : 0, fr: frv > 0 && frv < L ? frv : 0 });
     var nX = -Math.sin(h * Math.PI / 180), nY = Math.cos(h * Math.PI / 180);
     if (j === 0 || !pts.length || pts[pts.length - 1].x !== x || pts[pts.length - 1].y !== y) pts.push({ x: x, y: y, code: run.l || '?', nx: nX, ny: nY, kind: 'end', j: j, side: 'l' });
@@ -1087,10 +1270,20 @@ function layoutSvg(u){
     // a generous invisible tap target over the post and its code
     posts += '<circle cx="' + pt.x + '" cy="' + pt.y + '" r="' + Math.max(fs * 1.3, sw * 4) + '" fill="transparent"' + hitA + '/>';
   });
+  // step boxes: where the run steps up or down (in the direction it's numbered)
+  pts.forEach(function(pt){
+    if (pt.side !== 'r' || pt.j >= u.secs.length - 1) return;
+    var dlt = stepDelta(u, pt.j + 1); if (!dlt) return;
+    var tx = stepTxt(dlt), sz = fs * 0.9, d3 = fs * 3, cands = [];
+    [[pt.nx, pt.ny], [-pt.nx, -pt.ny], [0, -1], [0, 1], [1, 0], [-1, 0]].forEach(function(v){ [1, 1.6, 2.3].forEach(function(k){ cands.push({ x: pt.x + v[0] * d3 * k, y: pt.y + v[1] * d3 * k, nx: v[0] }); }); });
+    var sp = place(cands, tx, sz), bb = sp.b, padb = sz * 0.35, up = dlt > 0;
+    posts += '<rect x="' + (bb.x0 - padb) + '" y="' + (bb.y0 - padb) + '" width="' + (bb.x1 - bb.x0 + padb * 2) + '" height="' + (bb.y1 - bb.y0 + padb * 2) + '" rx="' + sz * 0.45 + '" fill="' + (up ? '#E4EDE9' : '#FBEBD0') + '" stroke="' + (up ? '#2F5D50' : '#C98A2B') + '" stroke-width="' + sw * 0.5 + '"/>' +
+      '<text x="' + sp.x + '" y="' + sp.y + '" font-size="' + sz + '" text-anchor="' + sp.a + '" dominant-baseline="middle" fill="' + (up ? '#21443A' : '#6B4210') + '" font-weight="900">' + esc(tx) + '</text>';
+  });
   var labels = '';
   segs.forEach(function(sg){
     var mx = (sg.x1 + sg.x2) / 2, my = (sg.y1 + sg.y2) / 2, dx = sg.x2 - sg.x1, dy = sg.y2 - sg.y1, d = Math.sqrt(dx * dx + dy * dy) || 1, side = totalTurn < 0 ? -1 : 1, nx = side * dy / d, ny = -side * dx / d, off = fs * 1.2;
-    var lt = sg.tag + ' · ' + sg.len + (sg.ns ? ' · floating' : ''), cands = [];
+    var lt = sg.tag + ' · ' + sg.len + (sg.ns ? ' · floating' : '') + (sg.step ? ' · step' : ''), cands = [];
     [1, 2, 3].forEach(function(m){ cands.push({ x: mx + nx * off * m, y: my + ny * off * m, nx: nx }); });
     [0.25, -0.25, 0.4, -0.4].forEach(function(t){ [1, 2].forEach(function(m){ cands.push({ x: mx + dx * t + nx * off * m, y: my + dy * t + ny * off * m, nx: nx }); }); });
     [1, 2, 3].forEach(function(m){ cands.push({ x: mx - nx * off * m, y: my - ny * off * m, nx: -nx }); });
@@ -1382,7 +1575,7 @@ function applyDrawing(u, i){
   var go = function(){
     if (totalSecs() - u.secs.length + d.runs.length > MAX_RUNS) return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.');
     var rot = ((d.parts[0].r.h0 - 270) % 360 + 360) % 360, old = u.secs;
-    if (u._editing){ d.runs.forEach(function(run, k){ var o = old[k]; if (!o) return; ['len', 'fl', 'fr', '_floats'].concat(RUN_MORE.map(function(c){ return c.key; })).forEach(function(key){ if (o[key] !== undefined && o[key] !== '') run[key] = o[key]; }); if (o.lenOk && String(o.len || '').trim()){ run.lenOk = true; run._open = false; } }); }
+    if (u._editing){ d.runs.forEach(function(run, k){ var o = old[k]; if (!o) return; ['len', 'fl', 'fr', '_floats', 'ph', 'bh', '_step'].concat(RUN_MORE.map(function(c){ return c.key; })).forEach(function(key){ if (o[key] !== undefined && o[key] !== '') run[key] = o[key]; }); if (o.lenOk && String(o.len || '').trim()){ run.lenOk = true; run._open = false; } }); }
     u._drawn = { W: u._dr.W, H: u._dr.H, done: drawStrokes(u).map(function(st){ return { pts: st.pts, s: st.s, e: st.e, ov: JSON.parse(JSON.stringify(st.ov || {})) }; }) };
     u.secs = d.runs; u._rot = rot; u._feet = (360 - rot) % 360; u._layout = true; u._full = !!u._drFull; u._dr = null; u._drFull = false; u._editing = false;
     renderRuns(); changed();
@@ -1487,6 +1680,13 @@ el('units').addEventListener('change', function(e){
     p.u.mountDiff = t.checked; if (!t.checked){ p.u.mount = ''; p.u.standoff = ''; }
     renderRuns(); changed(); return;
   }
+  if (t.getAttribute('data-sfield') === 'step' && p.j >= 0){
+    var stp = p.u.secs[p.j]; stp._step = t.checked;
+    if (!t.checked){ stp.ph = ''; stp.bh = ''; }
+    renderRuns(); changed();
+    if (t.checked){ var sf3 = el('u' + p.i + 's' + p.j + '_ph'); if (sf3) sf3.focus(); }
+    return;
+  }
   if (t.getAttribute('data-sfield') === 'floats' && p.j >= 0){
     var sr = p.u.secs[p.j]; sr._floats = t.checked;
     if (!t.checked){ sr.fl = ''; sr.fr = ''; }
@@ -1518,7 +1718,7 @@ function updConf(p){
   if (box) box.innerHTML = confHtml(run);
   p.sec.classList.toggle('unconf', needsConf(run)); updBadge();
 }
-var pendingDel = '', pendingTimer = null;
+var pendingDel = '', pendingTimer = null, flashSec = null;
 function confirmDel(b, key){
   if (pendingDel === key){ pendingDel = ''; return true; }
   pendingDel = key; clearTimeout(pendingTimer); pendingTimer = setTimeout(function(){ pendingDel = ''; b.textContent = 'Delete'; }, 3000);
@@ -1573,6 +1773,17 @@ el('units').addEventListener('click', function(e){
   else if (act === 'del'){ if (!confirmDel(b, 'del' + p.i + '.' + j)) return; u.secs.splice(j, 1); if (!u.secs.length) u.secs.push(blankRun()); }
   else if (act === 'udel'){ if (!confirmDel(b, 'udel' + p.i)) return; units.splice(p.i, 1); if (!units.length) units.push(blankUnit('')); }
   else if (totalSecs() >= MAX_RUNS){ return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.'); }
+  else if (act === 'mirror'){
+    // .1 flipped end for end, added as the last section (the .3 of a U, say): ends swap, the first end picks up the open post from the corner before it
+    var src = u.secs[j], last = u.secs[u.secs.length - 1], mr = JSON.parse(JSON.stringify(src));
+    delete mr._sp; delete mr._spInfo; delete mr._spOff; delete mr._noSplit;
+    mr.r = src.l; mr.l = CARRY[last.r] || CARRY[src.r] || src.r || '';
+    [['fl', 'fr'], ['ol', 'or'], ['pl', 'pr'], ['al', 'ar']].forEach(function(k){ mr[k[0]] = src[k[1]] == null ? '' : src[k[1]]; mr[k[1]] = src[k[0]] == null ? '' : src[k[0]]; });
+    if (mr.hi === 'L') mr.hi = 'R'; else if (mr.hi === 'R') mr.hi = 'L';
+    mr._turn = ''; mr._carried = true; mr._open = false; mr.lenOk = String(mr.len || '').trim() !== '';
+    src._open = false; u.secs.push(mr);
+    flashSec = { u: u, j: u.secs.length - 1 };
+  }
   else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); c.len = ''; c.lenOk = false; c._open = true; delete c._sp; delete c._spInfo; delete c._spOff; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
   else if (act === 'addsec'){
     var last = u.secs[u.secs.length - 1], r = blankRun();
@@ -1595,6 +1806,7 @@ el('units').addEventListener('click', function(e){
     units.push(cu); sortUnits(); focus = 'u' + units.indexOf(cu) + 's0_len';
   } else return;
   renderRuns(); changed();
+  if (flashSec){ var fsx = document.querySelector('.unit[data-u="' + units.indexOf(flashSec.u) + '"] [data-s="' + flashSec.j + '"]'); flashSec = null; if (fsx){ fsx.scrollIntoView({ block: 'center' }); fsx.classList.add('flash'); setTimeout(function(){ fsx.classList.remove('flash'); }, 1600); } }
   if (scrollTo && el(scrollTo)) el(scrollTo).scrollIntoView({ block: 'center' });
   if (focus && el(focus)){ var f = el(focus); f.scrollIntoView({ block: 'center' }); setTimeout(function(){ f.focus(); if (f.select) f.select(); }, 250); }
 });
@@ -1612,7 +1824,7 @@ function showTab(t){
   el('tab-job').hidden = t !== 'job'; el('tab-units').hidden = t !== 'units';
   Array.prototype.forEach.call(document.querySelectorAll('.navtab'), function(x){ x.classList.toggle('on', x.getAttribute('data-t') === t); });
   el('eyebrow').textContent = t === 'job' ? 'Step 1 of 2' : (String(header.B4 || '').trim() || 'New job') + ' · Step 2 of 2';
-  el('screenTitle').textContent = t === 'job' ? 'Job info' : 'Units';
+  el('screenTitle').textContent = t === 'job' ? 'Job Info' : 'Units';
   applyMount(); window.scrollTo(0, 0);
 }
 Array.prototype.forEach.call(document.querySelectorAll('.navtab'), function(x){ x.onclick = function(){ showTab(x.getAttribute('data-t')); }; });
@@ -1643,7 +1855,7 @@ function startNextFloor(){
   var last = readLast(); if (!last || !last.header) return;
   var go = function(){
     try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {}
-    var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); h.B4 = bumpFloor(h._prev);
+    var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; h.B4 = bumpFloor(h._prev);
     startNew({ header: h, units: [blankUnit('')], nextFloor: true });
   };
   if (readDraft('new-job')) return ask('Start the next floor? This replaces the unsaved draft on this tablet.', 'Next floor', go);
@@ -1750,10 +1962,17 @@ function buildNotesBlob(list){
   z.file('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="12" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="90" customWidth="1"/></cols><sheetData>' + rows.join('') + '</sheetData><pageSetup orientation="landscape"/></worksheet>');
   return z.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: XLSX_TYPE });
 }
-function makeBlob(xml){
+function makeBlob(xml, steps){
   return JSZip.loadAsync(srcData, Object.assign({ createFolders: false }, srcOpts)).then(function(z){
     z.file(inputPath, xml, { createFolders: false });
-    return z.file('xl/workbook.xml').async('string').then(function(wb){
+    // custom post heights / blocks: clear what an earlier save left, then fill this sheet's
+    var cp = customPath && z.file(customPath) ? z.file(customPath).async('string').then(function(cx){
+      for (var r = CP_FIRST; r <= CP_LAST; r++) ['F', 'G', 'H'].forEach(function(c){ if (readCell(cx, c + r) !== '') cx = writeCell(cx, c + r, ''); });
+      (steps || []).forEach(function(c){ ['F', 'G', 'H'].forEach(function(k){ if (c[k] !== '') cx = writeCell(cx, k + c.row, Math.round(c[k] * 1e6) / 1e6); }); });
+      z.file(customPath, cx, { createFolders: false });
+    }) : Promise.resolve();
+    return cp.then(function(){ return z.file('xl/workbook.xml').async('string'); }).then(function(wb){
+      if (steps && steps.length) wb = wb.replace(/(<sheet [^>]*name="CUSTOM POSTS?(?: CUT)?"[^>]*?)\s+state="hidden"/g, '$1');
       if (/<calcPr\b[^>]*fullCalcOnLoad=/.test(wb)) wb = wb.replace(/fullCalcOnLoad="[^"]*"/, 'fullCalcOnLoad="1"');
       else if (/<calcPr\b/.test(wb)) wb = wb.replace(/<calcPr\b/, '<calcPr fullCalcOnLoad="1"');
       else wb = wb.replace('</workbook>', '<calcPr fullCalcOnLoad="1"/></workbook>');
@@ -1810,12 +2029,12 @@ el('save').onclick = function(){
     else if (seenU[un]) errs.push('Unit ' + un + ' is entered twice');
     seenU[un] = true;
     var rows = [];
-    u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
+    u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j; rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
     var s = unitSetup(u), who = 'Unit ' + (un || '?');
     if (u.mountDiff && MOUNTS.indexOf(u.mount) < 0) errs.push(who + ': pick its mount');
     if (u.custom){ if (!isNum(u.post) || !isNum(u.block)) errs.push(who + ' needs its own post and block height'); }
-    else { if (!isNum(header.B12)) errs.push('Enter the post height (Job info)'); if (!isNum(header.B13)) errs.push('Enter the block height (Job info)'); }
-    if (s.mount !== 'Top' && !isNum(s.standoff)) errs.push(u.mountDiff && s.mount !== String(header.B7 || '') && !isNum(header.B11) ? who + ' needs a standoff' : 'Enter the standoff (Job info)');
+    else { if (!isNum(header.B12)) errs.push('Enter the post height (Job Info)'); if (!isNum(header.B13)) errs.push('Enter the block height (Job Info)'); }
+    if (s.mount !== 'Top' && !isNum(s.standoff)) errs.push(u.mountDiff && s.mount !== String(header.B7 || '') && !isNum(header.B11) ? who + ' needs a standoff' : 'Enter the standoff (Job Info)');
     var k = setupKey(s);
     if (!groups[k]) groups[k] = { setup: s, rows: [], units: 0 };
     groups[k].rows = groups[k].rows.concat(rows); groups[k].units++;
@@ -1827,7 +2046,7 @@ el('save').onclick = function(){
     return pa - pb || (a < b ? -1 : 1);
   }).map(function(k){
     var g = groups[k], s = g.setup;
-    return { name: k === mainKey ? jobFile() + '.xlsx' : sheetName(s), hdr: Object.assign({}, header, { B7: s.mount, B11: s.mount === 'Top' ? 0 : s.standoff, B12: s.post, B13: s.block }), rows: g.rows, units: g.units };
+    return { name: k === mainKey ? jobFile() + '.xlsx' : sheetName(s), hdr: Object.assign({}, header, { B7: s.mount, B9: s.mount === 'Top' ? '' : header.B9, B11: s.mount === 'Top' ? 0 : s.standoff, B12: s.post, B13: s.block }), rows: g.rows, units: g.units };
   });
   var rw = [], ww = [];
   units.forEach(function(u, ui){
@@ -1846,7 +2065,7 @@ el('save').onclick = function(){
     });
   });
   if (rw.length || ww.length){
-    if (!isNum(header.scrH)) errs.push('Enter the screen height (Job info → Privacy screens)');
+    if (!isNum(header.scrH)) errs.push('Enter the screen height (Job Info → Privacy screens)');
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
@@ -1854,22 +2073,42 @@ el('save').onclick = function(){
   if (!sheets.length) errs.push('Add at least one measurement');
   if (notes.length) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ')', make: function(){ return buildNotesBlob(notes); } });
   sheets.forEach(function(s){ if (s.rows.length > MAX_RUNS) errs.push(s.name + ' has ' + s.rows.length + ' sections; a cut sheet holds ' + MAX_RUNS); });
-  sheets.forEach(function(s){ if (!s.make) s.xml = buildXml(s.hdr, s.rows, errs); });
+  sheets.forEach(function(s){
+    if (s.make) return;
+    var plan = stepPlan(s.rows, s.hdr);
+    if (plan.err) errs.push(s.name + ': ' + plan.err);
+    else if (plan.any){ s.rows.forEach(function(r, k){ r.cust = plan.cust[k] ? 'Yes' : (String(r.cust || '') === 'Yes' ? 'Yes' : ''); }); s.steps = plan.cells; }
+    s.xml = buildXml(s.hdr, s.rows, errs);
+  });
   if (errs.length){ var uniq = errs.filter(function(x, k){ return errs.indexOf(x) === k; }); return msg('Before saving: ' + uniq.slice(0, 5).join(' · ') + (uniq.length > 5 ? ' · and ' + (uniq.length - 5) + ' more' : '')); }
+  // a file with the same name already in Drive (and not one this job made or opened) would be replaced: ask first
+  if (!saveOk){
+    var btn0 = el('save'); btn0.disabled = true; btn0.firstChild.textContent = 'Checking…';
+    return driveNamesQuick().then(function(list){
+      btn0.disabled = false; btn0.firstChild.textContent = 'Save';
+      var lower = (list || []).map(function(n){ return String(n).toLowerCase(); }), mine = myNames();
+      var clash = sheets.map(function(x){ return x.name; }).filter(function(n){ return lower.indexOf(n.toLowerCase()) >= 0 && mine.indexOf(n.toLowerCase()) < 0; });
+      var go = function(){ saveOk = true; el('save').click(); };
+      if (!clash.length) return go();
+      ask('“' + clash.join('”, “') + '” ' + (clash.length === 1 ? 'is' : 'are') + ' already in the Cut Sheets folder in Drive. Saving will replace ' + (clash.length === 1 ? 'it' : 'them') + '. If this is a different floor or job, go back and change the job name.', 'Replace it', go);
+    });
+  }
+  saveOk = false;
   var btn = el('save'); btn.disabled = true; btn.firstChild.textContent = 'Saving…';
   var done = [], local = [], failed = [], queued = [], why = '';
   sheets.reduce(function(chain, s){
-    return chain.then(function(){ return s.make ? s.make() : makeBlob(s.xml); }).then(function(blob){
+    return chain.then(function(){ return s.make ? s.make() : makeBlob(s.xml, s.steps); }).then(function(blob){
       var info = s.info || (s.name + ' (' + s.units + ' unit' + (s.units === 1 ? '' : 's') + ', ' + s.rows.length + ' section' + (s.rows.length === 1 ? '' : 's') + ')');
-      return upload(blob, s.name).then(function(){ done.push(info); logSent(s.name, info, false); }, function(e){
+      return upload(blob, s.name).then(function(){ done.push(info); logSent(s.name, info, false); markMine(s.name); }, function(e){
         why = driveError(e);
         var fallback = function(){ return saveToTablet(blob, s.name).then(function(ok){ (ok ? local : failed).push(info); }); };
-        return shouldQueue(e) ? outboxAdd(blob, s.name, info).then(function(){ queued.push(info); }, fallback) : fallback();
+        return shouldQueue(e) ? outboxAdd(blob, s.name, info).then(function(){ queued.push(info); markMine(s.name); }, fallback) : fallback();
       });
     });
   }, Promise.resolve()).then(function(){
     btn.disabled = false; btn.firstChild.textContent = 'Save';
     updOutbox();
+    updJobWarn();
     if (!failed.length && !local.length){
       if (floors){ floors[curFloor].saved = true; persist(); renderFloors(); }
       else { try { localStorage.removeItem(DRAFT_PREFIX + fileName); } catch (e) {} }
@@ -2087,7 +2326,7 @@ function switchFloor(k){
 }
 function addFloor(){
   syncFloor();
-  var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); h.B4 = bumpFloor(h._prev);
+  var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); delete h._saved; h.B4 = bumpFloor(h._prev);
   floors.push({ header: h, units: [blankUnit('')] });
   tab = 'job'; switchFloor(floors.length - 1);
   msg('Next floor: same setup as ' + (h._prev || 'the last floor') + '. Check the job name, and change anything that’s different on this floor.', true);
@@ -2149,6 +2388,7 @@ function api(action, extra){
     });
 }
 function upload(blob, name){ return blobToB64(blob).then(function(b64){ return api('save', { name: name, b64: b64 }); }).then(function(r){ return { folder: r.folder, url: r.url }; }); }
+function driveNames(){ if (!getPin() || navigator.onLine === false) return Promise.resolve(null); return api('list', {}).then(function(r){ return (r.files || []).map(function(f){ return f.name; }); }, function(){ return null; }); }
 function saveToTablet(blob, name){ try { downloadBlob(blob, name); return Promise.resolve(true); } catch (e) { return Promise.resolve(false); } }
 function askPin(why){
   if (el('pinBox')) return;
@@ -2195,7 +2435,7 @@ function showDrivePicker(){
     function(err){ el('dpL').innerHTML = '<div class="hint bad">Couldn’t reach Drive (' + esc(err && err.message ? err.message : err) + '). You can still open a sheet saved on this tablet.</div>'; });
 }
 document.querySelector('label[for="file"]').addEventListener('click', function(e){ if (e.target.id === 'file') return; e.preventDefault(); showDrivePicker(); }, true);
-(function(){ var s = document.querySelector('label[for="file"] .s'); if (s) s.textContent = 'From the Cut Sheets folder in Drive'; })();
+(function(){ var s = document.querySelector('label[for="file"] .s'); if (s) s.textContent = 'From the Cut Sheets folder in Drive.'; })();
 // keep the installed copy current: check for a new version on open and whenever the app comes back to the front
 function showUpdateBar(){
   if (el('updBar')) return;
