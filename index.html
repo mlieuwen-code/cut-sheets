@@ -43,6 +43,18 @@ h1,h2{text-wrap:balance}
 .jobwarn{margin-top:8px;border-radius:12px;padding:10px 12px;background:var(--badbg);color:var(--bad);font-size:15px;font-weight:800;line-height:1.4}
 @keyframes flashin{0%{box-shadow:0 0 0 4px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
 .flash{animation:flashin 1.6s ease-out}
+.anglebox{border:2px solid var(--aline,#CFE0D8);background:var(--tint,#EEF4F1);border-radius:16px;padding:12px 14px 4px;margin:0 0 10px}
+.anglehd{font-size:16px;font-weight:900;color:var(--deep);margin-bottom:8px}
+.anglehd span{font-weight:700;color:var(--muted)}
+.calctog{display:block;border:0;background:none;padding:6px 0 12px;font-size:16px;font-weight:900;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.calcbox{background:var(--card);border-radius:14px;padding:12px;margin-bottom:12px}
+.calcrow{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.calcfig{width:96px;flex-shrink:0}
+.calctxt{font-size:15px;font-weight:700;color:var(--muted);line-height:1.4}
+.calcout{font-size:17px;font-weight:800;color:var(--muted);padding:8px 2px}
+.calcout.ok{color:var(--deep);font-size:20px;font-weight:900}
+.calcout.bad{color:var(--bad)}
+.calcuse{display:flex;gap:10px;flex-wrap:wrap}
 .jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
  @media (max-width:560px){.apphead{flex-wrap:wrap!important;row-gap:8px}.apphead .ttl{order:3;flex:1 1 100%!important}.apphead #draftPill{margin-left:auto}}
 .btn.backbtn{flex-shrink:0;min-height:56px;padding:0 18px 0 12px;gap:4px;background:var(--card);border:2px solid var(--line);font-size:17px;font-weight:900;white-space:nowrap}
@@ -939,6 +951,35 @@ function stepDelta(u, j){
   return d ? d : null;
 }
 function stepTxt(d){ return (d > 0 ? '▲ Step up ' : '▼ Step down ') + fmtFrac(Math.abs(d)); }
+// angled double-corner codes (FA, I6A, 6EPA) take an angle; read from the template, fall back to codes ending in A
+function isAngled(code){ code = String(code || ''); if (!code) return false; return geo && geo.dir && code in geo.dir ? true : /^(FA|I6A|6EPA)$/.test(code); }
+// ---------- triangle calculator: corner angle from three tape measurements ----------
+// index of an existing last section that's already .1's mirror by its codes (ends on .1's first code), or -1
+function mirrorTarget(u){
+  var n = u.secs.length, a = u.secs[0], z = u.secs[n - 1];
+  if (n < 2 || !a || !String(a.l || '') || String(z.r || '') !== String(a.l)) return -1;
+  return n - 1;
+}
+function calcHtml(id, angL, angR){
+  return '<div class="calcbox"><div class="calcrow"><svg class="calcfig" viewBox="0 0 120 90" aria-hidden="true"><path d="M44 74 L6 20 M44 74 L114 74" stroke="#2F5D50" stroke-width="5" stroke-linecap="round"/><path d="M21 41 L92 74" stroke="#C98A2B" stroke-width="3" stroke-dasharray="6 4"/><circle cx="44" cy="74" r="6" fill="#fff" stroke="#2A2622" stroke-width="2.5"/><text x="18" y="66" font-size="13" font-weight="900" fill="#2A2622">A</text><text x="64" y="89" font-size="13" font-weight="900" fill="#2A2622">B</text><text x="58" y="48" font-size="13" font-weight="900" fill="#8A5A12">C</text></svg>' +
+    '<div class="calctxt">From the corner, measure out along each rail line and mark both spots (<b>A</b> and <b>B</b>), then measure straight across between the marks (<b>C</b>). Longer is more accurate.</div></div>' +
+    '<div class="g3" data-fracslot>' + numField(id + 'ca', 'A · along one rail', '', { attrs: ' data-calc="a"' }) + numField(id + 'cb', 'B · along the other', '', { attrs: ' data-calc="b"' }) + numField(id + 'cc', 'C · across', '', { attrs: ' data-calc="c"' }) + '</div>' +
+    '<div class="calcout" id="' + id + 'cout">Enter all three sides.</div>' +
+    '<div class="calcuse" id="' + id + 'cuse" hidden>' + (angL ? '<button type="button" class="btn pri" data-act="calcuse" data-side="al">Use for Angle L</button>' : '') + (angR ? '<button type="button" class="btn pri" data-act="calcuse" data-side="ar">Use for Angle R</button>' : '') + '</div></div>';
+}
+function triAngle(a, b, c){
+  if (!(a > 0 && b > 0 && c > 0)) return null;
+  if (a + b <= c || a + c <= b || b + c <= a) return NaN;
+  return Math.acos(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b)))) * 180 / Math.PI;
+}
+function updCalc(sec){
+  var g = function(k){ var f = sec.querySelector('[data-calc="' + k + '"]'); return f ? parseLen(f.value) : null; };
+  var out = sec.querySelector('.calcout'), use = sec.querySelector('.calcuse'); if (!out) return;
+  var ang = triAngle(g('a'), g('b'), g('c'));
+  if (ang === null){ out.textContent = 'Enter all three sides.'; out.className = 'calcout'; use.hidden = true; return; }
+  if (isNaN(ang)){ out.textContent = 'Those three can’t make a triangle. Check C is shorter than A + B.'; out.className = 'calcout bad'; use.hidden = true; return; }
+  var r = Math.round(ang * 2) / 2, ex = Math.round(ang * 10) / 10; out.textContent = 'Angle between the rails: ' + r + '°' + (ex !== r ? ' (worked out ' + ex + '°, rounded to the nearest ½)' : ''); out.className = 'calcout ok'; out.setAttribute('data-ang', r); use.hidden = false;
+}
 function hasStep(run){ return String(run.ph == null ? '' : run.ph).trim() !== '' || String(run.bh == null ? '' : run.bh).trim() !== ''; }
 function isOpen(code, mount){ return endCat[mount + '|' + code] === 'open'; }
 // how many posts the CUSTOM POSTS tab lists for one rail (mids + float posts + each end that isn't open), same as the sheet
@@ -1088,16 +1129,23 @@ function secHtml(u, i, run, j){
       '<span class="len">' + esc(fmtFrac(v)) + '</span></button>';
   }
   // open "More options" only for values set there, not for Non-Sub set by "Rail is floating"
-  var more = RUN_MORE.some(function(c){ if (c.key === 'ns' && isFloatCombo(run)) return false; return run[c.key] !== '' && run[c.key] != null; });
+  var angL = isAngled(run.l), angR = isAngled(run.r);
+  var more = RUN_MORE.some(function(c){ if (c.key === 'ns' && isFloatCombo(run)) return false; if ((c.key === 'al' && angL) || (c.key === 'ar' && angR)) return false; return run[c.key] !== '' && run[c.key] != null; });
   var showFloats = !!run._floats || String(run.fl == null ? '' : run.fl).trim() !== '' || String(run.fr == null ? '' : run.fr).trim() !== '';
   var carried = j > 0 && run.l && run._carried ? ' <span style="font-size:14px;color:var(--muted);font-weight:700">from ' + esc(secLabel(u, j - 1)) + '</span>' : '';
   return '<div class="sec' + (needsConf(run) ? ' unconf' : '') + '" data-s="' + j + '">' +
     '<div class="top"><b>Section <span data-lab>' + esc(secLabel(u, j)) + '</span></b><span>' +
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
       (!run._sp && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
-      '<button type="button" class="btn" data-act="dup">Copy</button> ' + (j === 0 && String(run.len || '').trim() ? '<button type="button" class="btn" data-act="mirror">Mirror to end</button> ' : '') + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
+      (j === 2 && u.secs[0] ? '<button type="button" class="btn" data-act="same1">Same as .1, flipped</button> ' : '') + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
     '<div class="g2"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select></div>' +
       '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select></div></div>' +
+    // angled corner posts (FA, I6A, 6EPA…): ask for the angle right here instead of under More options
+    (angL || angR ? '<div class="anglebox"><div class="anglehd">Angled post: enter the angle between the two rails <span>(blank = 90°)</span></div><div class="g2">' +
+      (angL ? numField(id + 'al', 'Angle L (°) · ' + esc(run.l), run.al, { nofrac: true, ph: 'e.g. 135', attrs: ' data-key="al"' }) : '<div></div>') +
+      (angR ? numField(id + 'ar', 'Angle R (°) · ' + esc(run.r), run.ar, { nofrac: true, ph: 'e.g. 135', attrs: ' data-key="ar"' }) : '<div></div>') + '</div>' +
+      '<button type="button" class="calctog" data-act="calc" aria-expanded="' + !!run._calc + '">' + (run._calc ? 'Hide triangle calculator ▴' : 'Work out the angle from 3 sides ▾') + '</button>' +
+      (run._calc ? calcHtml(id, angL, angR) : '') + '</div>' : '') +
     (isFloatCombo(run) ? '<label class="chk floatrail" for="' + id + 'floatrail"><input type="checkbox" id="' + id + 'floatrail" data-sfield="floatrail"' + (run.ns === 'Yes' ? ' checked' : '') + '>Rail is floating <span style="font-weight:700;color:var(--muted)">(marks Non-Sub = Yes)</span></label>' : '') +
     '<div data-fracslot>' + numField(id + 'len', 'Measurement (in)', run.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-key="len"' }) + '</div>' +
     '<div class="conf">' + confHtml(run) + '</div>' +
@@ -1110,7 +1158,7 @@ function secHtml(u, i, run, j){
       (stepDelta(u, j + 1) ? '<div class="stepbox ' + (stepDelta(u, j + 1) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j + 1))) + ' from ' + esc(secLabel(u, j)) + ' into ' + esc(secLabel(u, j + 1)) + '</div>' : '') +
       '<div class="stephint">The post where this section meets the next one becomes a transition post: taller post, a block for each side. It all goes on the Custom Posts tab.</div>' : '') +
     '<details class="more"' + (more ? ' open' : '') + '><summary>More options: overrides, plates, angles, slope ›</summary><div class="g" data-fracslot>' +
-      RUN_MORE.map(function(c){ return c.type === 'select' ? selField(id + c.key, c.label, c.opts, run[c.key], ' data-key="' + c.key + '"') : numField(id + c.key, c.label, run[c.key], { nofrac: c.nofrac, attrs: ' data-key="' + c.key + '"' }); }).join('') +
+      RUN_MORE.filter(function(c){ return !((c.key === 'al' && angL) || (c.key === 'ar' && angR)); }).map(function(c){ return c.type === 'select' ? selField(id + c.key, c.label, c.opts, run[c.key], ' data-key="' + c.key + '"') : numField(id + c.key, c.label, run[c.key], { nofrac: c.nofrac, attrs: ' data-key="' + c.key + '"' }); }).join('') +
     '</div></details></div>';
 }
 function unitHtml(u, i){
@@ -1626,6 +1674,7 @@ el('units').addEventListener('input', function(e){
   } else if (t.hasAttribute('data-scr')){ p.u.screens[+t.getAttribute('data-scr')][t.getAttribute('data-sf')] = t.value; showHint(t); }
   else if (uf === 'notetext'){ p.u.notes = t.value; }
   else if (uf === 'post' || uf === 'block' || uf === 'standoff'){ p.u[uf] = t.value; showHint(t); updNote(p.i); }
+  else if (t.hasAttribute('data-calc')){ if (t.hasAttribute('data-frac')) showHint(t); if (p.sec) updCalc(p.sec); return; }
   else if (key && p.j >= 0 && t.tagName === 'INPUT'){
     var run = p.u.secs[p.j]; run[key] = t.value; if (t.hasAttribute('data-frac')) showHint(t);
     if (key === 'len'){ if (run._sp){ unlinkSplit(p.u, run._sp.id); var sn = p.box.querySelector('.splitnote'); if (sn) sn.remove(); } run.lenOk = false; el('u' + p.i + '_sum').textContent = unitSum(p.u); updConf(p); updLayout(p.i); }
@@ -1701,8 +1750,13 @@ el('units').addEventListener('change', function(e){
   }
   if (key && t.tagName === 'INPUT' && p.j >= 0 && p.u.secs[p.j] && p.u.secs[p.j]._sp && /^(fl|fr|al|ar|mid)$/.test(key)){ renderRuns(); changed(); return; }
   if (key && t.tagName === 'SELECT' && p.j >= 0){
-    var rs = p.u.secs[p.j], before = isFloatCombo(rs);
+    var rs = p.u.secs[p.j], before = isFloatCombo(rs), angBefore = isAngled(rs.l) || isAngled(rs.r), angSide = key === 'l' ? 'al' : 'ar', wasAng = isAngled(rs[key]);
     rs[key] = t.value; if (key === 'l') rs._carried = false; updLayout(p.i);
+    if ((key === 'l' || key === 'r') && (wasAng !== isAngled(rs[key]) || angBefore !== (isAngled(rs.l) || isAngled(rs.r)))){
+      renderRuns(); changed();
+      var af = isAngled(rs[key]) ? el('u' + p.i + 's' + p.j + '_' + angSide) : el('u' + p.i + 's' + p.j + '_' + key); if (af) af.focus();
+      return;
+    }
     if (rs._sp){ renderRuns(); changed(); var ag = el('u' + p.i + 's' + p.j + '_' + key); if (ag) ag.focus(); return; }
     if (before !== isFloatCombo(rs)){
       if (!isFloatCombo(rs) && rs._floatRail){ rs._floatRail = false; rs.ns = ''; }
@@ -1773,16 +1827,36 @@ el('units').addEventListener('click', function(e){
   else if (act === 'del'){ if (!confirmDel(b, 'del' + p.i + '.' + j)) return; u.secs.splice(j, 1); if (!u.secs.length) u.secs.push(blankRun()); }
   else if (act === 'udel'){ if (!confirmDel(b, 'udel' + p.i)) return; units.splice(p.i, 1); if (!units.length) units.push(blankUnit('')); }
   else if (totalSecs() >= MAX_RUNS){ return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.'); }
+  else if (act === 'calc'){ u.secs[j]._calc = !u.secs[j]._calc; focus = u.secs[j]._calc ? 'u' + p.i + 's' + j + '_ca' : null; }
+  else if (act === 'calcuse'){
+    var co = p.sec && p.sec.querySelector('.calcout'), av = co && co.getAttribute('data-ang'); if (!av) return;
+    var side = b.getAttribute('data-side'); u.secs[j][side] = String(av); u.secs[j]._calc = false; updLayout(p.i);
+  }
+  else if (act === 'same1'){
+    // this section (.3) becomes .1 turned end for end: codes flipped (E → F becomes F → E, EC → ECO), same length, left / right settings swapped
+    var s1 = u.secs[0], me = u.secs[j];
+    me.l = CARRY[s1.r] || s1.r || ''; me.r = s1.l || '';
+    me.len = s1.len == null ? '' : s1.len; me.lenOk = String(me.len || '').trim() !== '';
+    [['fl', 'fr'], ['ol', 'or'], ['pl', 'pr'], ['al', 'ar']].forEach(function(k){ me[k[0]] = s1[k[1]] == null ? '' : s1[k[1]]; me[k[1]] = s1[k[0]] == null ? '' : s1[k[0]]; });
+    ['ns', 'mid', 'slope', 'cust', 'ph', 'bh', '_step', '_floatRail'].forEach(function(k){ me[k] = s1[k] == null ? '' : s1[k]; });
+    me.hi = s1.hi === 'L' ? 'R' : (s1.hi === 'R' ? 'L' : (s1.hi || ''));
+    me._floats = !!(String(me.fl || '').trim() || String(me.fr || '').trim()); me._floatsOk = s1._floatsOk;
+    delete me._sp; delete me._spInfo; delete me._spOff; me._carried = false; me._open = false;
+    flashSec = { u: u, j: j };
+  }
   else if (act === 'mirror'){
-    // .1 flipped end for end, added as the last section (the .3 of a U, say): ends swap, the first end picks up the open post from the corner before it
+    // .1 flipped end for end, added as the last section (the .3 of a U, say)
     var src = u.secs[j], last = u.secs[u.secs.length - 1], mr = JSON.parse(JSON.stringify(src));
     delete mr._sp; delete mr._spInfo; delete mr._spOff; delete mr._noSplit;
-    mr.r = src.l; mr.l = CARRY[last.r] || CARRY[src.r] || src.r || '';
+    mr.r = src.l; mr.l = CARRY[src.r] || src.r || '';   // straight mirror of .1: its far end flipped (EC → ECO, F stays F), nothing taken from the sections between
     [['fl', 'fr'], ['ol', 'or'], ['pl', 'pr'], ['al', 'ar']].forEach(function(k){ mr[k[0]] = src[k[1]] == null ? '' : src[k[1]]; mr[k[1]] = src[k[0]] == null ? '' : src[k[0]]; });
     if (mr.hi === 'L') mr.hi = 'R'; else if (mr.hi === 'R') mr.hi = 'L';
     mr._turn = ''; mr._carried = true; mr._open = false; mr.lenOk = String(mr.len || '').trim() !== '';
-    src._open = false; u.secs.push(mr);
-    flashSec = { u: u, j: u.secs.length - 1 };
+    src._open = false;
+    // the last section already ends the way .1 starts (E → F … F → E, say): fill it in instead of adding another
+    var mt = mirrorTarget(u);
+    if (mt >= 0){ var tg = u.secs[mt]; ['len', 'lenOk', 'fl', 'fr', 'ol', 'or', 'pl', 'pr', 'al', 'ar', 'ns', 'mid', 'slope', 'hi', 'cust', 'ph', 'bh', '_step', '_floats', '_floatsOk'].forEach(function(k){ if (mr[k] !== undefined) tg[k] = mr[k]; }); tg._open = false; delete tg._sp; flashSec = { u: u, j: mt }; }
+    else { u.secs.push(mr); flashSec = { u: u, j: u.secs.length - 1 }; }
   }
   else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); c.len = ''; c.lenOk = false; c._open = true; delete c._sp; delete c._spInfo; delete c._spOff; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
   else if (act === 'addsec'){
