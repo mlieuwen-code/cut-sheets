@@ -412,7 +412,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-6baeb9';
+var APP_VERSION = '2026.11.06-bdb993';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -765,7 +765,7 @@ function renderHeader(){
   var nChan = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length;
   el('tab-job').innerHTML =
     '<div class="card"><div class="fld job"><label for="h_B4">Job name <em>· becomes the file name</em></label><div class="jobhelp">Building name and floor</div><input id="h_B4" data-cell="B4" type="text" autocomplete="off" placeholder="e.g. Woodbine 4th Floor" value="' + esc(header.B4) + '"><div class="jobwarn" id="jobWarn" hidden></div></div>' +
-      '<div class="g2">' + selField('h_measBy', 'Measurer', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
+      '<div class="g2">' + selField('h_measBy', 'Measured by', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
     '<div class="card"><h3>Rail setup</h3>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
         '<input id="h_B6o" type="text" autocomplete="off" aria-label="Other colour" placeholder="Type the colour" value="' + esc(isOther ? col : '') + '"' + (isOther ? '' : ' hidden') + ' style="margin-top:4px;border-color:var(--need);background:var(--needbg)"></div>' +
