@@ -322,6 +322,13 @@ body.hasfloors .wrap{padding-bottom:170px}
 .jobrow.solo{grid-template-columns:1fr}
 .kinds{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
 .fld.job .kinds .chk input{width:26px;height:26px;min-height:0;padding:0;font-size:0}
+/* phones (portrait): unit buttons on their own rows instead of five squeezed side by side */
+@media (max-width:600px){
+  .uacts{flex-basis:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .uacts .btn{min-height:50px;padding:6px 8px;font-size:15px;line-height:1.2}
+  .uacts [data-act="ucodes"]{grid-column:span 2}
+  .uinfo{flex:1;min-width:0}
+}
 </style>
 </head><body>
 
@@ -435,7 +442,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-93f6dc';
+var APP_VERSION = '2026.11.07-ddf382';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
