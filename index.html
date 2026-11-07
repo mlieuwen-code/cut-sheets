@@ -368,7 +368,7 @@ body.hasfloors .wrap{padding-bottom:170px}
       </div>
     </div>
     <div class="resume" id="nextFloor" hidden>
-      <div class="eyebrow">Next floor</div>
+      <div class="eyebrow" id="nextEyebrow">Next floor</div>
       <div class="row">
         <span class="dot" style="background:var(--accent)"></span>
         <div class="t"><b id="nextName"></b><span id="nextInfo"></span></div>
@@ -443,7 +443,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-8aa101';
+var APP_VERSION = '2026.11.07-6fe09a';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -861,7 +861,7 @@ function renderHeader(){
         numField('h_scrD', 'DBL channel down (in)', header.scrD, { ph: 'e.g. 34', attrs: ' data-cell="scrD"' }) + '</div>' +
       chips('scrT', 'Top rail', ['Glass', 'Flat Glass']) + '</div></details>' +
     '<button type="button" class="btn big pri" id="toUnits">Next: measure units ›</button>' +
-    '<button type="button" class="btn big" id="nextFloorJob" style="background:var(--chip2)">Start next floor · same setup ›</button>';
+    '<button type="button" class="btn big" id="nextFloorJob" style="background:var(--chip2)">Start next ' + nextWord() + ' · same setup ›</button>';
   el('toUnits').onclick = function(){ showTab('units'); };
   el('nextFloorJob').onclick = nextFloorFromHere;
   if (floors && floors.length > 1){
@@ -1202,6 +1202,9 @@ function updJobWarn(){
 var FLOOR_RE = /^(.*?\S)[\s,]*[\s\-–][\s\-–,]*((?:\d+\s*(?:st|nd|rd|th)\s*(?:floor|flr|fl|level|lvl)\b)|(?:floor|flr|fl|level|lvl|L|building|bldg|blk|block)\s*#?\s*\d+[A-Za-z]?|(?:ground|main|roof)(?:\s+(?:floor|level))?|penthouse|ph\d*)\s*$/i;
 function splitJob(b4){ b4 = String(b4 || '').trim(); var m = b4.match(FLOOR_RE); return m && m[1].trim() ? [m[1].trim(), m[2].trim()] : [b4, '']; }
 function joinJob(h){ return [String(h._name || '').trim(), String(h._floor || '').trim()].filter(Boolean).join(' '); }
+// what "next" means for this job: floor (apartment), building (townhouse) or job (a house)
+function nextWord(h){ h = h || header; var k = h._kind != null ? h._kind : kindOf(h._floor != null ? h._floor : splitJob(h.B4)[1]); return k === 'th' ? 'building' : k === 'apt' ? 'floor' : 'job'; }
+function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
 function fmtFloor(kind, raw){
   raw = String(raw == null ? '' : raw).trim(); if (!raw) return '';
   if (/^\d+$/.test(raw)) return kind === 'th' ? 'Bldg ' + (+raw) : ordinal(+raw) + ' Floor';
@@ -2091,11 +2094,11 @@ function bumpFloor(name){
 }
 // from an open job, saved or not: carry this job's setup to a fresh sheet
 function nextFloorFromHere(){
-  if (!String(header.B4 || '').trim()) return msg('Enter the job name first, so the next floor knows what to follow.');
+  if (!String(header.B4 || '').trim()) return msg('Enter the job name first, so the next ' + nextWord() + ' knows what to follow.');
   if (floors) return addFloor();
   var unsaved = el('draftPill') && !el('draftPill').hidden && units.some(function(u){ return u.secs.some(function(r){ return String(r.len || '').trim() !== ''; }); });
   var go = function(){ saveLast(); startNextFloor(); };   // startNextFloor asks before replacing an unsaved building draft
-  if (unsaved) return ask('This floor hasn’t been saved yet. Start the next floor anyway? The measurements on this floor will be cleared.', 'Next floor', go);
+  var nw = nextWord(); if (unsaved) return ask('This ' + nw + ' hasn’t been saved yet. Start the next ' + nw + ' anyway? The measurements on this ' + nw + ' will be cleared.', 'Next ' + nw, go);
   go();
 }
 function startNextFloor(){
@@ -2105,13 +2108,14 @@ function startNextFloor(){
     var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; delete h._openB4; h._dir = d; nextJobHeader(h, d);
     startNew({ header: h, units: [blankUnit(suggestUnit(last.units, last.header && (last.header._floor != null ? last.header._floor : splitJob(last.header.B4)[1]), h._floor))], nextFloor: true, tab: h.B4 !== h._prev ? 'units' : 'job' });
   }); };
-  if (readDraft('new-job')) return ask('Start the next floor? This replaces the unsaved draft on this tablet.', 'Next floor', go);
+  if (readDraft('new-job')) return ask('Start the next ' + nextWord(last.header) + '? This replaces the unsaved draft on this tablet.', 'Next ' + nextWord(last.header), go);
   go();
 }
 (function(){
   var l = readLast(); if (!l || !l.header) return;
   var h = l.header, bits = [h.B7 ? h.B7 + ' mount' : '', h.B6 ? colourLabel(h.B6) : '', isNum(h.B12) ? 'posts ' + fmtFrac(parseLen(String(h.B12))) : ''].filter(Boolean);
   el('nextName').textContent = 'Same setup as ' + (String(h.B4 || '').trim() || 'the last job');
+  el('nextEyebrow').textContent = 'Next ' + nextWord(h); el('nextBtn').textContent = 'Next ' + nextWord(h);
   el('nextInfo').textContent = bits.join(' · ');
   el('nextFloor').hidden = false;
   el('nextBtn').onclick = startNextFloor;
@@ -2121,7 +2125,7 @@ function startNextFloor(){
 function clearNextFloor(){
   var raw = null; try { raw = localStorage.getItem(LAST_KEY); localStorage.removeItem(LAST_KEY); } catch (e) {}
   var t = document.createElement('div'); t.className = 'undobar'; t.setAttribute('role', 'status');
-  t.innerHTML = '<span>Next floor cleared.</span><button type="button" class="btn">Undo</button>';
+  t.innerHTML = '<span>' + esc(el('nextEyebrow').textContent) + ' cleared.</span><button type="button" class="btn">Undo</button>';
   document.body.appendChild(t);
   var gone = setTimeout(function(){ t.remove(); }, 7000);
   t.querySelector('button').onclick = function(){
@@ -2452,7 +2456,7 @@ function saveNow(){
       if (!queued.length) msgLinks('Saved to the Cut Sheets folder in Drive: ' + done.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
       else msg((done.length ? 'Saved to Drive: ' + done.join(' · ') + '. ' : '') + 'No signal right now, so ' + queued.join(' · ') + (queued.length === 1 ? ' is' : ' are') + ' saved on this tablet and will go to Drive by itself once you’re on a hotspot or Wi-Fi. Keep the app open, or open it again when you have signal.', true);
       var nf = document.createElement('div'); nf.style.marginTop = '10px';
-      nf.innerHTML = '<button type="button" class="btn pri" id="nextFloorGo">Start next floor · same setup ›</button>';
+      nf.innerHTML = '<button type="button" class="btn pri" id="nextFloorGo">Start next ' + nextWord() + ' · same setup ›</button>';
       el('msg').appendChild(nf); el('nextFloorGo').onclick = function(){ if (floors) addFloor(); else startNextFloor(); };
       saveAllNext();
     } else {
@@ -2702,7 +2706,7 @@ function renderFloors(){
   if (!floors){ fb.hidden = true; return; }
   fb.hidden = false;
   fb.innerHTML = floors.map(function(f, k){ return '<button type="button" class="ftab' + (k === curFloor ? ' on' : '') + '" data-floor="' + k + '" aria-pressed="' + (k === curFloor) + '">' + (f.saved ? '✓ ' : (k !== curFloor && floorHasData(f) ? '<span class="unsv" title="Not saved">●</span> ' : '')) + esc(floorLabel(f, k)) + '</button>'; }).join('') +
-    '<button type="button" class="ftab add" data-floor="add">+ Next floor</button>';
+    '<button type="button" class="ftab add" data-floor="add">+ Next ' + nextWord() + '</button>';
   var on = fb.querySelector('.ftab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function switchFloor(k){
@@ -2726,10 +2730,11 @@ function nextFloorNote(){
     showTab('job'); msg('Next building: same setup as ' + (header._prev || 'the last building') + '. Enter this building number.', true);
     return setTimeout(function(){ var j = el('h_floor'); if (j){ j.focus(); j.select(); } }, 300);
   }
-  if (String(header.B4 || '').trim() && header.B4 !== header._prev) return msg('Next floor: ' + header.B4 + ', same setup as ' + (header._prev || 'the last floor') + '. Tap Job Info to change the name or anything different on this floor.', true);
+  var nw = nextWord();
+  if (String(header.B4 || '').trim() && header.B4 !== header._prev) return msg('Next ' + nw + ': ' + header.B4 + ', same setup as ' + (header._prev || 'the last ' + nw) + '. Tap Job Info to change the name or anything different on this ' + nw + '.', true);
   showTab('job');
   if (!header._kind){ msg('Next job: same setup as ' + (header._prev || 'the last one') + '. Enter the new job name.', true); return setTimeout(function(){ var j = el('h_B4'); if (j){ j.focus(); j.select(); } }, 300); }
-  msg('Next floor: same setup as ' + (header._prev || 'the last floor') + '. Enter this ' + (header._kind === 'th' ? 'building number.' : 'floor number.'), true);
+  msg('Next ' + nw + ': same setup as ' + (header._prev || 'the last ' + nw) + '. Enter this ' + (header._kind === 'th' ? 'building number.' : 'floor number.'), true);
   setTimeout(function(){ var j = el('h_floor'); if (j){ j.focus(); j.select(); } }, 300);
 }
 function removeFloor(){
@@ -2745,7 +2750,7 @@ function removeFloor(){
 el('floorbar').addEventListener('click', function(e){
   var b = e.target.closest('[data-floor]'); if (!b) return;
   var v = b.getAttribute('data-floor');
-  if (v === 'add'){ if (!String(header.B4 || '').trim()) return msg('Enter this floor’s job name first, so the next floor knows what to follow.'); return addFloor(); }
+  if (v === 'add'){ if (!String(header.B4 || '').trim()) return msg('Enter the job name first, so the next ' + nextWord() + ' knows what to follow.'); return addFloor(); }
   if (busy || saveAllQ) return msg('Saving… wait a moment before switching floors.', true);
   if (+v !== curFloor) switchFloor(+v);
 });
