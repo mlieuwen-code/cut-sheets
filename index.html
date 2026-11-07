@@ -322,6 +322,11 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .floorbar{margin-bottom:6px}
 .ftab{min-height:38px;padding:0 14px}
 body.hasfloors .wrap{padding-bottom:170px}
+/* landscape: a soft line between the left-end and right-end columns */
+@media (orientation:landscape) and (min-width:600px){
+  .endpair{position:relative;column-gap:34px}
+  .endpair::before{content:"";position:absolute;top:2px;bottom:2px;left:50%;width:2px;margin-left:-1px;border-radius:2px;background:var(--line)}
+}
 </style>
 </head><body>
 
@@ -435,7 +440,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-e56171';
+var APP_VERSION = '2026.11.07-675009';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1249,7 +1254,7 @@ function secHtml(u, i, run, j){
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
       (!run._sp && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
       (j === 2 && u.secs[0] ? '<button type="button" class="btn" data-act="same1">Same as .1, flipped</button> ' : '') + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
-    '<div class="g2"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select>' + quickEnds('Left', run.l) + '</div>' +
+    '<div class="g2 endpair"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select>' + quickEnds('Left', run.l) + '</div>' +
       '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select>' + quickEnds('Right', run.r) + '</div></div>' +
     // angled corner posts (FA, I6A, 6EPA…): ask for the angle right here instead of under More options
     (angL || angR ? '<div class="anglebox"><div class="anglehd">Angled post: enter the angle between the two rails <span>(blank = 90°)</span></div><div class="g2">' +
