@@ -404,7 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-bdb993';
+var APP_VERSION = '2026.11.06-616058';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -770,8 +770,9 @@ function renderHeader(){
       '<div class="g2" data-fracslot>' + numField('h_B12', 'Post height (in)', header.B12, { need: true, ph: 'Std Fascia 49 1/2 · Top 40 1/2', attrs: ' data-cell="B12"' }) +
         numField('h_B13', 'Block height (in)', header.B13, { need: true, ph: 'Std 38 5/16', attrs: ' data-cell="B13"' }) + '</div>' +
     '</div>' +
-    '<div class="card"><h3>Glass &amp; substrate</h3><div class="g3" data-fracslot>' +
-      selField('h_B14', 'Glass', lists.glass, header.B14, ' data-cell="B14"') + selField('h_B15', 'Glass bottom', lists.glass, header.B15, ' data-cell="B15"') +
+    '<div class="card"><h3>Glass &amp; substrate</h3><div class="g2">' + selField('h_B14', 'Glass', lists.glass, header.B14, ' data-cell="B14"') + '<div></div></div>' +
+      // glass bottom + distance down only matter with an extra channel, so they show once one is picked
+      '<div class="g2" id="glassBot" data-fracslot' + (nChan ? '' : ' hidden') + '>' + selField('h_B15', 'Glass bottom', lists.glass, header.B15, ' data-cell="B15"') +
       numField('h_B16', 'Distance down (in)', header.B16, { attrs: ' data-cell="B16"' }) + '</div>' +
       chips('B17', 'Substrate', ['Wood','Concrete']) + '</div>' +
     '<details class="fold"><summary>Post wall <em id="pwSum" style="font-style:normal;color:var(--muted);font-weight:700;margin-left:auto">' + esc(String(header.B10 || POST_WALLS[0]).replace('2x2 - ', '')) + '</em></summary><div class="in">' +
@@ -810,7 +811,7 @@ el('tab-job').addEventListener('change', function(e){
     else { o.hidden = true; header.B6 = t.value; }
     return changed();
   }
-  var c = t.getAttribute('data-cell'); if (c && t.tagName === 'SELECT'){ header[c] = t.value; changed(); }
+  var c = t.getAttribute('data-cell'); if (c && t.tagName === 'SELECT'){ header[c] = t.value; changed(); if (/^D[789]$/.test(c) && el('glassBot')) el('glassBot').hidden = ![7,8,9].some(function(r){ return String(header['D' + r] || '') !== ''; }); }
 });
 el('tab-job').addEventListener('click', function(e){
   if (e.target.closest('[data-act="std"]')){
