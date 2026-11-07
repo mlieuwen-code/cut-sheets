@@ -417,7 +417,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-16005c';
+var APP_VERSION = '2026.11.07-81c195';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -531,6 +531,8 @@ var READ_ONLY = [];
 var POST_WALLS = ['2x2 - .095', '2x2 - .125'];
 // rail type names as the crew sees them; the sheet still gets its own value (5/8", Tight …)
 function railLabel(t){
+  if (t === 'Relief') return 'Glass Relief Channel';
+  if (t === 'Flat Relief') return 'Flat Glass Relief Channel';
   var m = String(t).match(/^(Flat )?(5\/8"|3\/4"|1"|Wide|Tight)$/); if (!m) return t;
   return (m[1] || '') + (m[2] === 'Tight' ? 'Concentrated Picket' : m[2] + ' Picket' + (m[2] === '5/8"' ? ' (Standard)' : ''));
 }
@@ -681,6 +683,8 @@ function loadData(data, name, isNew, opts, restore){
     lists.glass = colRange(L, 'C', 2, 12);
     lists.channels = colRange(L, 'R', 3, 11);
     lists.railTypes = colRange(RT, 'A', 4, 21);
+    // the two most common first, the rest in the template's order
+    var FIRST_RAILS = ['Glass', '5/8"']; lists.railTypes = FIRST_RAILS.filter(function(t){ return lists.railTypes.indexOf(t) >= 0; }).concat(lists.railTypes.filter(function(t){ return FIRST_RAILS.indexOf(t) < 0; }));
     railFam = {}; for (var rf = 4; rf <= 21; rf++){ var rfn = readCell(RT, 'A' + rf); if (rfn !== '') railFam[String(rfn)] = String(readCell(RT, 'B' + rf) || ''); }
     // mount standards from LISTS (E:H): standoff, post height, block height
     for (var sr = 3; sr <= 8; sr++){ var smt = String(readCell(L, 'E' + sr) || ''); if (MOUNTS.indexOf(smt) < 0) continue; STD[smt] = { B11: readCell(L, 'F' + sr), B12: readCell(L, 'G' + sr), B13: readCell(L, 'H' + sr) }; }
