@@ -148,7 +148,7 @@ h1,h2{text-wrap:balance}
 .fld input,.fld select{width:100%;min-width:0;height:60px;border-radius:16px;border:2px solid var(--line);background:var(--field);padding:0 16px;font-size:20px;font-weight:700;color:var(--ink)}
 .fld input::placeholder{color:#8C8378;font-weight:600}
 .fld.need input:placeholder-shown{border-color:var(--need);background:var(--needbg)}
-.fld.job input{border-color:var(--accent);background:var(--card);font-size:22px;font-weight:800}
+.fld.job input{border-color:var(--accent);background:var(--card);font-size:24px;font-weight:900;letter-spacing:.01em}
 .hint{font-size:14px;color:var(--muted);min-height:18px;font-weight:700}
 .hint.bad{color:var(--bad)}
 .chips{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:8px}
@@ -412,7 +412,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-df938b';
+var APP_VERSION = '2026.11.06-d747d4';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
