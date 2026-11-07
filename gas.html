@@ -404,7 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-638567';
+var APP_VERSION = '2026.11.06-ae57e4';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -516,6 +516,13 @@ var WRITE = [
 ];
 var READ_ONLY = [];
 var POST_WALLS = ['2x2 - .095', '2x2 - .125'];
+// rail type names as the crew sees them; the sheet still gets its own value (5/8", Tight …)
+function railLabel(t){
+  var m = String(t).match(/^(Flat )?(5\/8"|3\/4"|1"|Wide|Tight)$/); if (!m) return t;
+  return (m[1] || '') + (m[2] === 'Tight' ? 'Concentrated Picket' : m[2] + ' Picket');
+}
+// same rule as the sheet's rail family (INPUT U3): anything whose family isn't a picket family is glass
+function isGlassRail(t){ t = String(t || ''); return t !== '' && !/picket/i.test(railFam[t] || (/^(Flat )?(5\/8"|3\/4"|1"|Wide|Tight)$/.test(t) ? 'Picket' : 'Glass')); }
 // who measured / who typed it in: shown on Job Info, saved on the job's Notes file
 var MEASURERS = ['Ben Lieuwen', 'Joel Mulder', 'Jonathan Mulder', 'Josh Mulder', 'Matt Lieuwen'];   // alphabetical
 var INPUT_BY = ['Martin Delgado', 'Robyn Moore'].concat(MEASURERS).sort();
@@ -661,6 +668,7 @@ function loadData(data, name, isNew, opts, restore){
     lists.glass = colRange(L, 'C', 2, 12);
     lists.channels = colRange(L, 'R', 3, 11);
     lists.railTypes = colRange(RT, 'A', 4, 21);
+    railFam = {}; for (var rf = 4; rf <= 21; rf++){ var rfn = readCell(RT, 'A' + rf); if (rfn !== '') railFam[String(rfn)] = String(readCell(RT, 'B' + rf) || ''); }
     // mount standards from LISTS (E:H): standoff, post height, block height
     for (var sr = 3; sr <= 8; sr++){ var smt = String(readCell(L, 'E' + sr) || ''); if (MOUNTS.indexOf(smt) < 0) continue; STD[smt] = { B11: readCell(L, 'F' + sr), B12: readCell(L, 'G' + sr), B13: readCell(L, 'H' + sr) }; }
     var dv = sheetXml.match(/<dataValidation\b[^>]*sqref="B20:C119"[^>]*>\s*<formula1>"([^"<]*)"<\/formula1>/);
@@ -761,7 +769,7 @@ function renderHeader(){
     '<div class="card"><h3>Rail setup</h3>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
         '<input id="h_B6o" type="text" autocomplete="off" aria-label="Other colour" placeholder="Type the colour" value="' + esc(isOther ? col : '') + '"' + (isOther ? '' : ' hidden') + ' style="margin-top:4px;border-color:var(--need);background:var(--needbg)"></div>' +
-        selField('h_B8', 'Rail type', lists.railTypes, header.B8, ' data-cell="B8"') + '</div>' +
+        selField('h_B8', 'Rail type', lists.railTypes, header.B8, ' data-cell="B8"', railLabel) + '</div>' +
       chips('B7', 'Mount', MOUNTS, null, MOUNT_COLOR) +
       '<div id="stdSlot"></div>' +
       '<div class="g2 topdim" id="topDim" data-fracslot>' + chips('B9', 'Bracket height', ['4','4.5','5'], ['4"','4½"','5"']) +
@@ -770,11 +778,12 @@ function renderHeader(){
       '<div class="g2" data-fracslot>' + numField('h_B12', 'Post height (in)', header.B12, { need: true, ph: 'Std Fascia 49 1/2 · Top 40 1/2', attrs: ' data-cell="B12"' }) +
         numField('h_B13', 'Block height (in)', header.B13, { need: true, ph: 'Std 38 5/16', attrs: ' data-cell="B13"' }) + '</div>' +
     '</div>' +
-    '<div class="card"><h3>Glass &amp; substrate</h3><div class="g2">' + selField('h_B14', 'Glass', lists.glass, header.B14, ' data-cell="B14"') + '<div></div></div>' +
+    // glass only for glass rail types; substrate on its own
+    '<div class="card" id="glassCard"' + (isGlassRail(header.B8) ? '' : ' hidden') + '><h3>Glass</h3><div class="g2">' + selField('h_B14', 'Glass', lists.glass, header.B14, ' data-cell="B14"') + '<div></div></div>' +
       // glass bottom + distance down only matter with an extra channel, so they show once one is picked
       '<div class="g2" id="glassBot" data-fracslot' + (nChan ? '' : ' hidden') + '>' + selField('h_B15', 'Glass bottom', lists.glass, header.B15, ' data-cell="B15"') +
-      numField('h_B16', 'Distance down (in)', header.B16, { attrs: ' data-cell="B16"' }) + '</div>' +
-      chips('B17', 'Substrate', ['Wood','Concrete']) + '</div>' +
+      numField('h_B16', 'Distance down (in)', header.B16, { attrs: ' data-cell="B16"' }) + '</div></div>' +
+    '<div class="card">' + chips('B17', 'Substrate', ['Wood','Concrete']) + '</div>' +
     '<details class="fold"><summary>Post wall <em id="pwSum" style="font-style:normal;color:var(--muted);font-weight:700;margin-left:auto">' + esc(String(header.B10 || POST_WALLS[0]).replace('2x2 - ', '')) + '</em></summary><div class="in">' +
       chips('B10', 'Post wall', POST_WALLS, ['2x2 · .095', '2x2 · .125']) + '</div></details>' +
     '<details class="fold"' + (nChan ? ' open' : '') + '><summary>Extra channels <span>' + (nChan ? nChan + ' added' : 'None') + ' ›</span></summary><div class="in">' + chan + '</div></details>' +
@@ -811,7 +820,7 @@ el('tab-job').addEventListener('change', function(e){
     else { o.hidden = true; header.B6 = t.value; }
     return changed();
   }
-  var c = t.getAttribute('data-cell'); if (c && t.tagName === 'SELECT'){ header[c] = t.value; changed(); if (/^D[789]$/.test(c) && el('glassBot')) el('glassBot').hidden = ![7,8,9].some(function(r){ return String(header['D' + r] || '') !== ''; }); }
+  var c = t.getAttribute('data-cell'); if (c && t.tagName === 'SELECT'){ header[c] = t.value; changed(); if (c === 'B8' && el('glassCard')) el('glassCard').hidden = !isGlassRail(t.value); if (/^D[789]$/.test(c) && el('glassBot')) el('glassBot').hidden = ![7,8,9].some(function(r){ return String(header['D' + r] || '') !== ''; }); }
 });
 el('tab-job').addEventListener('click', function(e){
   if (e.target.closest('[data-act="std"]')){
@@ -880,7 +889,7 @@ function totalSecs(){ return units.reduce(function(n, u){ return n + u.secs.leng
 function secLabel(u, j){ return (String(u.unit).trim() || '?') + '.' + (j + 1); }
 
 // ---------- long-rail splitter: over 255" splits into pieces joined by CJ / CJO, every piece gets the same channels ----------
-var MAX_RAIL = 255, endCh = {}, railMax = {}, geo = { p: 2, ang: 90, gap: 1.25, top: 0, dir: { FA: 1, I6A: -1, '6EPA': -1 } };
+var MAX_RAIL = 255, endCh = {}, railMax = {}, railFam = {}, geo = { p: 2, ang: 90, gap: 1.25, top: 0, dir: { FA: 1, I6A: -1, '6EPA': -1 } };
 // channel deduction for one end, the same way the ENGINE tab works it out (base + coeff x standoff; angled double corners by geometry)
 function chDed(code, mount, g, ang){
   var d = geo.dir[code] || 0;
