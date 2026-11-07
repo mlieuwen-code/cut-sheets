@@ -283,6 +283,10 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .splitnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;margin:-2px 0 10px;padding:10px 14px;border-radius:14px;background:var(--tint2,#E4EDE9);color:var(--deep,#21443A);font-size:15px;font-weight:700;line-height:1.4}
 .splitnote.warn{background:var(--amberbg,#FBEBD0);color:var(--amberink,#6B4210)}
 .splitnote .btn{min-height:44px}
+.verline{margin-top:28px;padding:4px 4px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;font-size:15px;color:var(--muted)}
+.verline #verMsg{flex-basis:100%;font-weight:700;color:var(--sub)}
+.verline #verMsg.ok{background:none;color:var(--deep);font-size:15px}
+.verline #verMsg.bad{color:var(--bad)}
 </style>
 </head><body>
 
@@ -340,6 +344,11 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;color:var(--accent)"><path d="M20 6 9 17l-5-5"/></svg>
       <div>Everything saves on this tablet as you type. When you hit <b>Save</b>, it goes to the Cut Sheets folder in Drive.</div>
     </div>
+    <div class="verline">
+      <span id="verText">Version</span>
+      <button type="button" class="btn" id="verBtn">Check for updates</button>
+      <span id="verMsg" role="status" aria-live="polite"></span>
+    </div>
   </section>
 
   <section id="app" hidden>
@@ -391,6 +400,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
+var APP_VERSION = '2026.11.06-8fce25';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -574,14 +584,14 @@ function readDraft(name){ try { return JSON.parse(localStorage.getItem(DRAFT_PRE
   el('resumeInfo').textContent = (d.floors && d.floors.length > 1 ? d.floors.length + ' floors · ' : '') + 'Draft · ' + d.units.length + ' unit' + (d.units.length === 1 ? '' : 's') + ', ' + secs + ' section' + (secs === 1 ? '' : 's') + ' · ' + new Date(d.t).toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' });
   el('resume').hidden = false;
   el('resumeBtn').onclick = function(){ startNew(d); };
-  swipeToDelete(el('resume').querySelector('.row'), d);
+  swipeToDelete(el('resume').querySelector('.row'), 'Delete draft', function(){ el('resume').hidden = true; removeDraft(d); });
 })();
-// swipe the draft card left to delete it, with a few seconds to undo
-function swipeToDelete(row, d){
+// swipe a start-page card left to delete / clear it (the caller shows the Undo)
+function swipeToDelete(row, label, onGone){
   if (!row) return;
   var wrap = document.createElement('div'); wrap.className = 'swipewrap';
   row.parentNode.insertBefore(wrap, row); wrap.appendChild(row);
-  var bg = document.createElement('div'); bg.className = 'swipebg'; bg.innerHTML = '<span>Delete draft</span>'; wrap.insertBefore(bg, row);
+  var bg = document.createElement('div'); bg.className = 'swipebg'; bg.innerHTML = '<span>' + esc(label) + '</span>'; wrap.insertBefore(bg, row);
   var x0 = null, y0 = 0, dx = 0, live = false, t0 = 0;
   row.style.touchAction = 'pan-y';
   row.addEventListener('pointerdown', function(e){ if (e.target.closest('button') && e.pointerType === 'mouse') return; x0 = e.clientX; y0 = e.clientY; dx = 0; live = false; t0 = Date.now(); });
@@ -597,9 +607,9 @@ function swipeToDelete(row, d){
     row.style.transition = 'transform .2s ease';
     if (-dx > row.offsetWidth * 0.4 || fast){
       row.style.transform = 'translateX(-110%)';
-      setTimeout(function(){ el('resume').hidden = true; removeDraft(d); }, 200);
+      setTimeout(onGone, 200);
     } else { row.style.transform = ''; bg.classList.remove('arm'); }
-    // a swipe isn't a tap on Resume
+    // a swipe isn't a tap on the card's button
     var stop = function(ev){ ev.stopPropagation(); ev.preventDefault(); row.removeEventListener('click', stop, true); }; row.addEventListener('click', stop, true); setTimeout(function(){ row.removeEventListener('click', stop, true); }, 400);
   };
   row.addEventListener('pointerup', end); row.addEventListener('pointercancel', end);
@@ -1934,7 +1944,22 @@ function startNextFloor(){
   el('nextInfo').textContent = bits.join(' · ');
   el('nextFloor').hidden = false;
   el('nextBtn').onclick = startNextFloor;
+  swipeToDelete(el('nextFloor').querySelector('.row'), 'Clear', function(){ el('nextFloor').hidden = true; clearNextFloor(); });
 })();
+// swiped away: forget the last job's setup until the next save, with a few seconds to undo
+function clearNextFloor(){
+  var raw = null; try { raw = localStorage.getItem(LAST_KEY); localStorage.removeItem(LAST_KEY); } catch (e) {}
+  var t = document.createElement('div'); t.className = 'undobar'; t.setAttribute('role', 'status');
+  t.innerHTML = '<span>Next floor cleared.</span><button type="button" class="btn">Undo</button>';
+  document.body.appendChild(t);
+  var gone = setTimeout(function(){ t.remove(); }, 7000);
+  t.querySelector('button').onclick = function(){
+    clearTimeout(gone); t.remove();
+    try { if (raw) localStorage.setItem(LAST_KEY, raw); } catch (e) {}
+    var row = el('nextFloor').querySelector('.row'); if (row){ row.style.transition = 'none'; row.style.transform = ''; } var bg = el('nextFloor').querySelector('.swipebg'); if (bg) bg.classList.remove('arm');
+    el('nextFloor').hidden = false;
+  };
+}
 el('newJob').onclick = function(){
   if (readDraft('new-job')) return ask('Start fresh? This replaces the unsaved draft on this tablet.', 'Start new', function(){ try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {} startNew(); });
   startNew();
@@ -2260,6 +2285,11 @@ document.addEventListener('visibilitychange', function(){ if (!document.hidden) 
 el('outboxSend').onclick = function(){ flushOutbox(); };
 el('outboxView').onclick = function(){ showOutbox(); };
 el('obBtn').onclick = function(){ showOutbox(); };
+// version line at the bottom of the start page
+function verSay(t, kind){ var m = el('verMsg'); m.textContent = t || ''; m.className = kind || ''; }
+function checkUpdates(){ verSay('This preview always shows the newest build.', 'ok'); }
+el('verText').textContent = 'Version ' + APP_VERSION;
+el('verBtn').onclick = function(){ checkUpdates(); };
 // ---------- outbox view: what's waiting on this tablet, and what went to Drive lately ----------
 function logSent(name, info, fromOutbox){
   kvGet('sent-log').then(function(a){ a = Array.isArray(a) ? a : []; a.unshift({ name: name, info: info || name, t: Date.now(), late: !!fromOutbox }); return kvSet('sent-log', a.slice(0, 15)); });
@@ -2491,6 +2521,14 @@ function showDrivePicker(){
 }
 document.querySelector('label[for="file"]').addEventListener('click', function(e){ if (e.target.id === 'file') return; e.preventDefault(); showDrivePicker(); }, true);
 (function(){ var s = document.querySelector('label[for="file"] .s'); if (s) s.textContent = 'From the Cut Sheets folder in Drive.'; })();
+// this copy loads the newest version from GitHub every time it opens, so the check only says whether a reopen is needed
+function checkUpdates(){
+  verSay('Checking…');
+  fetch('https://mlieuwen-code.github.io/cut-sheets/version.json?t=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(j){
+    if (!j || !j.v || j.v === APP_VERSION) verSay('You’re on the latest version.', 'ok');
+    else verSay('Version ' + j.v + ' is out. Close the app and open it again to get it.');
+  }).catch(function(){ verSay('Couldn’t check right now. This app loads the newest version every time you open it.'); });
+}
 })();
 
 </script>
