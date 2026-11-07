@@ -435,7 +435,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-28152c';
+var APP_VERSION = '2026.11.07-8aa101';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1240,6 +1240,7 @@ function suggestUnit(oldUnits, oldPart, newPart){
 }
 function nextJobHeader(h, d){
   ensureJobParts(h); d = d || 1;
+  if (h._kind === 'th'){ h._floor = ''; h.B4 = joinJob(h); return h; }   // townhouse building numbers jump around: the crew types the next one
   if (String(h._floor || '').trim()) h._floor = bumpPart(h._floor, d);
   else { var b = bumpPart(joinJob(h), d), p = splitJob(b); h._name = p[0]; h._floor = p[1]; }
   h.B4 = joinJob(h); return h;
@@ -2713,6 +2714,10 @@ function addFloor(){
 }
 // after starting the next floor: say what it's called; if the number couldn't be worked out, ask for it on Job Info
 function nextFloorNote(){
+  if (header._kind === 'th' && !String(header._floor || '').trim()){
+    showTab('job'); msg('Next building: same setup as ' + (header._prev || 'the last building') + '. Enter this building number.', true);
+    return setTimeout(function(){ var j = el('h_floor'); if (j){ j.focus(); j.select(); } }, 300);
+  }
   if (String(header.B4 || '').trim() && header.B4 !== header._prev) return msg('Next floor: ' + header.B4 + ', same setup as ' + (header._prev || 'the last floor') + '. Tap Job Info to change the name or anything different on this floor.', true);
   showTab('job');
   if (!header._kind){ msg('Next job: same setup as ' + (header._prev || 'the last one') + '. Enter the new job name.', true); return setTimeout(function(){ var j = el('h_B4'); if (j){ j.focus(); j.select(); } }, 300); }
