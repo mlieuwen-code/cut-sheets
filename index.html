@@ -299,6 +299,13 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .verline #verMsg{flex-basis:100%;font-weight:700;color:var(--sub)}
 .verline #verMsg.ok{background:none;color:var(--deep);font-size:15px}
 .verline #verMsg.bad{color:var(--bad)}
+.jobrow{display:grid;grid-template-columns:3fr 2fr;gap:12px}
+@media (max-width:560px){.jobrow{grid-template-columns:1fr}}
+.jobrow .fld.job{margin-bottom:0}
+#jobFileName{margin-top:8px}
+.ftab .unsv{color:var(--amber);font-size:.8em}
+/* stronger button edges for bright sun */
+.btn:not(.pri){box-shadow:inset 0 0 0 1.5px #CDBFA8}
 </style>
 </head><body>
 
@@ -412,7 +419,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-d0a59a';
+var APP_VERSION = '2026.11.07-d9e890';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -589,10 +596,10 @@ var srcData = null, srcOpts = {}, fileName = '', inputPath = '', sheetXml = '', 
 function msg(text, ok){ var m = el('msg'); m.hidden = false; m.className = 'msg ' + (ok ? 'ok' : 'err'); m.textContent = text; window.scrollTo(0, 0); }
 function clearMsg(){ el('msg').hidden = true; }
 function msgLinks(text, links, ok){ msg(text + ' ', ok); var m = el('msg'); links.forEach(function(l){ var a = document.createElement('a'); a.href = l[1]; a.textContent = l[0]; a.target = '_blank'; a.rel = 'noopener'; m.appendChild(a); }); }
-function ask(text, yesLabel, cb){
-  el('modalText').textContent = text; el('modalText').style.whiteSpace = 'pre-line'; el('modalYes').textContent = yesLabel; el('modalNo').textContent = 'Stay'; el('modal').hidden = false;
+function ask(text, yesLabel, cb, noLabel, noCb){
+  el('modalText').textContent = text; el('modalText').style.whiteSpace = 'pre-line'; el('modalYes').textContent = yesLabel; el('modalNo').textContent = noLabel || 'Stay'; el('modal').hidden = false;
   el('modalYes').onclick = function(){ el('modal').hidden = true; cb(); };
-  el('modalNo').onclick = function(){ el('modal').hidden = true; };
+  el('modalNo').onclick = function(){ el('modal').hidden = true; if (noCb) noCb(); };
   el('modalNo').focus();
 }
 
@@ -691,7 +698,7 @@ function loadData(data, name, isNew, opts, restore){
     for (var q2 = 11; q2 <= 13; q2++){ var gc = readCell(ET, 'V' + q2), gd = readCell(ET, 'W' + q2); if (gc !== '' && typeof gd === 'number') geo.dir[String(gc)] = gd; }
     if (!Object.keys(geo.dir).length) geo.dir = { FA: 1, I6A: -1, '6EPA': -1 };
     for (var q3 = 4; q3 <= 21; q3++){ var rn = readCell(RT, 'A' + q3), rm = readCell(RT, 'E' + q3); if (rn !== '' && typeof rm === 'number') railMax[String(rn)] = rm; }
-    for (var r = 4; r <= 94; r++){ var mt = readCell(ET,'B'+r), cd = readCell(ET,'C'+r), ds = readCell(ET,'D'+r); if (cd !== '' && ds !== ''){ endDesc[mt + '|' + cd] = String(ds).trim(); if (!endDesc['*|' + cd]) endDesc['*|' + cd] = String(ds).trim(); } }
+    for (var r = 4; r <= 94; r++){ var mt = readCell(ET,'B'+r), cd = readCell(ET,'C'+r), ds = readCell(ET,'D'+r); if (cd !== '' && ds !== ''){ ds = String(ds).trim().replace(/\bFasica\b/g, 'Fascia'); endDesc[mt + '|' + cd] = ds; if (!endDesc['*|' + cd]) endDesc['*|' + cd] = ds; } }
     header = {};
     WRITE.forEach(function(f){ header[f.cell] = readCell(sheetXml, f.cell); });
     // newer templates fill standoff / post / block (B11:B13) from the mount standards, with the job's own number in the override column D
@@ -714,7 +721,10 @@ function loadData(data, name, isNew, opts, restore){
     readSteps(runs, CPX);
     units = groupUnits(runs); units.forEach(relinkSplits);
     if (!units.length) units.push(blankUnit(''));
-    if (restore){ header = Object.assign(header, restore.header); units = restore.units || units; }
+    var fileB4 = String(header.B4 || '');   // the job name inside the opened file, before any draft is laid over it
+    if (restore){ header = Object.assign(header, restore.header); units = restore.units || units; if (restore.header && restore.header._name == null){ delete header._name; delete header._floor; } }
+    if (!isNew && name !== 'new-job' && header._openB4 == null) header._openB4 = fileB4;
+    if (isNew && !restore){ header._name = ''; header._floor = ''; } ensureJobParts(header);
     // new jobs from the template are a "building": one tab per floor along the bottom
     if (name === 'new-job'){
       if (restore && restore.floors && restore.floors.length){ floors = restore.floors; curFloor = Math.min(restore.cur || 0, floors.length - 1); floors[curFloor].header = header; floors[curFloor].units = units; header = floors[curFloor].header; units = floors[curFloor].units; }
@@ -723,11 +733,7 @@ function loadData(data, name, isNew, opts, restore){
     if (!isNew){ (srcOpts.base64 ? Promise.resolve(data) : blobToB64(data)).then(function(b64){ kvSet('open-src', { name: name, b64: b64 }); }, function(){}); }
     el('start').hidden = true; el('app').hidden = false; el('bar').hidden = false;
     renderHeader(); renderRuns(); showTab(restore && restore.tab || 'job'); applyMount(); renderFloors();
-    if (restore && restore.nextFloor){
-      changed();
-      msg('Next floor: same setup as ' + (header._prev || 'the last floor') + '. Check the job name, and change anything that’s different on this floor.', true);
-      setTimeout(function(){ var j = el('h_B4'); if (j){ j.focus(); j.select(); } }, 300);
-    }
+    if (restore && restore.nextFloor){ changed(); nextFloorNote(); }
     else if (restore && restore.quiet){}
     else if (restore) msg('Picked up your draft' + (header.B4 ? ' for ' + header.B4 : '') + '.', true);
     else if (!isNew){ msg('Opened ' + fileName + (header.B4 ? ' (job ' + header.B4 + ')' : '') + '.', true); offerDraft(); }
@@ -761,6 +767,7 @@ function chips(cell, label, options, labels, dots){
 
 // ---------- job info ----------
 function renderHeader(){
+  ensureJobParts(header);
   parkFrac();
   var col = String(header.B6 == null ? '' : header.B6), isOther = col !== '' && lists.colours.indexOf(col) < 0;
   var colourOpts = '<option value=""></option>' + lists.colours.map(function(o){ return '<option value="' + esc(o) + '"' + (o === col ? ' selected' : '') + '>' + esc(colourLabel(o)) + '</option>'; }).join('') +
@@ -772,7 +779,9 @@ function renderHeader(){
   });
   var nChan = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length;
   el('tab-job').innerHTML =
-    '<div class="card"><div class="fld job"><label for="h_B4">Job name <em>· becomes the file name</em></label><div class="jobhelp">Building name and floor</div><input id="h_B4" data-cell="B4" type="text" autocomplete="off" placeholder="e.g. Woodbine 4th Floor" value="' + esc(header.B4) + '"><div class="jobwarn" id="jobWarn" hidden></div></div>' +
+    '<div class="card"><div class="jobrow"><div class="fld job"><label for="h_B4">Building or job name</label><input id="h_B4" data-jn="name" type="text" autocomplete="off" placeholder="e.g. Woodbine" value="' + esc(header._name) + '"></div>' +
+      '<div class="fld job"><label for="h_floor">Floor or building #</label><input id="h_floor" data-jn="floor" type="text" autocomplete="off" placeholder="e.g. 4th Floor or Bldg 12" value="' + esc(header._floor) + '"></div></div>' +
+      '<div class="jobhelp" id="jobFileName">' + jobFileHint() + '</div><div class="jobwarn" id="jobWarn" hidden></div>' +
       '<div class="g2">' + selField('h_measBy', 'Measured by', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
     '<div class="card"><h3>Rail setup</h3>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
@@ -813,6 +822,8 @@ function renderHeader(){
 el('tab-job').addEventListener('input', function(e){
   var t = e.target;
   if (t.id === 'h_B6o'){ header.B6 = t.value; return changed(); }
+  var jn = t.getAttribute('data-jn');
+  if (jn){ header[jn === 'name' ? '_name' : '_floor'] = t.value; header.B4 = joinJob(header); var fh = el('jobFileName'); if (fh) fh.innerHTML = jobFileHint(); updJobWarn(); changed(); if (floors) renderFloors(); return; }
   var c = t.getAttribute('data-cell'); if (!c) return;
   header[c] = t.value;
   if (t.hasAttribute('data-frac')) showHint(t);
@@ -1104,10 +1115,15 @@ function unitSum(u){
 function nextUnitNum(){ var n = null; units.forEach(function(u){ var v = parseInt(u.unit, 10); if (!isNaN(v) && (n === null || v > n)) n = v; }); return n === null ? '' : String(n + 1); }
 // ---------- same-name check: Drive file names, and the names this job has saved or was opened from ----------
 var saveOk = false, dnCache = null;
-function driveNames(){ return Promise.resolve(null); }   // replaced in the installed / Google-hosted app
+function driveNames(){ return Promise.resolve('na'); }   // replaced in the installed / Google-hosted app ('na' = this copy can't check Drive)
 function driveNamesQuick(){
   if (dnCache && Date.now() - dnCache.t < 60000) return Promise.resolve(dnCache.list);
-  return Promise.race([driveNames().then(function(l){ if (l) dnCache = { t: Date.now(), list: l }; return l; }, function(){ return null; }), new Promise(function(r){ setTimeout(function(){ r(null); }, 6000); })]);
+  return Promise.race([driveNames().then(function(l){ if (l && l !== 'na') dnCache = { t: Date.now(), list: l }; return l; }, function(){ return null; }), new Promise(function(r){ setTimeout(function(){ r(null); }, 6000); })]);
+}
+// the main sheet's file name: an opened sheet (e.g. "Woodbine - 42 in posts.xlsx") keeps its own name until the job name is changed
+function mainFileName(){
+  if (!floors && fileName && fileName !== 'new-job' && header._openB4 != null && String(header.B4 || '').trim() === String(header._openB4).trim()) return fileName.replace(/\s*\(\d+\)(?=\.xlsx$)/i, '');
+  return jobFile() + '.xlsx';
 }
 function myNames(){ var a = (header._saved || []).slice(); if (fileName && fileName !== 'new-job') a.push(fileName); return a.map(function(n){ return String(n).toLowerCase(); }); }
 function markMine(n){ header._saved = header._saved || []; if (header._saved.indexOf(n) < 0) header._saved.push(n); if (dnCache && dnCache.list.indexOf(n) < 0) dnCache.list.push(n); try { persist(); } catch (e) {} }
@@ -1119,6 +1135,23 @@ function updJobWarn(){
   else if (nm && header._prev && nm.toLowerCase() === String(header._prev).trim().toLowerCase()) t = 'That’s the last floor’s name. Change it, or saving will overwrite that floor’s cut sheet.';
   else if (nm && dnCache && dnCache.list.map(function(x){ return String(x).toLowerCase(); }).indexOf(f.toLowerCase()) >= 0 && myNames().indexOf(f.toLowerCase()) < 0) t = 'A cut sheet called “' + f + '” is already in Drive. Saving will replace it.';
   w.textContent = t; w.hidden = !t;
+}
+// job name = building/job name + floor or building number ("Woodbine" + "4th Floor" -> "Woodbine 4th Floor")
+var FLOOR_RE = /^(.*?\S)[\s,]*[\s\-–][\s\-–,]*((?:\d+\s*(?:st|nd|rd|th)\s*(?:floor|flr|fl|level|lvl)\b)|(?:floor|flr|fl|level|lvl|L|building|bldg|blk|block)\s*#?\s*\d+[A-Za-z]?|(?:ground|main|roof)(?:\s+(?:floor|level))?|penthouse|ph\d*)\s*$/i;
+function splitJob(b4){ b4 = String(b4 || '').trim(); var m = b4.match(FLOOR_RE); return m && m[1].trim() ? [m[1].trim(), m[2].trim()] : [b4, '']; }
+function joinJob(h){ return [String(h._name || '').trim(), String(h._floor || '').trim()].filter(Boolean).join(' '); }
+function ensureJobParts(h){ if (h._name == null || (!String(h._name).trim() && !String(h._floor || '').trim() && String(h.B4 || '').trim())){ var p = splitJob(h.B4); h._name = p[0]; h._floor = p[1]; } }
+function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + '.xlsx</b>' : 'Together these become the file name'; }
+// next floor / next building: bump the number ("4th Floor" -> "5th Floor", "Bldg 12" -> "Bldg 13", "4" -> "5")
+function bumpPart(t){
+  t = String(t || ''); var a = bumpFloor(t); if (a !== t) return a;
+  return t.replace(/(\d+)(st|nd|rd|th)?(?!.*\d)/i, function(m, n, sx){ return sx ? ordinal(+n + 1) : String(+n + 1); });
+}
+function nextJobHeader(h){
+  ensureJobParts(h);
+  if (String(h._floor || '').trim()) h._floor = bumpPart(h._floor);
+  else { var b = bumpFloor(joinJob(h)), p = splitJob(b); h._name = p[0]; h._floor = p[1]; }
+  h.B4 = joinJob(h); return h;
 }
 function jobFile(){ return String(header.B4 || '').trim().replace(/[\\\/:*?"<>|]+/g, '-') || '[Job name]'; }
 function endLabel(o, m){ var d = endDesc[(m == null ? (header.B7 || '') : m) + '|' + o] || endDesc['*|' + o]; return d ? o + ' – ' + d : o; }
@@ -1675,14 +1708,14 @@ function screenBox(u, i){
       var id = 'u' + i + 'k' + k + '_', t = screenType(sc), sv = parseLen(sc.size), okSize = !(sv === null || isNaN(sv) || sv <= 0);
       var nm = 'Screen ' + (String(u.unit).trim() || '?') + (list.length > 1 ? ' #' + (k + 1) : '');
       if (sc._done && okSize && t && t !== 'RR') return '<button type="button" class="secrow" data-act="scropen" data-k="' + k + '" aria-label="Edit ' + esc(nm) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
-        '<span class="lab">' + esc(nm) + '</span><span class="ends">' + esc(sc.l + ' → ' + sc.r) + (String(sc.so || '').trim() ? ' · S.O ' + esc(sc.so) : '') + '</span><span class="len">' + esc(fmtFrac(sv)) + '</span></button>';
+        '<span class="lab">' + esc(nm) + '</span><span class="ends">' + esc(sc.l + ' → ' + sc.r) + (String(sc.so || '').trim() ? ' · standoff ' + esc(sc.so) : '') + '</span><span class="len">' + esc(fmtFrac(sv)) + '</span></button>';
       var ends = function(side, lab){ return '<div class="fld"><div class="lbl">' + lab + '</div><div class="chips" style="--n:2">' +
         [['R', 'R · Railing'], ['W', 'W · Wall']].map(function(o){ return '<button type="button" class="chip" data-scrend="' + k + '|' + side + '" data-val="' + o[0] + '" aria-pressed="' + (sc[side] === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>'; };
       return '<div class="scr" data-k="' + k + '"><div class="top"><b>' + esc(nm) + (t ? ' <span class="pill" style="margin-left:6px">' + (t === 'WW' ? 'Wall to wall' : t === 'RW' ? 'Rail to wall' : 'R–R') + '</span>' : '') + '</b>' +
         '<span>' + (t && t !== 'RR' ? '<button type="button" class="btn ghost" data-act="scrdone" data-k="' + k + '">Done</button> ' : '') + (list.length > 1 ? '<button type="button" class="btn danger" data-act="scrdel" data-k="' + k + '">Delete</button>' : '') + '</span></div>' +
         '<div class="g2">' + ends('l', 'Left end') + ends('r', 'Right end') + '</div>' +
         '<div class="g2" data-fracslot>' + numField(id + 'size', 'Size (in)', sc.size, { need: true, cls: 'meas', ph: 'e.g. 45 1/2', attrs: ' data-scr="' + k + '" data-sf="size"' }) +
-          numField(id + 'so', 'S.O (in)', sc.so, { ph: 'Optional', attrs: ' data-scr="' + k + '" data-sf="so"' }) + '</div>' +
+          numField(id + 'so', 'Standoff (in)', sc.so, { ph: 'Optional', attrs: ' data-scr="' + k + '" data-sf="so"' }) + '</div>' +
         (t === 'RR' ? '<div class="twarn">R–R isn’t on the screen cut sheet. A screen needs at least one wall end.</div>' : '') + '</div>';
     }).join('') +
     '<button type="button" class="addsec" data-act="scradd">+ Add another screen for this unit</button></div>';
@@ -1930,7 +1963,13 @@ function showTab(t){
   applyMount(); window.scrollTo(0, 0);
 }
 Array.prototype.forEach.call(document.querySelectorAll('.navtab'), function(x){ x.onclick = function(){ showTab(x.getAttribute('data-t')); }; });
-el('back').onclick = function(){ ask('Leave this job? Your entries stay on this tablet as a draft.', 'Leave', function(){ try { localStorage.removeItem(OPEN_KEY); } catch (e) {} location.reload(); }); };
+el('back').onclick = function(){
+  var leave = function(){ try { localStorage.removeItem(OPEN_KEY); } catch (e) {} location.reload(); };
+  var others = floors ? unsavedFloors() : [], here = dirty || (floors && !floors[curFloor].saved && floorHasData(floors[curFloor]));
+  if (!here && !others.length) return leave();   // everything's saved: no need to ask
+  var names = others.map(function(k){ return floorLabel(floors[k], k); }).concat(here && floors ? [floorLabel(floors[curFloor], curFloor)] : []);
+  ask(names.length ? 'Leave this job? ' + names.join(', ') + (names.length === 1 ? ' isn’t' : ' aren’t') + ' saved to Drive yet. Everything stays on this tablet as a draft.' : 'Leave this job? Your entries stay on this tablet as a draft.', 'Leave', leave);
+};
 el('file').onchange = function(){ var f = this.files[0]; if (f) loadData(f, f.name, false, {}); this.value = ''; };
 // ---------- next floor: same rail setup, new sheet ----------
 var LAST_KEY = 'ridgeway-last-setup';
@@ -1949,7 +1988,7 @@ function nextFloorFromHere(){
   if (!String(header.B4 || '').trim()) return msg('Enter the job name first, so the next floor knows what to follow.');
   if (floors) return addFloor();
   var unsaved = el('draftPill') && !el('draftPill').hidden && units.some(function(u){ return u.secs.some(function(r){ return String(r.len || '').trim() !== ''; }); });
-  var go = function(){ saveLast(); try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {} startNextFloor(); };
+  var go = function(){ saveLast(); startNextFloor(); };   // startNextFloor asks before replacing an unsaved building draft
   if (unsaved) return ask('This floor hasn’t been saved yet. Start the next floor anyway? The measurements on this floor will be cleared.', 'Next floor', go);
   go();
 }
@@ -1957,8 +1996,8 @@ function startNextFloor(){
   var last = readLast(); if (!last || !last.header) return;
   var go = function(){
     try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {}
-    var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; h.B4 = bumpFloor(h._prev);
-    startNew({ header: h, units: [blankUnit('')], nextFloor: true });
+    var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h);
+    startNew({ header: h, units: [blankUnit('')], nextFloor: true, tab: h.B4 !== h._prev ? 'units' : 'job' });
   };
   if (readDraft('new-job')) return ask('Start the next floor? This replaces the unsaved draft on this tablet.', 'Next floor', go);
   go();
@@ -2169,11 +2208,31 @@ function stackWarnings(){
   if (!lines.length) return '';
   return 'One floor doesn’t match the others on the same stack. Check these before saving:\n\n' + lines.slice(0, 8).join('\n') + (lines.length > 8 ? '\n…and ' + (lines.length - 8) + ' more.' : '');
 }
-el('save').onclick = function(){
+var saveAllQ = null, saveAllDone = [], saveAllTimer = null, busy = false;
+function floorHasData(f){ return (f.units || []).some(function(u){ return u.secs.some(function(r){ return String(r.len || '').trim() !== ''; }); }); }
+function unsavedFloors(){ syncFloor(); return floors ? floors.map(function(f, k){ return k; }).filter(function(k){ return k !== curFloor && !floors[k].saved && floorHasData(floors[k]); }) : []; }
+function runSave(){
   var w = stackWarnings();
-  if (w){ ask(w, 'Save anyway', saveNow); el('modalNo').textContent = 'Go back and check'; return; }
+  if (w) return ask(w, 'Save anyway', saveNow, 'Go back and check', function(){ saveAllQ = null; });
   saveNow();
+}
+el('save').onclick = function(){
+  if (busy) return;
+  clearTimeout(saveAllTimer); saveAllQ = null; saveAllDone = [];
+  var others = unsavedFloors();
+  if (!others.length) return runSave();
+  var names = others.map(function(k){ return floorLabel(floors[k], k); });
+  ask(names.join(', ') + (names.length === 1 ? ' isn’t' : ' aren’t') + ' saved to Drive yet. Save all floors now?', 'Save all floors', function(){ saveAllQ = others; runSave(); }, 'Just this floor', runSave);
 };
+// after a good save in "save all floors": go to the next unsaved floor and save it
+function saveAllNext(){
+  if (!saveAllQ) return false;
+  saveAllDone.push(floorLabel(floors[curFloor], curFloor));
+  if (!saveAllQ.length){ var d = saveAllDone; saveAllQ = null; saveAllDone = []; var m = el('msg'), t = document.createElement('div'); t.style.fontWeight = '900'; t.style.marginBottom = '6px'; t.textContent = 'All floors saved: ' + d.join(', ') + '.'; m.insertBefore(t, m.firstChild); return false; }
+  var k = saveAllQ.shift();
+  busy = true; saveAllTimer = setTimeout(function(){ busy = false; if (!floors || !floors[k]){ saveAllQ = null; return; } switchFloor(k); runSave(); }, 700);
+  return true;
+}
 function saveNow(){
   clearMsg();
   units.forEach(resplitUnit);
@@ -2206,7 +2265,7 @@ function saveNow(){
     return pa - pb || (a < b ? -1 : 1);
   }).map(function(k){
     var g = groups[k], s = g.setup;
-    return { name: k === mainKey ? jobFile() + '.xlsx' : sheetName(s), hdr: Object.assign({}, header, { B7: s.mount, B9: s.mount === 'Top' ? '' : header.B9, B11: s.mount === 'Top' ? 0 : s.standoff, B12: s.post, B13: s.block }), rows: g.rows, units: g.units };
+    return { name: k === mainKey ? mainFileName() : sheetName(s), main: k === mainKey, hdr: Object.assign({}, header, { B7: s.mount, B9: s.mount === 'Top' ? '' : header.B9, B11: s.mount === 'Top' ? 0 : s.standoff, B12: s.post, B13: s.block }), rows: g.rows, units: g.units };
   });
   var rw = [], ww = [];
   units.forEach(function(u, ui){
@@ -2217,7 +2276,7 @@ function saveNow(){
       var t = screenType(sc), tag = who + ' screen' + ((u.screens.length > 1) ? ' #' + (k + 1) : '');
       if (!un) errs.push('Unit ' + (ui + 1) + ' on the list needs a unit number');
       if (!isNum(sc.size)) errs.push(tag + ': size is not a number');
-      if (String(sc.so || '').trim() !== '' && !isNum(sc.so)) errs.push(tag + ': S.O is not a number');
+      if (String(sc.so || '').trim() !== '' && !isNum(sc.so)) errs.push(tag + ': standoff is not a number');
       if (t === 'RR') errs.push(tag + ' is R–R; a screen needs at least one wall end');
       if (!t) errs.push(tag + ': pick both ends');
       var row = { unit: isNaN(+un) ? un : +un, size: isNum(sc.size) ? Math.round(parseLen(String(sc.size)) * 1e6) / 1e6 : '', so: isNum(sc.so) ? Math.round(parseLen(String(sc.so)) * 1e6) / 1e6 : '' };
@@ -2241,37 +2300,45 @@ function saveNow(){
     else if (plan.any){ s.rows.forEach(function(r, k){ r.cust = plan.cust[k] ? 'Yes' : (String(r.cust || '') === 'Yes' ? 'Yes' : ''); }); s.steps = plan.cells; }
     s.xml = buildXml(s.hdr, s.rows, errs);
   });
-  if (errs.length){ var uniq = errs.filter(function(x, k){ return errs.indexOf(x) === k; }); return msg('Before saving: ' + uniq.slice(0, 5).join(' · ') + (uniq.length > 5 ? ' · and ' + (uniq.length - 5) + ' more' : '')); }
+  if (errs.length){ var uniq = errs.filter(function(x, k){ return errs.indexOf(x) === k; }); var stopped = saveAllQ ? 'Stopped saving all floors at ' + floorLabel(floors[curFloor], curFloor) + '. ' : ''; saveAllQ = null; return msg(stopped + 'Before saving: ' + uniq.slice(0, 5).join(' · ') + (uniq.length > 5 ? ' · and ' + (uniq.length - 5) + ' more' : '')); }
   // a file with the same name already in Drive (and not one this job made or opened) would be replaced: ask first
   if (!saveOk){
-    var btn0 = el('save'); btn0.disabled = true; btn0.firstChild.textContent = 'Checking…';
+    var btn0 = el('save'); btn0.disabled = true; btn0.firstChild.textContent = 'Checking…'; busy = true;
     return driveNamesQuick().then(function(list){
-      btn0.disabled = false; btn0.firstChild.textContent = 'Save';
-      var lower = (list || []).map(function(n){ return String(n).toLowerCase(); }), mine = myNames();
+      btn0.disabled = false; btn0.firstChild.textContent = 'Save'; busy = false;
+      var mine = myNames(), go = function(){ saveOk = true; saveNow(); };
+      // couldn't reach Drive (weak or no signal): say so if any of these files might already be there
+      if (list === null){
+        var unknown = sheets.map(function(x){ return x.name; }).filter(function(n){ return mine.indexOf(n.toLowerCase()) < 0; });
+        if (!unknown.length) return go();
+        return ask('Couldn’t reach Drive to check the file name' + (unknown.length === 1 ? '' : 's') + '. If “' + unknown.join('”, “') + '” ' + (unknown.length === 1 ? 'is' : 'are') + ' already in the Cut Sheets folder, saving will replace ' + (unknown.length === 1 ? 'it' : 'them') + '. Make sure the job name is new for this floor or job.', 'Save anyway', go);
+      }
+      var lower = (list === 'na' ? [] : list).map(function(n){ return String(n).toLowerCase(); });
       var clash = sheets.map(function(x){ return x.name; }).filter(function(n){ return lower.indexOf(n.toLowerCase()) >= 0 && mine.indexOf(n.toLowerCase()) < 0; });
-      var go = function(){ saveOk = true; el('save').click(); };
       if (!clash.length) return go();
       ask('“' + clash.join('”, “') + '” ' + (clash.length === 1 ? 'is' : 'are') + ' already in the Cut Sheets folder in Drive. Saving will replace ' + (clash.length === 1 ? 'it' : 'them') + '. If this is a different floor or job, go back and change the job name.', 'Replace it', go);
     });
   }
   saveOk = false;
-  var btn = el('save'); btn.disabled = true; btn.firstChild.textContent = 'Saving…';
+  var btn = el('save'); btn.disabled = true; btn.firstChild.textContent = 'Saving…'; busy = true;
+  var savingFloor = curFloor;
   var done = [], local = [], failed = [], queued = [], why = '';
   sheets.reduce(function(chain, s){
-    return chain.then(function(){ return s.make ? s.make() : makeBlob(s.xml, s.steps); }).then(function(blob){
+    return chain.then(function(){ return s.make ? s.make() : makeBlob(s.xml, s.steps); }).then(function(blob){ return outboxIdle().then(function(){ return outboxDrop(s.name); }).then(function(){ return blob; }); }).then(function(blob){
       var info = s.info || (s.name + ' (' + s.units + ' unit' + (s.units === 1 ? '' : 's') + ', ' + s.rows.length + ' section' + (s.rows.length === 1 ? '' : 's') + ')');
-      return upload(blob, s.name).then(function(){ done.push(info); logSent(s.name, info, false); markMine(s.name); }, function(e){
+      return upload(blob, s.name).then(function(){ done.push(info); logSent(s.name, info, false); markMine(s.name); lastDirect[s.name] = { t: Date.now(), blob: blob }; keepOpenSrc(blob, s); }, function(e){
         why = driveError(e);
         var fallback = function(){ return saveToTablet(blob, s.name).then(function(ok){ (ok ? local : failed).push(info); }); };
         return shouldQueue(e) ? outboxAdd(blob, s.name, info).then(function(){ queued.push(info); markMine(s.name); }, fallback) : fallback();
       });
     });
   }, Promise.resolve()).then(function(){
-    btn.disabled = false; btn.firstChild.textContent = 'Save';
+    btn.disabled = false; btn.firstChild.textContent = 'Save'; busy = false;
     updOutbox();
     updJobWarn();
     if (!failed.length && !local.length){
-      if (floors){ floors[curFloor].saved = true; persist(); renderFloors(); }
+      dirty = false;
+      if (floors && floors[savingFloor]){ floors[savingFloor].saved = true; persist(); renderFloors(); }
       else { try { localStorage.removeItem(DRAFT_PREFIX + fileName); } catch (e) {} }
       el('draftPill').hidden = true;
       saveLast();
@@ -2280,13 +2347,15 @@ function saveNow(){
       var nf = document.createElement('div'); nf.style.marginTop = '10px';
       nf.innerHTML = '<button type="button" class="btn pri" id="nextFloorGo">Start next floor · same setup ›</button>';
       el('msg').appendChild(nf); el('nextFloorGo').onclick = function(){ if (floors) addFloor(); else startNextFloor(); };
+      saveAllNext();
     } else {
+      saveAllQ = null;
       var t = (done.length ? 'Saved to Drive: ' + done.join(' · ') + '. ' : '') + why + '. ';
       if (local.length) t += 'Saved to this tablet instead: ' + local.join(' · ') + '. ';
       if (failed.length) t += 'Not saved yet: ' + failed.join(' · ') + '. ';
       msg(t + 'Your entries are still on this tablet, so you can tap Save again.', !failed.length);
     }
-  }).catch(function(e){ btn.disabled = false; btn.firstChild.textContent = 'Save'; msg('Save failed: ' + (e && e.message ? e.message : e)); });
+  }).catch(function(e){ btn.disabled = false; btn.firstChild.textContent = 'Save'; busy = false; saveAllQ = null; msg('Save failed: ' + (e && e.message ? e.message : e)); });
 };
 
 // ---------- outbox: finished sheets waiting for signal, sent to Drive automatically ----------
@@ -2310,6 +2379,16 @@ function outboxAdd(blob, name, info){
     return Promise.all(items.filter(function(x){ return x.name === name; }).map(function(x){ return store('outbox', 'readwrite', function(s){ return s.delete(x.id); }); }));
   }).then(function(){ return store('outbox', 'readwrite', function(s){ return s.put({ id: Date.now() + '|' + name, name: name, info: info, blob: blob, t: Date.now() }); }); });
 }
+// after a good save of an opened sheet, that saved copy is what a reload reopens
+function keepOpenSrc(blob, s){
+  if (floors || !fileName || fileName === 'new-job' || !s.main) return;
+  if (s.name !== fileName){ try { localStorage.removeItem(DRAFT_PREFIX + fileName); } catch (e) {} fileName = s.name; header._openB4 = String(header.B4 || ''); rememberOpen(); }
+  blobToB64(blob).then(function(b64){ kvSet('open-src', { name: s.name, b64: b64 }); }, function(){});
+}
+// drop anything still queued under this file name (a newer copy is about to go up)
+function outboxDrop(name){ return outboxList().then(function(items){ return Promise.all(items.filter(function(x){ return x.name === name; }).map(function(x){ return store('outbox', 'readwrite', function(st){ return st.delete(x.id); }); })); }).catch(function(){}); }
+// wait (up to 30 s) for an outbox send in progress to finish, so an old copy can't land after a new one
+function outboxIdle(){ return new Promise(function(ok){ var t0 = Date.now(); (function w(){ if (!flushing || Date.now() - t0 > 30000) return ok(); setTimeout(w, 250); })(); }); }
 function outboxList(){ return store('outbox', 'readonly', function(s){ return s.getAll(); }).then(function(a){ return (a || []).sort(function(x, y){ return x.t - y.t; }); }, function(){ return []; }); }
 function kvGet(k){ return store('kv', 'readonly', function(s){ return s.get(k); }).catch(function(){ return null; }); }
 function kvSet(k, v){ return store('kv', 'readwrite', function(s){ return s.put(v, k); }).catch(function(){}); }
@@ -2319,7 +2398,7 @@ function shouldQueue(e){
   if (/bad file name/i.test(m)) return false;
   return true;
 }
-var flushing = false;
+var flushing = false, lastDirect = {};
 function flushOutbox(){
   if (flushing) return; flushing = true;
   var sent = [];
@@ -2327,7 +2406,11 @@ function flushOutbox(){
     return items.reduce(function(chain, it){
       return chain.then(function(stop){
         if (stop) return true;
-        return upload(it.blob, it.name).then(function(){ sent.push(it.info || it.name); logSent(it.name, it.info, true); return store('outbox', 'readwrite', function(s){ return s.delete(it.id); }).then(function(){ return false; }); }, function(){ return true; });
+        // skip it if a newer save already replaced it while this send was waiting
+        return store('outbox', 'readonly', function(st){ return st.get(it.id); }).then(function(still){
+          if (!still) return false;
+          return upload(it.blob, it.name).then(function(){ var ld = lastDirect[it.name]; if (ld && ld.t > it.t) return upload(ld.blob, it.name).catch(function(){}); }).then(function(){ sent.push(it.info || it.name); logSent(it.name, it.info, true); return store('outbox', 'readwrite', function(s){ return s.delete(it.id); }).then(function(){ return false; }); }, function(){ return true; });
+        });
       });
     }, Promise.resolve(false));
   }).then(function(){
@@ -2464,14 +2547,24 @@ var pillTimer = null;
 function syncFloor(){ if (floors && floors[curFloor]){ floors[curFloor].header = header; floors[curFloor].units = units; } }
 function persist(){
   syncFloor();
-  try { localStorage.setItem(DRAFT_PREFIX + fileName, JSON.stringify({ header: header, units: units, t: Date.now(), floors: floors, cur: curFloor })); el('draftPill').hidden = false; } catch (e) {}
+  // the current floor is already in header/units, so the floors list only carries the other floors in full
+  var fl = floors ? floors.map(function(f, k){ return k === curFloor ? { saved: f.saved } : f; }) : null;
+  try { localStorage.setItem(DRAFT_PREFIX + fileName, JSON.stringify({ header: header, units: units, t: Date.now(), floors: fl, cur: curFloor })); el('draftPill').hidden = false; storeFullWarned = 0; }
+  catch (e) {
+    el('draftPill').hidden = true;
+    if (Date.now() - storeFullWarned > 60000){ storeFullWarned = Date.now(); msg('This tablet’s storage is full, so your latest entries aren’t being kept as a draft. Save to Drive now. Swiping old drafts off the start page frees up space.'); }
+  }
 }
+var storeFullWarned = 0;
+var dirty = false;
 function changed(){
+  dirty = true;
   if (floors && floors[curFloor]) floors[curFloor].saved = false;
   persist(); updBadge(); if (floors) renderFloors();
 }
 // ---------- floors: one tab per floor of the building along the bottom ----------
 function floorLabel(f, k){
+  if (String(f.header._floor || '').trim()) return String(f.header._floor).trim();
   var n = String(f.header.B4 || '').trim();
   var m = n.match(/\b\d+(st|nd|rd|th)\s*(floor|flr|fl|level|lvl)\b|\b(floor|flr|level|lvl|L)\s*\d+\b|\b(ground|main|roof|penthouse|ph)\b/i);
   return m ? m[0] : (n ? (n.length > 16 ? n.slice(0, 15) + '…' : n) : 'Floor ' + (k + 1));
@@ -2481,7 +2574,7 @@ function renderFloors(){
   document.body.classList.toggle('hasfloors', !!floors);
   if (!floors){ fb.hidden = true; return; }
   fb.hidden = false;
-  fb.innerHTML = floors.map(function(f, k){ return '<button type="button" class="ftab' + (k === curFloor ? ' on' : '') + '" data-floor="' + k + '" aria-pressed="' + (k === curFloor) + '">' + (f.saved ? '✓ ' : '') + esc(floorLabel(f, k)) + '</button>'; }).join('') +
+  fb.innerHTML = floors.map(function(f, k){ return '<button type="button" class="ftab' + (k === curFloor ? ' on' : '') + '" data-floor="' + k + '" aria-pressed="' + (k === curFloor) + '">' + (f.saved ? '✓ ' : (k !== curFloor && floorHasData(f) ? '<span class="unsv" title="Not saved">●</span> ' : '')) + esc(floorLabel(f, k)) + '</button>'; }).join('') +
     '<button type="button" class="ftab add" data-floor="add">+ Next floor</button>';
   var on = fb.querySelector('.ftab.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
@@ -2492,13 +2585,19 @@ function switchFloor(k){
 }
 function addFloor(){
   syncFloor();
-  var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); delete h._saved; h.B4 = bumpFloor(h._prev);
+  var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h);
   floors.push({ header: h, units: [blankUnit('')] });
-  tab = 'job'; switchFloor(floors.length - 1);
-  msg('Next floor: same setup as ' + (h._prev || 'the last floor') + '. Check the job name, and change anything that’s different on this floor.', true);
-  setTimeout(function(){ var j = el('h_B4'); if (j){ j.focus(); j.select(); } }, 300);
+  tab = h.B4 !== h._prev ? 'units' : 'job'; switchFloor(floors.length - 1);
+  nextFloorNote();
+}
+// after starting the next floor: say what it's called; if the number couldn't be worked out, ask for it on Job Info
+function nextFloorNote(){
+  if (String(header.B4 || '').trim() && header.B4 !== header._prev) return msg('Next floor: ' + header.B4 + ', same setup as ' + (header._prev || 'the last floor') + '. Tap Job Info to change the name or anything different on this floor.', true);
+  showTab('job'); msg('Next floor: same setup as ' + (header._prev || 'the last floor') + '. Enter this floor or building number.', true);
+  setTimeout(function(){ var j = el('h_floor'); if (j){ j.focus(); j.select(); } }, 300);
 }
 function removeFloor(){
+  if (busy || saveAllQ) return;
   if (!floors || floors.length < 2) return;
   var f = floors[curFloor], has = f.units.some(function(u){ return u.secs.some(function(r){ return String(r.len || '').trim() !== ''; }); });
   ask('Remove the “' + floorLabel(f, curFloor) + '” tab' + (has && !f.saved ? '? Its measurements haven’t been saved and will be lost.' : '? Anything already saved to Drive stays there.'), 'Remove', function(){
@@ -2511,6 +2610,7 @@ el('floorbar').addEventListener('click', function(e){
   var b = e.target.closest('[data-floor]'); if (!b) return;
   var v = b.getAttribute('data-floor');
   if (v === 'add'){ if (!String(header.B4 || '').trim()) return msg('Enter this floor’s job name first, so the next floor knows what to follow.'); return addFloor(); }
+  if (busy || saveAllQ) return msg('Saving… wait a moment before switching floors.', true);
   if (+v !== curFloor) switchFloor(+v);
 });
 // ---------- a refresh (on purpose or by accident) comes back to the same job, floor and tab ----------
@@ -2533,7 +2633,7 @@ function offerDraft(){
   var d = readDraft(fileName); if (!d || !(d.units || d.runs)) return;
   var m = el('msg'); m.hidden = false; m.className = 'msg ok';
   m.innerHTML = 'You have unsaved entries for this file from ' + esc(new Date(d.t).toLocaleString()) + '. <button class="btn" type="button" id="restore">Restore them</button>';
-  el('restore').onclick = function(){ header = Object.assign(header, d.header); units = d.units || groupUnits(d.runs); units.forEach(function(u){ if (u.custom == null){ u.custom = false; u.post = ''; u.block = ''; } }); renderHeader(); renderRuns(); applyMount(); msg('Restored your unsaved entries.', true); };
+  el('restore').onclick = function(){ header = Object.assign(header, d.header); if (d.header && d.header._name == null){ delete header._name; delete header._floor; } units = d.units || groupUnits(d.runs); units.forEach(function(u){ if (u.custom == null){ u.custom = false; u.post = ''; u.block = ''; } }); renderHeader(); renderRuns(); applyMount(); msg('Restored your unsaved entries.', true); };
 }
 window.__test = { parseLen: parseLen, fmtFrac: fmtFrac, writeCell: writeCell, readCell: readCell, CARRY: CARRY };
 
@@ -2587,7 +2687,7 @@ function showDrivePicker(){
   el('dpTab').onclick = function(){ close(); el('file').click(); };
   function draw(){
     var q = el('dpQ').value.trim().toLowerCase(), L = el('dpL');
-    var rows = all.filter(function(f){ return !q || f.name.toLowerCase().indexOf(q) >= 0; });
+    var rows = all.filter(function(f){ return !q || f.name.toLowerCase().indexOf(q) >= 0; }).slice(0, q ? 300 : 200);   // newest 200; searching looks through them all
     L.innerHTML = rows.length ? rows.map(function(f){ return '<button type="button" class="secrow" data-k="' + all.indexOf(f) + '" style="background:var(--chip)"><span class="lab" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.name.replace(/\.xlsx$/i, '')) + '</span><span class="ft">' + esc(new Date(f.updated).toLocaleDateString([], { month: 'short', day: 'numeric' })) + '</span></button>'; }).join('') : '<div class="hint">' + (all.length ? 'No match.' : 'No cut sheets in the folder yet.') + '</div>';
   }
   el('dpQ').oninput = draw;
