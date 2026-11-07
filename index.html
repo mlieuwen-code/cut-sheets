@@ -412,7 +412,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-d747d4';
+var APP_VERSION = '2026.11.06-638567';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -583,7 +583,7 @@ function msg(text, ok){ var m = el('msg'); m.hidden = false; m.className = 'msg 
 function clearMsg(){ el('msg').hidden = true; }
 function msgLinks(text, links, ok){ msg(text + ' ', ok); var m = el('msg'); links.forEach(function(l){ var a = document.createElement('a'); a.href = l[1]; a.textContent = l[0]; a.target = '_blank'; a.rel = 'noopener'; m.appendChild(a); }); }
 function ask(text, yesLabel, cb){
-  el('modalText').textContent = text; el('modalYes').textContent = yesLabel; el('modal').hidden = false;
+  el('modalText').textContent = text; el('modalText').style.whiteSpace = 'pre-line'; el('modalYes').textContent = yesLabel; el('modalNo').textContent = 'Stay'; el('modal').hidden = false;
   el('modalYes').onclick = function(){ el('modal').hidden = true; cb(); };
   el('modalNo').onclick = function(){ el('modal').hidden = true; };
   el('modalNo').focus();
@@ -2125,7 +2125,47 @@ function saveToTablet(blob, name){
     return d.save({ filename: name, data: blob }).then(function(){ return true; }, function(){ return false; });
   });
 }
+// ---------- stack check: the same unit on different floors (302, 402, 502 …) should measure about the same ----------
+var STACK_TOL = 4;   // inches: the other floors must agree within this, and the odd one must be off by more than this
+function stackWarnings(){
+  syncFloor();
+  var all = []; (floors || [{ units: units }]).forEach(function(f){ (f.units || []).forEach(function(u){ all.push(u); }); });
+  var bySec = {}, byTot = {}, seen = {};
+  all.forEach(function(u){
+    var un = String(u.unit || '').trim(), m = un.match(/^(\d+?)(\d{2})([A-Za-z]*)$/); if (!m || seen[un]) return; seen[un] = true;
+    var stack = m[2] + m[3].toUpperCase(), secs = [];
+    u.secs.forEach(function(r, j){
+      if (r._sp && r._sp.k > 0) return;   // a split rail counts once, at its original measurement
+      var v = r._sp ? +r._sp.total : parseLen(String(r.len == null ? '' : r.len));
+      secs.push({ v: v, label: secLabel(u, j), n: secs.length + 1 });
+    });
+    if (!secs.length) return;
+    secs.forEach(function(x){ if (!(x.v > 0)) return; var k = stack + '|' + secs.length + '|' + x.n; (bySec[k] = bySec[k] || []).push({ unit: un, label: x.label, v: x.v }); });
+    if (secs.every(function(x){ return x.v > 0; })){ (byTot[stack] = byTot[stack] || []).push({ unit: un, label: 'Unit ' + un + ' total', v: secs.reduce(function(a, x){ return a + x.v; }, 0) }); }
+  });
+  var odd = function(list){
+    if (list.length < 3) return [];
+    return list.filter(function(it){
+      var o = list.filter(function(x){ return x !== it; }).map(function(x){ return x.v; }), lo = Math.min.apply(null, o), hi = Math.max.apply(null, o);
+      return hi - lo <= STACK_TOL && (it.v < lo - STACK_TOL || it.v > hi + STACK_TOL);
+    }).map(function(it){ return { it: it, others: list.filter(function(x){ return x !== it; }) }; });
+  };
+  var lines = [], flagged = {};
+  var say = function(f, what){
+    var o = f.others, lo = Math.min.apply(null, o.map(function(x){ return x.v; })), hi = Math.max.apply(null, o.map(function(x){ return x.v; }));
+    lines.push('• ' + f.it.label + ' is ' + fmtFrac(f.it.v) + '. ' + o.map(function(x){ return what(x); }).join(', ') + (o.length === 1 ? ' is ' : ' are ') + (hi - lo < 0.01 ? fmtFrac(lo) : fmtFrac(lo) + ' to ' + fmtFrac(hi)) + '.');
+  };
+  Object.keys(bySec).forEach(function(k){ odd(bySec[k]).forEach(function(f){ flagged[f.it.unit] = true; say(f, function(x){ return x.label; }); }); });
+  Object.keys(byTot).forEach(function(k){ odd(byTot[k]).forEach(function(f){ if (!flagged[f.it.unit]) say(f, function(x){ return x.unit; }); }); });
+  if (!lines.length) return '';
+  return 'One floor doesn’t match the others on the same stack. Check these before saving:\n\n' + lines.slice(0, 8).join('\n') + (lines.length > 8 ? '\n…and ' + (lines.length - 8) + ' more.' : '');
+}
 el('save').onclick = function(){
+  var w = stackWarnings();
+  if (w){ ask(w, 'Save anyway', saveNow); el('modalNo').textContent = 'Go back and check'; return; }
+  saveNow();
+};
+function saveNow(){
   clearMsg();
   units.forEach(resplitUnit);
   var errs = [], seenU = {}, groups = {}, mainKey = setupKey(unitSetup({}));
