@@ -404,7 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-503213';
+var APP_VERSION = '2026.11.06-b45c55';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1158,8 +1158,8 @@ function secHtml(u, i, run, j){
     '<label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' +
     (showFloats ? '<div class="g2" data-fracslot>' + numField(id + 'fl', 'Float L', run.fl, { attrs: ' data-key="fl"' }) + numField(id + 'fr', 'Float R', run.fr, { attrs: ' data-key="fr"' }) + '</div>' +
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
-    '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-sfield="step"' + (run._step || hasStep(run) ? ' checked' : '') + '>Steps up / down (own post &amp; block height)</label>' +
-    (run._step || hasStep(run) ? '<div class="g2" data-fracslot>' + numField(id + 'ph', 'Post height', run.ph, { ph: 'Job: ' + numVal(unitSetup(u).post), attrs: ' data-key="ph"' }) + numField(id + 'bh', 'Block height', run.bh, { ph: 'Job: ' + numVal(unitSetup(u).block), attrs: ' data-key="bh"' }) + '</div>' +
+    // steps are switched off for now: the fields only show for a saved sheet that already has a step, so it can be seen and cleared
+    (hasStep(run) ? '<div class="g2" data-fracslot>' + numField(id + 'ph', 'Post height', run.ph, { ph: numVal(unitSetup(u).post), attrs: ' data-key="ph"' }) + numField(id + 'bh', 'Block height', run.bh, { ph: numVal(unitSetup(u).block), attrs: ' data-key="bh"' }) + '</div>' +
       (stepDelta(u, j) ? '<div class="stepbox ' + (stepDelta(u, j) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j))) + ' from ' + esc(secLabel(u, j - 1)) + ' into ' + esc(secLabel(u, j)) + '</div>' : '') +
       (stepDelta(u, j + 1) ? '<div class="stepbox ' + (stepDelta(u, j + 1) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j + 1))) + ' from ' + esc(secLabel(u, j)) + ' into ' + esc(secLabel(u, j + 1)) + '</div>' : '') +
       '<div class="stephint">The post where this section meets the next one becomes a transition post: taller post, a block for each side. It all goes on the Custom Posts tab.</div>' : '') +
