@@ -443,7 +443,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-6fe09a';
+var APP_VERSION = '2026.11.07-93f6dc';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1217,7 +1217,7 @@ function floorBox(){
 }
 function kindOf(floor){ floor = String(floor || '').trim(); return !floor ? '' : /\b(bldg|building|block|blk)\b/i.test(floor) ? 'th' : 'apt'; }
 function ensureJobParts(h){ if (h._name == null || (!String(h._name).trim() && !String(h._floor || '').trim() && String(h.B4 || '').trim())){ var p = splitJob(h.B4); h._name = p[0]; h._floor = p[1]; } if (h._kind == null) h._kind = kindOf(h._floor); }
-function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + '.xlsx</b>' : 'Together these become the file name'; }
+function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + '.xlsx</b>' : ''; }
 // next floor / next building: bump the number ("4th Floor" -> "5th Floor", "Bldg 12" -> "Bldg 13", "4" -> "5")
 function bumpPart(t, d){
   d = d || 1; t = String(t || '');
