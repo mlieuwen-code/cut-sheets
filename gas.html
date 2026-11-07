@@ -161,7 +161,11 @@ details.fold .in{padding:0 20px 20px;display:flex;flex-direction:column;gap:14px
 .unum{width:150px;height:60px;border:0;border-radius:18px;background:var(--accent);color:var(--onaccent);font-size:28px;font-weight:900;padding:0 18px}
 .unum::placeholder{color:var(--onaccent);opacity:.7}
 .chk{display:inline-flex;align-self:flex-start;width:fit-content;max-width:100%;align-items:center;gap:10px;min-height:44px;font-size:16px;font-weight:800;cursor:pointer;white-space:nowrap}
-.chk input{width:26px;height:26px;margin:0;accent-color:var(--accent);cursor:pointer}
+.chk input{width:26px;height:26px;margin:0;accent-color:var(--accent);cursor:pointer;-webkit-appearance:none;appearance:none;flex-shrink:0;border:2px solid var(--accent);border-radius:7px;background:#fff;display:inline-grid;place-content:center;transition:background .12s}
+.chk input::before{content:"";width:13px;height:7px;border:solid #fff;border-width:0 0 3px 3px;transform:translateY(-2px) rotate(-45deg);opacity:0}
+.chk input:checked{background:var(--accent)}
+.chk input:checked::before{opacity:1}
+.chk input:focus-visible{outline:3px solid var(--aline);outline-offset:2px}
 .uinfo{flex:1 1 160px;min-width:0;padding-top:4px}
 .usum{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
 .uacts{display:flex;gap:6px}
@@ -400,7 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-8fce25';
+var APP_VERSION = '2026.11.06-503213';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1171,11 +1175,11 @@ function unitHtml(u, i){
   var note = (u.custom || u.mountDiff) ? '<div class="custnote"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span id="u' + i + '_note">' + esc(noteText(u)) + '</span></div>' : '';
   return '<div class="unit" data-u="' + i + '"' + (um ? ' data-mount="' + um + '"' : '') + '><div class="uhead"><div class="ucol">' +
       '<input class="unum" id="u' + i + '_num" data-ufield="unit" type="text" autocomplete="off" aria-label="Unit number" placeholder="Unit #" value="' + esc(u.unit) + '">' +
-      '<label class="chk" for="u' + i + '_cust"><input type="checkbox" id="u' + i + '_cust" data-ufield="custom"' + (u.custom ? ' checked' : '') + '>Custom post height</label>' +
       '</div>' +
     '<div class="uinfo"><div class="eyebrow">Unit</div><div class="usum" id="u' + i + '_sum">' + esc(unitSum(u)) + '</div></div>' +
     '<div class="uacts"><button type="button" class="btn" data-act="draw" aria-pressed="' + (!!u._dr) + '">Draw</button><button type="button" class="btn" data-act="layout" aria-pressed="' + (!!u._layout) + '">' + (u._layout ? 'Hide layout' : 'Layout') + '</button><button type="button" class="btn" data-act="ucopy">Copy unit</button><button type="button" class="btn" data-act="ucodes">Copy post codes to next unit</button><button type="button" class="btn danger" data-act="udel">Delete</button></div></div>' +
-    '<div class="uchecks"><label class="chk" for="u' + i + '_md"><input type="checkbox" id="u' + i + '_md" data-ufield="mountdiff"' + (u.mountDiff ? ' checked' : '') + '>Different mount</label>' +
+    '<div class="uchecks"><label class="chk" for="u' + i + '_cust"><input type="checkbox" id="u' + i + '_cust" data-ufield="custom"' + (u.custom ? ' checked' : '') + '>Custom post height</label>' +
+      '<label class="chk" for="u' + i + '_md"><input type="checkbox" id="u' + i + '_md" data-ufield="mountdiff"' + (u.mountDiff ? ' checked' : '') + '>Different mount</label>' +
       '<label class="chk" for="u' + i + '_scr"><input type="checkbox" id="u' + i + '_scr" data-ufield="screen"' + (u.screen ? ' checked' : '') + '>Privacy screen</label>' +
       '<label class="chk" for="u' + i + '_nt"><input type="checkbox" id="u' + i + '_nt" data-ufield="hasnotes"' + (u.hasNotes ? ' checked' : '') + '>Notes</label></div>' +
     (u.hasNotes ? '<div class="custbox"><div class="fld"><label for="u' + i + '_notes">Notes <em style="font-style:normal;color:var(--muted)">· saved to the job’s notes file for review before fabrication</em></label>' +
