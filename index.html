@@ -306,6 +306,12 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .ftab .unsv{color:var(--amber);font-size:.8em}
 /* stronger button edges for bright sun */
 .btn:not(.pri){box-shadow:inset 0 0 0 1.5px #CDBFA8}
+.fld.need:has(input:not(:placeholder-shown)) .needtag{display:none}
+.qends{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.qend{min-height:44px;min-width:46px;padding:0 8px;border-radius:12px;border:2px solid var(--line);background:var(--field);font-size:16px;font-weight:900;color:var(--ink)}
+.qend[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
+.dupwarn{margin-top:4px;font-size:13px;font-weight:800;color:var(--bad);white-space:nowrap}
+.btn.danger.arm{background:var(--bad);color:#fff;border-color:var(--bad)}
 </style>
 </head><body>
 
@@ -419,7 +425,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-d9e890';
+var APP_VERSION = '2026.11.07-654b55';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -742,6 +748,15 @@ function loadData(data, name, isNew, opts, restore){
 
 // ---------- small builders ----------
 function numVal(v){ if (typeof v !== 'number') return v == null ? '' : v; var t = v * 16; if (Math.abs(t - Math.round(t)) > 1e-6 || Number.isInteger(v)) return String(v); return fmtFrac(v).replace(/"$/, '').replace(/^0 (?=\d+\/)/, ''); }
+// the read-back under a box only shows when it adds something (96.375 -> 96 3/8"), not when it repeats what's typed
+// one-tap buttons for the end codes used most; the drop-down above still has them all
+var QUICK_ENDS = ['E', 'F', 'EC', 'ECO', 'IC', 'W'];
+function quickEnds(side, cur){
+  var q = QUICK_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0; }); if (!q.length) return '';
+  return '<div class="qends" role="group" aria-label="' + side + ' end, quick pick">' + q.map(function(c){ return '<button type="button" class="qend" data-qend="' + c + '" aria-pressed="' + (String(cur) === c) + '">' + c + '</button>'; }).join('') + '</div>';
+}
+function syncQuick(sel){ var g = sel.parentNode.querySelector('.qends'); if (g) Array.prototype.forEach.call(g.querySelectorAll('[data-qend]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-qend') === sel.value)); }); }
+function echoHint(raw, h){ var a = String(raw == null ? '' : raw).replace(/"/g, '').replace(/\s+/g, ' ').trim(); return h && h.replace(/"/g, '').trim() === a ? '' : h; }
 function hintFor(v){ if (v === '' || v == null) return ''; var p = parseLen(String(v)); return isNaN(p) || p === null ? '' : fmtFrac(p); }
 function optList(list, cur, labelFn){
   var h = '<option value=""></option>', seen = false;
@@ -751,9 +766,9 @@ function optList(list, cur, labelFn){
 }
 function numField(id, label, cur, o){
   o = o || {};
-  return '<div class="fld' + (o.need ? ' need' : '') + (o.cls ? ' ' + o.cls : '') + '"><label for="' + id + '">' + label + (o.need ? ' <em>· needed</em>' : '') + '</label>' +
+  return '<div class="fld' + (o.need ? ' need' : '') + (o.cls ? ' ' + o.cls : '') + '"><label for="' + id + '">' + label + (o.need ? ' <em class="needtag">· needed</em>' : '') + '</label>' +
     '<input id="' + id + '" inputmode="decimal" enterkeyhint="done" autocomplete="off"' + (o.nofrac ? '' : ' data-frac="1"') + (o.attrs || '') +
-    ' placeholder="' + esc(o.ph || ' ') + '" value="' + esc(numVal(cur)) + '"><div class="hint">' + esc(o.nofrac ? '' : hintFor(cur)) + '</div></div>';
+    ' placeholder="' + esc(o.ph || ' ') + '" value="' + esc(numVal(cur)) + '"><div class="hint">' + esc(o.nofrac ? '' : echoHint(numVal(cur), hintFor(cur))) + '</div></div>';
 }
 function selField(id, label, list, cur, attrs, labelFn){
   return '<div class="fld"><label for="' + id + '">' + label + '</label><select id="' + id + '"' + (attrs || '') + '>' + optList(list, cur, labelFn) + '</select></div>';
@@ -868,7 +883,7 @@ function showHint(inp){
   var v = parseLen(inp.value);
   if (inp.value.trim() === '') { h.textContent = ''; h.classList.remove('bad'); }
   else if (isNaN(v)) { h.textContent = 'Use 96, 96.375 or 96 3/8'; h.classList.add('bad'); }
-  else { h.textContent = fmtFrac(v); h.classList.remove('bad'); }
+  else { h.textContent = echoHint(inp.value, fmtFrac(v)); h.classList.remove('bad'); }
 }
 
 // ---------- units ----------
@@ -1147,6 +1162,13 @@ function bumpPart(t){
   t = String(t || ''); var a = bumpFloor(t); if (a !== t) return a;
   return t.replace(/(\d+)(st|nd|rd|th)?(?!.*\d)/i, function(m, n, sx){ return sx ? ordinal(+n + 1) : String(+n + 1); });
 }
+function floorNum(t){ var m = String(t || '').match(/(\d+)/); return m ? +m[1] : null; }
+function suggestUnit(oldUnits, oldPart, newPart){
+  var a = floorNum(oldPart), b = floorNum(newPart); if (a === null || b === null || a === b) return '';
+  var nums = (oldUnits || []).map(function(u){ return parseInt(u.unit, 10); }).filter(function(n){ return !isNaN(n) && Math.floor(n / 100) === a; });
+  if (!nums.length) return '';
+  return String(b * 100 + Math.min.apply(null, nums.map(function(n){ return n % 100; })));
+}
 function nextJobHeader(h){
   ensureJobParts(h);
   if (String(h._floor || '').trim()) h._floor = bumpPart(h._floor);
@@ -1199,8 +1221,8 @@ function secHtml(u, i, run, j){
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
       (!run._sp && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
       (j === 2 && u.secs[0] ? '<button type="button" class="btn" data-act="same1">Same as .1, flipped</button> ' : '') + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
-    '<div class="g2"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select></div>' +
-      '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select></div></div>' +
+    '<div class="g2"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select>' + quickEnds('Left', run.l) + '</div>' +
+      '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select>' + quickEnds('Right', run.r) + '</div></div>' +
     // angled corner posts (FA, I6A, 6EPA…): ask for the angle right here instead of under More options
     (angL || angR ? '<div class="anglebox"><div class="anglehd">Angled post: enter the angle between the two rails <span>(blank = 90°)</span></div><div class="g2">' +
       (angL ? numField(id + 'al', 'Angle L (°) · ' + esc(run.l), run.al, { nofrac: true, ph: 'e.g. 135', attrs: ' data-key="al"' }) : '<div></div>') +
@@ -1230,7 +1252,7 @@ function unitHtml(u, i){
   var note = (u.custom || u.mountDiff) ? '<div class="custnote"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span id="u' + i + '_note">' + esc(noteText(u)) + '</span></div>' : '';
   return '<div class="unit" data-u="' + i + '"' + (um ? ' data-mount="' + um + '"' : '') + '><div class="uhead"><div class="ucol">' +
       '<input class="unum" id="u' + i + '_num" data-ufield="unit" type="text" autocomplete="off" aria-label="Unit number" placeholder="Unit #" value="' + esc(u.unit) + '">' +
-      '</div>' +
+      '<div class="dupwarn" id="u' + i + '_dup"' + (dupUnit(u) ? '' : ' hidden') + '>' + (dupUnit(u) ? esc(u.unit) + ' is already used' : '') + '</div></div>' +
     '<div class="uinfo"><div class="eyebrow">Unit</div><div class="usum" id="u' + i + '_sum">' + esc(unitSum(u)) + '</div></div>' +
     '<div class="uacts"><button type="button" class="btn" data-act="draw" aria-pressed="' + (!!u._dr) + '">Draw</button><button type="button" class="btn" data-act="layout" aria-pressed="' + (!!u._layout) + '">' + (u._layout ? 'Hide layout' : 'Layout') + '</button><button type="button" class="btn" data-act="ucopy">Copy unit</button><button type="button" class="btn" data-act="ucodes">Copy post codes to next unit</button><button type="button" class="btn danger" data-act="udel">Delete</button></div></div>' +
     '<div class="uchecks"><label class="chk" for="u' + i + '_cust"><input type="checkbox" id="u' + i + '_cust" data-ufield="custom"' + (u.custom ? ' checked' : '') + '>Custom post height</label>' +
@@ -1732,6 +1754,7 @@ el('units').addEventListener('input', function(e){
     p.u.unit = t.value.trim();
     Array.prototype.forEach.call(p.box.querySelectorAll('[data-lab]'), function(l){ var s = l.closest('[data-s]'); l.textContent = secLabel(p.u, +s.getAttribute('data-s')); });
     p.box.querySelector('[data-act="addsec"]').textContent = '+ Add section ' + secLabel(p.u, p.u.secs.length);
+    updDups();
   } else if (t.hasAttribute('data-scr')){ p.u.screens[+t.getAttribute('data-scr')][t.getAttribute('data-sf')] = t.value; showHint(t); }
   else if (uf === 'notetext'){ p.u.notes = t.value; }
   else if (uf === 'post' || uf === 'block' || uf === 'standoff'){ p.u[uf] = t.value; showHint(t); updNote(p.i); }
@@ -1749,6 +1772,8 @@ el('units').addEventListener('input', function(e){
 });
 // keep units in number order (201, 202, 203…); blank or text unit numbers stay at the bottom in the order entered
 function unitKey(u){ var m = String(u.unit == null ? '' : u.unit).trim().match(/^(\d+)(.*)$/); return m ? [0, +m[1], m[2].toLowerCase()] : [1, 0, '']; }
+function dupUnit(u){ var n = String(u.unit || '').trim(); return !!n && units.some(function(x){ return x !== u && String(x.unit || '').trim() === n; }); }
+function updDups(){ units.forEach(function(u, k){ var w = el('u' + k + '_dup'); if (!w) return; var d = dupUnit(u); w.hidden = !d; w.textContent = d ? String(u.unit).trim() + ' is already used' : ''; }); }
 function sortUnits(){
   var before = units.slice();
   units = units.map(function(u, k){ return { u: u, k: k, key: unitKey(u) }; }).sort(function(a, b){
@@ -1764,6 +1789,7 @@ el('units').addEventListener('toggle', function(e){
 el('units').addEventListener('change', function(e){
   var t = e.target, p = at(t); if (!p) return;
   if (t.getAttribute('data-ufield') === 'unit'){
+    if (dupUnit(p.u)) return;   // leave it where it is with its warning showing, instead of jumping next to the other one
     var moved = p.u; if (!sortUnits()) return;
     renderRuns(); changed();
     var box = document.querySelector('.unit[data-u="' + units.indexOf(moved) + '"]'); if (box) box.scrollIntoView({ block: 'start' });
@@ -1812,7 +1838,7 @@ el('units').addEventListener('change', function(e){
   if (key && t.tagName === 'INPUT' && p.j >= 0 && p.u.secs[p.j] && p.u.secs[p.j]._sp && /^(fl|fr|al|ar|mid)$/.test(key)){ renderRuns(); changed(); return; }
   if (key && t.tagName === 'SELECT' && p.j >= 0){
     var rs = p.u.secs[p.j], before = isFloatCombo(rs), angBefore = isAngled(rs.l) || isAngled(rs.r), angSide = key === 'l' ? 'al' : 'ar', wasAng = isAngled(rs[key]);
-    rs[key] = t.value; if (key === 'l') rs._carried = false; updLayout(p.i);
+    rs[key] = t.value; if (key === 'l') rs._carried = false; updLayout(p.i); syncQuick(t);
     if ((key === 'l' || key === 'r') && (wasAng !== isAngled(rs[key]) || angBefore !== (isAngled(rs.l) || isAngled(rs.r)))){
       renderRuns(); changed();
       var af = isAngled(rs[key]) ? el('u' + p.i + 's' + p.j + '_' + angSide) : el('u' + p.i + 's' + p.j + '_' + key); if (af) af.focus();
@@ -1836,10 +1862,12 @@ function updConf(p){
 var pendingDel = '', pendingTimer = null, flashSec = null;
 function confirmDel(b, key){
   if (pendingDel === key){ pendingDel = ''; return true; }
-  pendingDel = key; clearTimeout(pendingTimer); pendingTimer = setTimeout(function(){ pendingDel = ''; b.textContent = 'Delete'; }, 3000);
-  b.textContent = 'Tap again to delete'; return false;
+  pendingDel = key; clearTimeout(pendingTimer); pendingTimer = setTimeout(function(){ pendingDel = ''; b.textContent = 'Delete'; b.classList.remove('arm'); }, 3000);
+  b.style.minWidth = b.offsetWidth + 'px'; b.classList.add('arm'); b.textContent = 'Sure?'; return false;
 }
 el('units').addEventListener('click', function(e){
+  var qe = e.target.closest('[data-qend]');
+  if (qe){ var qs = qe.closest('.fld').querySelector('select'); if (qs){ qs.value = qe.getAttribute('data-qend'); qs.dispatchEvent(new Event('change', { bubbles: true })); var again = document.getElementById(qs.id); if (again) syncQuick(again); } return; }
   var se = e.target.closest('[data-scrend]');
   if (se){ var ps = at(se); if (!ps) return; var kk = se.getAttribute('data-scrend').split('|'); ps.u.screens[+kk[0]][kk[1]] = se.getAttribute('data-val'); renderRuns(); changed(); return; }
   var mb = e.target.closest('[data-umount]');
@@ -1974,7 +2002,7 @@ el('file').onchange = function(){ var f = this.files[0]; if (f) loadData(f, f.na
 // ---------- next floor: same rail setup, new sheet ----------
 var LAST_KEY = 'ridgeway-last-setup';
 function readLast(){ try { return JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) { return null; } }
-function saveLast(){ try { var h = JSON.parse(JSON.stringify(header)); delete h._prev; localStorage.setItem(LAST_KEY, JSON.stringify({ header: h, t: Date.now() })); } catch (e) {} }
+function saveLast(){ try { var h = JSON.parse(JSON.stringify(header)); delete h._prev; localStorage.setItem(LAST_KEY, JSON.stringify({ header: h, units: units.map(function(u){ return { unit: u.unit }; }), t: Date.now() })); } catch (e) {} }
 function ordinal(n){ var v = n % 100; return n + ((v > 10 && v < 14) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th')); }
 function bumpFloor(name){
   name = String(name || '');
@@ -1997,7 +2025,7 @@ function startNextFloor(){
   var go = function(){
     try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {}
     var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h);
-    startNew({ header: h, units: [blankUnit('')], nextFloor: true, tab: h.B4 !== h._prev ? 'units' : 'job' });
+    startNew({ header: h, units: [blankUnit(suggestUnit(last.units, last.header && (last.header._floor != null ? last.header._floor : splitJob(last.header.B4)[1]), h._floor))], nextFloor: true, tab: h.B4 !== h._prev ? 'units' : 'job' });
   };
   if (readDraft('new-job')) return ask('Start the next floor? This replaces the unsaved draft on this tablet.', 'Next floor', go);
   go();
@@ -2586,7 +2614,7 @@ function switchFloor(k){
 function addFloor(){
   syncFloor();
   var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h);
-  floors.push({ header: h, units: [blankUnit('')] });
+  floors.push({ header: h, units: [blankUnit(suggestUnit(units, header._floor, h._floor))] });
   tab = h.B4 !== h._prev ? 'units' : 'job'; switchFloor(floors.length - 1);
   nextFloorNote();
 }
