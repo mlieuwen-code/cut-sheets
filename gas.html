@@ -432,7 +432,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-675009';
+var APP_VERSION = '2026.11.07-bed054';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1183,9 +1183,28 @@ function joinJob(h){ return [String(h._name || '').trim(), String(h._floor || ''
 function ensureJobParts(h){ if (h._name == null || (!String(h._name).trim() && !String(h._floor || '').trim() && String(h.B4 || '').trim())){ var p = splitJob(h.B4); h._name = p[0]; h._floor = p[1]; } }
 function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + '.xlsx</b>' : 'Together these become the file name'; }
 // next floor / next building: bump the number ("4th Floor" -> "5th Floor", "Bldg 12" -> "Bldg 13", "4" -> "5")
-function bumpPart(t){
-  t = String(t || ''); var a = bumpFloor(t); if (a !== t) return a;
-  return t.replace(/(\d+)(st|nd|rd|th)?(?!.*\d)/i, function(m, n, sx){ return sx ? ordinal(+n + 1) : String(+n + 1); });
+function bumpPart(t, d){
+  d = d || 1; t = String(t || '');
+  var n0 = floorNum(t); if (n0 !== null && n0 + d < 1) return t;   // nothing below the 1st floor: leave it for the crew to enter
+  var a = t.replace(/\b(\d+)(st|nd|rd|th)(\s*(floor|flr|fl|level|lvl))/i, function(m, n, sx, rest){ return ordinal(+n + d) + rest; });
+  if (a !== t) return a;
+  a = t.replace(/\b(floor|flr|level|lvl|L)\s*(\d+)\b/i, function(m, w, n){ return m.replace(n, String(+n + d)); });
+  if (a !== t) return a;
+  return t.replace(/(\d+)(st|nd|rd|th)?(?!.*\d)/i, function(m, n, sx){ return sx ? ordinal(+n + d) : String(+n + d); });
+}
+// which way the next floor goes: 6 is the top floor (go down), 1st/2nd go up, 3rd–5th ask once; after that it keeps going the same way
+var TOP_FLOOR = 6;
+function floorDirection(h, cb){
+  ensureJobParts(h);
+  var part = String(h._floor || '').trim() || splitJob(h.B4)[1], n = floorNum(part);
+  if (h._dir === 1 || h._dir === -1) return cb(h._dir);
+  if (floors && floors.length >= 2){
+    var a = floorNum(floors[floors.length - 2].header._floor), b = floorNum(floors[floors.length - 1].header._floor);
+    if (a !== null && b !== null && a !== b) return cb(b > a ? 1 : -1);
+  }
+  if (n === null || n <= 2 || /\b(bldg|building|block|blk)\b/i.test(part)) return cb(1);
+  if (n >= TOP_FLOOR) return cb(-1);
+  ask('Which way is the next floor from ' + part + '?', 'Down to ' + bumpPart(part, -1), function(){ cb(-1); }, 'Up to ' + bumpPart(part, 1), function(){ cb(1); });
 }
 function floorNum(t){ var m = String(t || '').match(/(\d+)/); return m ? +m[1] : null; }
 function suggestUnit(oldUnits, oldPart, newPart){
@@ -1194,10 +1213,10 @@ function suggestUnit(oldUnits, oldPart, newPart){
   if (!nums.length) return '';
   return String(b * 100 + Math.min.apply(null, nums.map(function(n){ return n % 100; })));
 }
-function nextJobHeader(h){
-  ensureJobParts(h);
-  if (String(h._floor || '').trim()) h._floor = bumpPart(h._floor);
-  else { var b = bumpFloor(joinJob(h)), p = splitJob(b); h._name = p[0]; h._floor = p[1]; }
+function nextJobHeader(h, d){
+  ensureJobParts(h); d = d || 1;
+  if (String(h._floor || '').trim()) h._floor = bumpPart(h._floor, d);
+  else { var b = bumpPart(joinJob(h), d), p = splitJob(b); h._name = p[0]; h._floor = p[1]; }
   h.B4 = joinJob(h); return h;
 }
 function jobFile(){ return String(header.B4 || '').trim().replace(/[\\\/:*?"<>|]+/g, '-') || '[Job name]'; }
@@ -2047,11 +2066,11 @@ function nextFloorFromHere(){
 }
 function startNextFloor(){
   var last = readLast(); if (!last || !last.header) return;
-  var go = function(){
+  var go = function(){ floorDirection(JSON.parse(JSON.stringify(last.header)), function(d){
     try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {}
-    var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h);
+    var h = JSON.parse(JSON.stringify(last.header)); h._prev = String(h.B4 || '').trim(); delete h._saved; delete h._openB4; h._dir = d; nextJobHeader(h, d);
     startNew({ header: h, units: [blankUnit(suggestUnit(last.units, last.header && (last.header._floor != null ? last.header._floor : splitJob(last.header.B4)[1]), h._floor))], nextFloor: true, tab: h.B4 !== h._prev ? 'units' : 'job' });
-  };
+  }); };
   if (readDraft('new-job')) return ask('Start the next floor? This replaces the unsaved draft on this tablet.', 'Next floor', go);
   go();
 }
@@ -2658,10 +2677,13 @@ function switchFloor(k){
 }
 function addFloor(){
   syncFloor();
-  var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h);
-  floors.push({ header: h, units: [blankUnit(suggestUnit(units, header._floor, h._floor))] });
-  tab = h.B4 !== h._prev ? 'units' : 'job'; switchFloor(floors.length - 1);
-  nextFloorNote();
+  floorDirection(header, function(d){
+    header._dir = d;
+    var h = JSON.parse(JSON.stringify(header)); h._prev = String(header.B4 || '').trim(); delete h._saved; delete h._openB4; nextJobHeader(h, d);
+    floors.push({ header: h, units: [blankUnit(suggestUnit(units, header._floor, h._floor))] });
+    tab = h.B4 !== h._prev ? 'units' : 'job'; switchFloor(floors.length - 1);
+    nextFloorNote();
+  });
 }
 // after starting the next floor: say what it's called; if the number couldn't be worked out, ask for it on Job Info
 function nextFloorNote(){
