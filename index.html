@@ -313,6 +313,15 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .dupwarn{margin-top:4px;font-size:13px;font-weight:800;color:var(--bad);white-space:nowrap}
 .btn.danger.arm{background:var(--bad);color:#fff;border-color:var(--bad)}
 .hint.lenrb{font-size:17px;font-weight:900;color:var(--ink);letter-spacing:.02em}
+/* slimmer bottom bar that slides away while scrolling down and comes back on scrolling up */
+.bottombar{padding-block:8px calc(8px + env(safe-area-inset-bottom,0px));transition:transform .22s ease;will-change:transform}
+.bottombar.away{transform:translateY(calc(100% + 6px))}
+.navtab{min-height:46px;border:2px solid var(--line);background:var(--field);color:var(--ink);font-size:16px}
+.navtab.on{border-color:var(--deep);background:var(--tint2);color:var(--deep)}
+.savebtn{min-height:46px;font-size:17px}
+.floorbar{margin-bottom:6px}
+.ftab{min-height:38px;padding:0 14px}
+body.hasfloors .wrap{padding-bottom:170px}
 </style>
 </head><body>
 
@@ -426,7 +435,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-638674';
+var APP_VERSION = '2026.11.07-4e4588';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2588,6 +2597,23 @@ fracBar.addEventListener('click', function(e){
   fracTarget.dispatchEvent(new Event('input', { bubbles: true }));
   var done = fracTarget; fracBar.hidden = true; fracTarget = null; done.blur();   // fraction picked: the number is finished, so close the keyboard
 });
+
+// ---------- bottom bar: hides while scrolling down, back on scrolling up (and at the very top or bottom of the page) ----------
+(function(){
+  var lastY = window.scrollY || 0, ticking = false;
+  function upd(){
+    ticking = false;
+    var bar = el('bar'), y = window.scrollY || 0, max = document.documentElement.scrollHeight - window.innerHeight;
+    if (!bar || bar.hidden) { lastY = y; return; }
+    if (y < 60 || y > max - 40 || !el('modal').hidden) bar.classList.remove('away');
+    else if (y > lastY + 6) bar.classList.add('away');
+    else if (y < lastY - 6) bar.classList.remove('away');
+    lastY = y;
+  }
+  window.addEventListener('scroll', function(){ if (!ticking){ ticking = true; requestAnimationFrame(upd); } }, { passive: true });
+  // a message (save result, warning) brings it back so Save is in reach
+  var m = el('msg'); if (m && window.MutationObserver) new MutationObserver(function(){ if (!m.hidden) el('bar').classList.remove('away'); }).observe(m, { attributes: true, childList: true, subtree: true });
+})();
 
 // ---------- draft (per tablet, best effort) ----------
 var pillTimer = null;
