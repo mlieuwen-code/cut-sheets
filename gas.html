@@ -404,7 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-b45c55';
+var APP_VERSION = '2026.11.06-6baeb9';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -516,6 +516,9 @@ var WRITE = [
 ];
 var READ_ONLY = [];
 var POST_WALLS = ['2x2 - .095', '2x2 - .125'];
+// who measured / who typed it in: shown on Job Info, saved on the job's Notes file
+var MEASURERS = ['Ben Lieuwen', 'Joel Mulder', 'Jonathan Mulder', 'Josh Mulder', 'Matt Lieuwen'];   // alphabetical
+var INPUT_BY = ['Martin Delgado', 'Robyn Moore'].concat(MEASURERS).sort();
 var RUN_MAIN = [
   {col:'A', key:'tag', label:'Run', type:'text'},
   {col:'B', key:'l', label:'Left end', type:'select', list:'ends'},
@@ -753,7 +756,8 @@ function renderHeader(){
   });
   var nChan = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length;
   el('tab-job').innerHTML =
-    '<div class="card"><div class="fld job"><label for="h_B4">Job name <em>· becomes the file name</em></label><div class="jobhelp">Building name and floor</div><input id="h_B4" data-cell="B4" type="text" autocomplete="off" placeholder="e.g. Woodbine 4th Floor" value="' + esc(header.B4) + '"><div class="jobwarn" id="jobWarn" hidden></div></div></div>' +
+    '<div class="card"><div class="fld job"><label for="h_B4">Job name <em>· becomes the file name</em></label><div class="jobhelp">Building name and floor</div><input id="h_B4" data-cell="B4" type="text" autocomplete="off" placeholder="e.g. Woodbine 4th Floor" value="' + esc(header.B4) + '"><div class="jobwarn" id="jobWarn" hidden></div></div>' +
+      '<div class="g2">' + selField('h_measBy', 'Measurer', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
     '<div class="card"><h3>Rail setup</h3>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
         '<input id="h_B6o" type="text" autocomplete="off" aria-label="Other colour" placeholder="Type the colour" value="' + esc(isOther ? col : '') + '"' + (isOther ? '' : ' hidden') + ' style="margin-top:4px;border-color:var(--need);background:var(--needbg)"></div>' +
@@ -2045,10 +2049,13 @@ function buildNotesBlob(list){
   var cell = function(ref, v, st){ var s = st ? ' s="' + st + '"' : ''; if (typeof v === 'number') return '<c r="' + ref + '"' + s + '><v>' + v + '</v></c>'; return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + xe(v) + '</t></is></c>'; };
   var rows = [
     '<row r="1">' + cell('A1', 'Job', 1) + cell('B1', String(header.B4 || '').trim(), 1) + '</row>',
-    '<row r="2">' + cell('A2', 'Notes for review before fabrication · ' + new Date().toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })) + '</row>',
-    '<row r="4">' + cell('A4', 'Unit', 1) + cell('B4', 'Mount', 1) + cell('C4', 'Notes', 1) + '</row>'
+    '<row r="2">' + cell('A2', 'Measured by', 1) + cell('B2', String(header.measBy || '')) + '</row>',
+    '<row r="3">' + cell('A3', 'Input by', 1) + cell('B3', String(header.inputBy || '')) + '</row>',
+    '<row r="4">' + cell('A4', 'Notes for review before fabrication · ' + new Date().toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })) + '</row>',
+    '<row r="6">' + cell('A6', 'Unit', 1) + cell('B6', 'Mount', 1) + cell('C6', 'Notes', 1) + '</row>'
   ];
-  list.forEach(function(n, k){ var r = 5 + k, un = /^\d+$/.test(n.unit) ? +n.unit : n.unit; rows.push('<row r="' + r + '">' + cell('A' + r, un, 2) + cell('B' + r, n.mount || '', 2) + cell('C' + r, n.text, 2) + '</row>'); });
+  if (!list.length) rows.push('<row r="7">' + cell('A7', 'No unit notes.', 2) + '</row>');
+  list.forEach(function(n, k){ var r = 7 + k, un = /^\d+$/.test(n.unit) ? +n.unit : n.unit; rows.push('<row r="' + r + '">' + cell('A' + r, un, 2) + cell('B' + r, n.mount || '', 2) + cell('C' + r, n.text, 2) + '</row>'); });
   z.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');
   z.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
   z.file('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Notes" sheetId="1" r:id="rId1"/></sheets></workbook>');
@@ -2166,7 +2173,8 @@ el('save').onclick = function(){
   }
   var notes = units.filter(function(u){ return u.hasNotes && String(u.notes || '').trim(); }).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: String(u.notes).trim() }; });
   if (!sheets.length) errs.push('Add at least one measurement');
-  if (notes.length) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ')', make: function(){ return buildNotesBlob(notes); } });
+  var who = [header.measBy ? 'measured by ' + header.measBy : '', header.inputBy ? 'input by ' + header.inputBy : ''].filter(Boolean).join(', ');
+  if (notes.length || who) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + [notes.length ? notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ' with notes' : '', who].filter(Boolean).join(' · ') + ')', make: function(){ return buildNotesBlob(notes); } });
   sheets.forEach(function(s){ if (s.rows.length > MAX_RUNS) errs.push(s.name + ' has ' + s.rows.length + ' sections; a cut sheet holds ' + MAX_RUNS); });
   sheets.forEach(function(s){
     if (s.make) return;
