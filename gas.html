@@ -404,7 +404,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-ae57e4';
+var APP_VERSION = '2026.11.06-aea1e6';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -519,7 +519,7 @@ var POST_WALLS = ['2x2 - .095', '2x2 - .125'];
 // rail type names as the crew sees them; the sheet still gets its own value (5/8", Tight …)
 function railLabel(t){
   var m = String(t).match(/^(Flat )?(5\/8"|3\/4"|1"|Wide|Tight)$/); if (!m) return t;
-  return (m[1] || '') + (m[2] === 'Tight' ? 'Concentrated Picket' : m[2] + ' Picket');
+  return (m[1] || '') + (m[2] === 'Tight' ? 'Concentrated Picket' : m[2] + ' Picket' + (m[2] === '5/8"' ? ' (Standard)' : ''));
 }
 // same rule as the sheet's rail family (INPUT U3): anything whose family isn't a picket family is glass
 function isGlassRail(t){ t = String(t || ''); return t !== '' && !/picket/i.test(railFam[t] || (/^(Flat )?(5\/8"|3\/4"|1"|Wide|Tight)$/.test(t) ? 'Picket' : 'Glass')); }
