@@ -299,7 +299,7 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 /* stronger button edges for bright sun */
 .btn:not(.pri){box-shadow:inset 0 0 0 1.5px #CDBFA8}
 .fld.need:has(input:not(:placeholder-shown)) .needtag{display:none}
-.qends{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.qends{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
 .qend{min-height:44px;min-width:46px;padding:0 8px;border-radius:12px;border:2px solid var(--line);background:var(--field);font-size:16px;font-weight:900;color:var(--ink)}
 .qend[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
 .dupwarn{margin-top:4px;font-size:13px;font-weight:800;color:var(--bad);white-space:nowrap}
@@ -417,7 +417,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-654b55';
+var APP_VERSION = '2026.11.07-16005c';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -687,7 +687,7 @@ function loadData(data, name, isNew, opts, restore){
     var dv = sheetXml.match(/<dataValidation\b[^>]*sqref="B20:C119"[^>]*>\s*<formula1>"([^"<]*)"<\/formula1>/);
     lists.ends = dv ? dv[1].split(',') : ['E','F','FA','I6','I6A','6EP','6EPA','W','EC','ECO','IC','ICO','FC','FCO','CJ','CJO','CJO-1','3x2E','3x2FE','3x2IE','3x2TE','T','TO'];
     // most-used codes first in the drop-downs, the rest after in their usual order
-    var FIRST_ENDS = ['E','F','EC','ECO','CJ','CJO','IC','FA'];
+    var FIRST_ENDS = ['E','F','EC','ECO','IC','ICO','CJ','CJO','FA'];
     lists.ends = FIRST_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0; }).concat(lists.ends.filter(function(c){ return FIRST_ENDS.indexOf(c) < 0; }));
     endDesc = {}; endCh = {}; railMax = {};
     for (var q = 4; q <= 94; q++){ var ek = readCell(ET, 'A' + q), eb = readCell(ET, 'E' + q), ec = readCell(ET, 'F' + q); if (ek !== '' && typeof eb === 'number') endCh[String(ek)] = [eb, typeof ec === 'number' ? ec : 0]; }
@@ -742,7 +742,7 @@ function loadData(data, name, isNew, opts, restore){
 function numVal(v){ if (typeof v !== 'number') return v == null ? '' : v; var t = v * 16; if (Math.abs(t - Math.round(t)) > 1e-6 || Number.isInteger(v)) return String(v); return fmtFrac(v).replace(/"$/, '').replace(/^0 (?=\d+\/)/, ''); }
 // the read-back under a box only shows when it adds something (96.375 -> 96 3/8"), not when it repeats what's typed
 // one-tap buttons for the end codes used most; the drop-down above still has them all
-var QUICK_ENDS = ['E', 'F', 'EC', 'ECO', 'IC', 'W'];
+var QUICK_ENDS = ['E', 'F', 'EC', 'ECO', 'IC', 'ICO', 'CJ', 'CJO'];
 function quickEnds(side, cur){
   var q = QUICK_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0; }); if (!q.length) return '';
   return '<div class="qends" role="group" aria-label="' + side + ' end, quick pick">' + q.map(function(c){ return '<button type="button" class="qend" data-qend="' + c + '" aria-pressed="' + (String(cur) === c) + '">' + c + '</button>'; }).join('') + '</div>';
