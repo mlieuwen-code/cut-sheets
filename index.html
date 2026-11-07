@@ -412,7 +412,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.06-616058';
+var APP_VERSION = '2026.11.06-df938b';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -786,7 +786,7 @@ function renderHeader(){
     '<details class="fold"><summary>Post wall <em id="pwSum" style="font-style:normal;color:var(--muted);font-weight:700;margin-left:auto">' + esc(String(header.B10 || POST_WALLS[0]).replace('2x2 - ', '')) + '</em></summary><div class="in">' +
       chips('B10', 'Post wall', POST_WALLS, ['2x2 · .095', '2x2 · .125']) + '</div></details>' +
     '<details class="fold"' + (nChan ? ' open' : '') + '><summary>Extra channels <span>' + (nChan ? nChan + ' added' : 'None') + ' ›</span></summary><div class="in">' + chan + '</div></details>' +
-    '<details class="fold"' + (units.some(function(u){ return u.screen; }) ? ' open' : '') + '><summary>Privacy screens <span>' + (isNum(header.scrH) ? 'Height ' + esc(numVal(header.scrH)) + '"' : 'Only if the job has screens') + ' ›</span></summary><div class="in">' +
+    '<details class="fold"' + (units.some(function(u){ return u.screen; }) ? ' open' : '') + '><summary>Privacy Screen Height</summary><div class="in">' +
       '<div class="g2" data-fracslot>' + numField('h_scrH', 'Screen height (in)', header.scrH, { need: true, ph: 'e.g. 78', attrs: ' data-cell="scrH"' }) +
         numField('h_scrD', 'DBL channel down (in)', header.scrD, { ph: 'e.g. 34', attrs: ' data-cell="scrD"' }) + '</div>' +
       chips('scrT', 'Top rail', ['Glass', 'Flat Glass']) + '</div></details>' +
@@ -2176,7 +2176,7 @@ el('save').onclick = function(){
     });
   });
   if (rw.length || ww.length){
-    if (!isNum(header.scrH)) errs.push('Enter the screen height (Job Info → Privacy screens)');
+    if (!isNum(header.scrH)) errs.push('Enter the screen height (Job Info → Privacy Screen Height)');
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
