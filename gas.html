@@ -304,6 +304,7 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .qend[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--onaccent)}
 .dupwarn{margin-top:4px;font-size:13px;font-weight:800;color:var(--bad);white-space:nowrap}
 .btn.danger.arm{background:var(--bad);color:#fff;border-color:var(--bad)}
+.hint.lenrb{font-size:17px;font-weight:900;color:var(--ink);letter-spacing:.02em}
 </style>
 </head><body>
 
@@ -417,7 +418,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-81c195';
+var APP_VERSION = '2026.11.07-638674';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -752,6 +753,20 @@ function quickEnds(side, cur){
   return '<div class="qends" role="group" aria-label="' + side + ' end, quick pick">' + q.map(function(c){ return '<button type="button" class="qend" data-qend="' + c + '" aria-pressed="' + (String(cur) === c) + '">' + c + '</button>'; }).join('') + '</div>';
 }
 function syncQuick(sel){ var g = sel.parentNode.querySelector('.qends'); if (g) Array.prototype.forEach.call(g.querySelectorAll('[data-qend]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-qend') === sel.value)); }); }
+// read-back under the measurement: the length with the section's end codes, e.g. 100" E–F
+function lenReadback(run){
+  var raw = String(run.len == null ? '' : run.len).trim(), v = raw ? parseLen(raw) : null;
+  if (raw && (v === null || isNaN(v))) return null;   // let the usual "Use 96, 96.375 or 96 3/8" show
+  var ends = (run.l || run.r) ? (run.l || '?') + '–' + (run.r || '?') : '';
+  return [raw ? fmtFrac(v) : '', ends].filter(Boolean).join(' ');
+}
+function updLenHint(sec, run){
+  var inp = sec && sec.querySelector('input[data-key="len"]'); if (!inp) return;
+  var h = inp.parentNode.querySelector('.hint'), t = lenReadback(run);
+  if (t === null) return showHint(inp);
+  h.textContent = t; h.classList.remove('bad'); h.classList.add('lenrb');
+  var big = sec.querySelector('.confbox .big'); if (big && t) big.textContent = t;
+}
 function echoHint(raw, h){ var a = String(raw == null ? '' : raw).replace(/"/g, '').replace(/\s+/g, ' ').trim(); return h && h.replace(/"/g, '').trim() === a ? '' : h; }
 function hintFor(v){ if (v === '' || v == null) return ''; var p = parseLen(String(v)); return isNaN(p) || p === null ? '' : fmtFrac(p); }
 function optList(list, cur, labelFn){
@@ -764,7 +779,7 @@ function numField(id, label, cur, o){
   o = o || {};
   return '<div class="fld' + (o.need ? ' need' : '') + (o.cls ? ' ' + o.cls : '') + '"><label for="' + id + '">' + label + (o.need ? ' <em class="needtag">· needed</em>' : '') + '</label>' +
     '<input id="' + id + '" inputmode="decimal" enterkeyhint="done" autocomplete="off"' + (o.nofrac ? '' : ' data-frac="1"') + (o.attrs || '') +
-    ' placeholder="' + esc(o.ph || ' ') + '" value="' + esc(numVal(cur)) + '"><div class="hint">' + esc(o.nofrac ? '' : echoHint(numVal(cur), hintFor(cur))) + '</div></div>';
+    ' placeholder="' + esc(o.ph || ' ') + '" value="' + esc(numVal(cur)) + '"><div class="hint' + (o.hintCls ? ' ' + o.hintCls : '') + '">' + esc(o.hint != null ? o.hint : (o.nofrac ? '' : echoHint(numVal(cur), hintFor(cur)))) + '</div></div>';
 }
 function selField(id, label, list, cur, attrs, labelFn){
   return '<div class="fld"><label for="' + id + '">' + label + '</label><select id="' + id + '"' + (attrs || '') + '>' + optList(list, cur, labelFn) + '</select></div>';
@@ -911,7 +926,7 @@ var CHECK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 function confHtml(run){
   var raw = String(run.len == null ? '' : run.len).trim(); if (!raw || run.lenOk) return '';
   var v = parseLen(raw); if (v === null || isNaN(v)) return '';
-  return '<div class="confbox"><div class="t"><div class="q">Read it back. Does this match the tape?</div><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><span class="big">' + esc(fmtFrac(v)) + '</span></div>' +
+  return '<div class="confbox"><div class="t"><div class="q">Read it back. Does this match the tape?</div><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><span class="big">' + esc(lenReadback(run) || fmtFrac(v)) + '</span></div>' +
     lenWarn(raw, v).map(function(x){ return '<div class="warn">' + esc(x) + '</div>'; }).join('') + '</div><button type="button" class="btn pri" data-act="ok">' + CHECK + 'Confirm</button></div>';
 }
 function needsConf(run){ var raw = String(run.len == null ? '' : run.len).trim(); return raw !== '' && !run.lenOk; }
@@ -1226,7 +1241,7 @@ function secHtml(u, i, run, j){
       '<button type="button" class="calctog" data-act="calc" aria-expanded="' + !!run._calc + '">' + (run._calc ? 'Hide triangle calculator ▴' : 'Work out the angle from 3 sides ▾') + '</button>' +
       (run._calc ? calcHtml(id, angL, angR) : '') + '</div>' : '') +
     (isFloatCombo(run) ? '<label class="chk floatrail" for="' + id + 'floatrail"><input type="checkbox" id="' + id + 'floatrail" data-sfield="floatrail"' + (run.ns === 'Yes' ? ' checked' : '') + '>Rail is floating <span style="font-weight:700;color:var(--muted)">(marks Non-Sub = Yes)</span></label>' : '') +
-    '<div data-fracslot>' + numField(id + 'len', 'Measurement (in)', run.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-key="len"' }) + '</div>' +
+    '<div data-fracslot>' + numField(id + 'len', 'Measurement (in)', run.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-key="len"', hint: lenReadback(run), hintCls: 'lenrb' }) + '</div>' +
     '<div class="conf">' + confHtml(run) + '</div>' +
     '<label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' +
     (showFloats ? '<div class="g2" data-fracslot>' + numField(id + 'fl', 'Float L', run.fl, { attrs: ' data-key="fl"' }) + numField(id + 'fr', 'Float R', run.fr, { attrs: ' data-key="fr"' }) + '</div>' +
@@ -1756,7 +1771,7 @@ el('units').addEventListener('input', function(e){
   else if (uf === 'post' || uf === 'block' || uf === 'standoff'){ p.u[uf] = t.value; showHint(t); updNote(p.i); }
   else if (t.hasAttribute('data-calc')){ if (t.hasAttribute('data-frac')) showHint(t); if (p.sec) updCalc(p.sec); return; }
   else if (key && p.j >= 0 && t.tagName === 'INPUT'){
-    var run = p.u.secs[p.j]; run[key] = t.value; if (t.hasAttribute('data-frac')) showHint(t);
+    var run = p.u.secs[p.j]; run[key] = t.value; if (t.hasAttribute('data-frac')) showHint(t); if (key === 'len') updLenHint(p.sec, run);
     if (key === 'len'){ if (run._sp){ unlinkSplit(p.u, run._sp.id); var sn = p.box.querySelector('.splitnote'); if (sn) sn.remove(); } run.lenOk = false; el('u' + p.i + '_sum').textContent = unitSum(p.u); updConf(p); updLayout(p.i); }
     if (key === 'ar' || key === 'al') updLayout(p.i);
     if (key === 'fl' || key === 'fr'){
@@ -1834,7 +1849,7 @@ el('units').addEventListener('change', function(e){
   if (key && t.tagName === 'INPUT' && p.j >= 0 && p.u.secs[p.j] && p.u.secs[p.j]._sp && /^(fl|fr|al|ar|mid)$/.test(key)){ renderRuns(); changed(); return; }
   if (key && t.tagName === 'SELECT' && p.j >= 0){
     var rs = p.u.secs[p.j], before = isFloatCombo(rs), angBefore = isAngled(rs.l) || isAngled(rs.r), angSide = key === 'l' ? 'al' : 'ar', wasAng = isAngled(rs[key]);
-    rs[key] = t.value; if (key === 'l') rs._carried = false; updLayout(p.i); syncQuick(t);
+    rs[key] = t.value; if (key === 'l') rs._carried = false; updLayout(p.i); syncQuick(t); if (key === 'l' || key === 'r'){ var sb = t.closest('[data-s]'); if (sb) updLenHint(sb, rs); }
     if ((key === 'l' || key === 'r') && (wasAng !== isAngled(rs[key]) || angBefore !== (isAngled(rs.l) || isAngled(rs.r)))){
       renderRuns(); changed();
       var af = isAngled(rs[key]) ? el('u' + p.i + 's' + p.j + '_' + angSide) : el('u' + p.i + 's' + p.j + '_' + key); if (af) af.focus();
