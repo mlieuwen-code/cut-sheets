@@ -319,6 +319,9 @@ body.hasfloors .wrap{padding-bottom:170px}
   .endpair{position:relative;column-gap:34px}
   .endpair::before{content:"";position:absolute;top:2px;bottom:2px;left:50%;width:2px;margin-left:-1px;border-radius:2px;background:var(--line)}
 }
+.jobrow.solo{grid-template-columns:1fr}
+.kinds{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
+.fld.job .kinds .chk input{width:26px;height:26px;min-height:0;padding:0;font-size:0}
 </style>
 </head><body>
 
@@ -432,7 +435,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-bed054';
+var APP_VERSION = '2026.11.07-28152c';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -741,7 +744,7 @@ function loadData(data, name, isNew, opts, restore){
     var fileB4 = String(header.B4 || '');   // the job name inside the opened file, before any draft is laid over it
     if (restore){ header = Object.assign(header, restore.header); units = restore.units || units; if (restore.header && restore.header._name == null){ delete header._name; delete header._floor; } }
     if (!isNew && name !== 'new-job' && header._openB4 == null) header._openB4 = fileB4;
-    if (isNew && !restore){ header._name = ''; header._floor = ''; } ensureJobParts(header);
+    if (isNew && !restore){ header._name = ''; header._floor = ''; header._kind = ''; } ensureJobParts(header);
     // new jobs from the template are a "building": one tab per floor along the bottom
     if (name === 'new-job'){
       if (restore && restore.floors && restore.floors.length){ floors = restore.floors; curFloor = Math.min(restore.cur || 0, floors.length - 1); floors[curFloor].header = header; floors[curFloor].units = units; header = floors[curFloor].header; units = floors[curFloor].units; }
@@ -819,8 +822,9 @@ function renderHeader(){
   });
   var nChan = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length;
   el('tab-job').innerHTML =
-    '<div class="card"><div class="jobrow"><div class="fld job"><label for="h_B4">Building or job name</label><input id="h_B4" data-jn="name" type="text" autocomplete="off" placeholder="e.g. Woodbine" value="' + esc(header._name) + '"></div>' +
-      '<div class="fld job"><label for="h_floor">Floor or building #</label><input id="h_floor" data-jn="floor" type="text" autocomplete="off" placeholder="e.g. 4th Floor or Bldg 12" value="' + esc(header._floor) + '"></div></div>' +
+    '<div class="card"><div class="jobrow' + (header._kind ? '' : ' solo') + '"><div class="fld job"><label for="h_B4">' + (header._kind ? 'Building name' : 'Building or job name') + '</label><input id="h_B4" data-jn="name" type="text" autocomplete="off" placeholder="e.g. Woodbine" value="' + esc(header._name) + '">' +
+        '<div class="kinds"><label class="chk" for="h_kapt"><input type="checkbox" id="h_kapt" data-kind="apt"' + (header._kind === 'apt' ? ' checked' : '') + '>Apartment</label><label class="chk" for="h_kth"><input type="checkbox" id="h_kth" data-kind="th"' + (header._kind === 'th' ? ' checked' : '') + '>Townhouse</label></div></div>' +
+      (header._kind ? '<div class="fld job"><label for="h_floor">' + (header._kind === 'th' ? 'Building #' : 'Floor') + '</label><input id="h_floor" data-jn="floor" type="text" inputmode="' + (/^\d*$/.test(floorBox()) ? 'numeric' : 'text') + '" autocomplete="off" placeholder="' + (header._kind === 'th' ? 'e.g. 12' : 'e.g. 4') + '" value="' + esc(floorBox()) + '"></div>' : '') + '</div>' +
       '<div class="jobhelp" id="jobFileName">' + jobFileHint() + '</div><div class="jobwarn" id="jobWarn" hidden></div>' +
       '<div class="g2">' + selField('h_measBy', 'Measured by', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
     '<div class="card"><h3>Rail setup</h3>' +
@@ -863,7 +867,7 @@ el('tab-job').addEventListener('input', function(e){
   var t = e.target;
   if (t.id === 'h_B6o'){ header.B6 = t.value; return changed(); }
   var jn = t.getAttribute('data-jn');
-  if (jn){ header[jn === 'name' ? '_name' : '_floor'] = t.value; header.B4 = joinJob(header); var fh = el('jobFileName'); if (fh) fh.innerHTML = jobFileHint(); updJobWarn(); changed(); if (floors) renderFloors(); return; }
+  if (jn){ if (jn === 'name') header._name = t.value; else header._floor = fmtFloor(header._kind, t.value); header.B4 = joinJob(header); var fh = el('jobFileName'); if (fh) fh.innerHTML = jobFileHint(); updJobWarn(); changed(); if (floors) renderFloors(); return; }
   var c = t.getAttribute('data-cell'); if (!c) return;
   header[c] = t.value;
   if (t.hasAttribute('data-frac')) showHint(t);
@@ -873,6 +877,16 @@ el('tab-job').addEventListener('input', function(e){
 });
 el('tab-job').addEventListener('change', function(e){
   var t = e.target;
+  var kd = t.getAttribute('data-kind');
+  if (kd){   // Apartment / Townhouse: one or the other (or neither = a house, no floor or building number)
+    var n = floorNum(header._floor);
+    header._kind = t.checked ? kd : '';
+    header._floor = header._kind ? (n !== null ? fmtFloor(header._kind, String(n)) : '') : '';
+    header.B4 = joinJob(header); delete header._dir;
+    renderHeader(); updJobWarn(); changed(); if (floors) renderFloors();
+    if (header._kind) setTimeout(function(){ var f = el('h_floor'); if (f && !f.value) f.focus(); }, 50);
+    return;
+  }
   if (t.id === 'h_B6'){
     var o = el('h_B6o');
     if (t.value === '__other'){ o.hidden = false; header.B6 = o.value; o.focus(); }
@@ -1180,7 +1194,18 @@ function updJobWarn(){
 var FLOOR_RE = /^(.*?\S)[\s,]*[\s\-–][\s\-–,]*((?:\d+\s*(?:st|nd|rd|th)\s*(?:floor|flr|fl|level|lvl)\b)|(?:floor|flr|fl|level|lvl|L|building|bldg|blk|block)\s*#?\s*\d+[A-Za-z]?|(?:ground|main|roof)(?:\s+(?:floor|level))?|penthouse|ph\d*)\s*$/i;
 function splitJob(b4){ b4 = String(b4 || '').trim(); var m = b4.match(FLOOR_RE); return m && m[1].trim() ? [m[1].trim(), m[2].trim()] : [b4, '']; }
 function joinJob(h){ return [String(h._name || '').trim(), String(h._floor || '').trim()].filter(Boolean).join(' '); }
-function ensureJobParts(h){ if (h._name == null || (!String(h._name).trim() && !String(h._floor || '').trim() && String(h.B4 || '').trim())){ var p = splitJob(h.B4); h._name = p[0]; h._floor = p[1]; } }
+function fmtFloor(kind, raw){
+  raw = String(raw == null ? '' : raw).trim(); if (!raw) return '';
+  if (/^\d+$/.test(raw)) return kind === 'th' ? 'Bldg ' + (+raw) : ordinal(+raw) + ' Floor';
+  return raw;
+}
+// what the number box shows: just the number when the app wrote the words, otherwise what was typed
+function floorBox(){
+  var f = String(header._floor || '').trim(), m = f.match(header._kind === 'th' ? /^(?:bldg|building)\s*#?\s*(\d+)$/i : /^(\d+)(?:st|nd|rd|th)\s*(?:floor|flr|fl)$/i);
+  return m ? m[1] : f;
+}
+function kindOf(floor){ floor = String(floor || '').trim(); return !floor ? '' : /\b(bldg|building|block|blk)\b/i.test(floor) ? 'th' : 'apt'; }
+function ensureJobParts(h){ if (h._name == null || (!String(h._name).trim() && !String(h._floor || '').trim() && String(h.B4 || '').trim())){ var p = splitJob(h.B4); h._name = p[0]; h._floor = p[1]; } if (h._kind == null) h._kind = kindOf(h._floor); }
 function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + '.xlsx</b>' : 'Together these become the file name'; }
 // next floor / next building: bump the number ("4th Floor" -> "5th Floor", "Bldg 12" -> "Bldg 13", "4" -> "5")
 function bumpPart(t, d){
@@ -1202,7 +1227,7 @@ function floorDirection(h, cb){
     var a = floorNum(floors[floors.length - 2].header._floor), b = floorNum(floors[floors.length - 1].header._floor);
     if (a !== null && b !== null && a !== b) return cb(b > a ? 1 : -1);
   }
-  if (n === null || n <= 2 || /\b(bldg|building|block|blk)\b/i.test(part)) return cb(1);
+  if (n === null || n <= 2 || h._kind === 'th' || /\b(bldg|building|block|blk)\b/i.test(part)) return cb(1);
   if (n >= TOP_FLOOR) return cb(-1);
   ask('Which way is the next floor from ' + part + '?', 'Down to ' + bumpPart(part, -1), function(){ cb(-1); }, 'Up to ' + bumpPart(part, 1), function(){ cb(1); });
 }
@@ -2310,6 +2335,7 @@ function saveNow(){
   units.forEach(resplitUnit);
   var errs = [], seenU = {}, groups = {}, mainKey = setupKey(unitSetup({}));
   if (!String(header.B4 || '').trim()) errs.push('Enter the job name (it becomes the file name)');
+  else if (header._kind && !String(header._floor || '').trim()) errs.push(header._kind === 'th' ? 'Enter the building number (Job Info)' : 'Enter the floor number (Job Info)');
   else if (floors && floors.some(function(f, k){ return k !== curFloor && String(f.header.B4 || '').trim().toLowerCase() === String(header.B4).trim().toLowerCase(); })) errs.push('Another floor tab already has the name “' + String(header.B4).trim() + '”. Give this floor its own name so it doesn’t replace that one in Drive');
   else if (header._prev && String(header.B4).trim().toLowerCase() === String(header._prev).trim().toLowerCase()) errs.push('Change the job name for this floor. “' + header._prev + '” was the last floor, and the same name would replace it in Drive');
   units.forEach(function(u, ui){
@@ -2688,7 +2714,9 @@ function addFloor(){
 // after starting the next floor: say what it's called; if the number couldn't be worked out, ask for it on Job Info
 function nextFloorNote(){
   if (String(header.B4 || '').trim() && header.B4 !== header._prev) return msg('Next floor: ' + header.B4 + ', same setup as ' + (header._prev || 'the last floor') + '. Tap Job Info to change the name or anything different on this floor.', true);
-  showTab('job'); msg('Next floor: same setup as ' + (header._prev || 'the last floor') + '. Enter this floor or building number.', true);
+  showTab('job');
+  if (!header._kind){ msg('Next job: same setup as ' + (header._prev || 'the last one') + '. Enter the new job name.', true); return setTimeout(function(){ var j = el('h_B4'); if (j){ j.focus(); j.select(); } }, 300); }
+  msg('Next floor: same setup as ' + (header._prev || 'the last floor') + '. Enter this ' + (header._kind === 'th' ? 'building number.' : 'floor number.'), true);
   setTimeout(function(){ var j = el('h_floor'); if (j){ j.focus(); j.select(); } }, 300);
 }
 function removeFloor(){
