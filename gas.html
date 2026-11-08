@@ -345,6 +345,8 @@ body.hasfloors .wrap{padding-bottom:170px}
 .lvout.hi{color:var(--deep)}
 .lvmiss{font-size:14px;color:var(--amber);font-weight:700;padding:6px 0}
 @media (max-width:600px){ .lvrow{grid-template-columns:minmax(0,1fr) auto} .lvin{grid-column:1/-1;order:3} .lvout{min-width:0} }
+.spjoints{display:grid;gap:10px;margin:10px 0}
+.spbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 </style>
 </head><body>
 
@@ -458,7 +460,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-641c1d';
+var APP_VERSION = '2026.11.07-beb97c';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1008,6 +1010,13 @@ function chanInfo(W, run){
   return { n: P, each: Math.round((W - 2 * V) / P * 16) / 16 };
 }
 // lengths for a set of pieces that add up to the total and all end up with the same channel run
+// custom joints: n−1 positions from the left end of the original rail, each one past the last and short of the end; otherwise null (equal pieces)
+function customJoints(sp){
+  if (!sp || !sp.cj || sp.cj.length !== sp.n - 1) return null;
+  var xs = sp.cj.map(function(v){ return parseLen(String(v == null ? '' : v)); }), prev = 0;
+  for (var k = 0; k < xs.length; k++){ if (!(xs[k] > prev + 1) || !(xs[k] < sp.total - 1)) return null; prev = xs[k]; }
+  return xs;
+}
 function splitLens(pieces, total, u){
   var s = unitSetup(u), adj = pieces.map(function(r){ return pieceAdj(r, s.mount, s.standoff); });
   var sum = adj.reduce(function(t, a){ return t + a.v; }, 0), N = pieces.length, W = (total + sum) / N;
@@ -1042,16 +1051,21 @@ function resplitUnit(u){
     if (!r._sp || seen[r._sp.id]) return; var id = r._sp.id; seen[id] = 1;
     var js = groupAt(u, id), n = r._sp.n, ok = js.length === n && js.every(function(j, k){ return j === js[0] + k && u.secs[j]._sp.k === k; });
     if (!ok) return unlinkSplit(u, id);
-    var pcs = js.map(function(j){ return u.secs[j]; }), res = splitLens(pcs, r._sp.total, u);
-    var ch = pcs.map(function(p, k){ return chanInfo(res.W, p); }), match = ch.every(function(c){ return c.n === ch[0].n && c.each === ch[0].each; });
-    pcs.forEach(function(p, k){ p.len = String(Math.round(res.lens[k] * 1e4) / 1e4); p.lenOk = true; p._spOff = Math.round(res.offs[k] * 1e4) / 1e4; p._spInfo = { guess: res.guess, ch: ch[0], match: match, longest: Math.max.apply(null, res.lens) }; });
+    var pcs = js.map(function(j){ return u.secs[j]; }), res = splitLens(pcs, r._sp.total, u), cj = customJoints(pcs[0]._sp);
+    if (cj){ var cut = [0].concat(cj, [r._sp.total]); res.lens = cut.slice(1).map(function(x, k){ return x - cut[k]; }); res.offs = res.lens.map(function(L){ return n * L - r._sp.total; }); res.W = null; }
+    var st = unitSetup(u), ch = pcs.map(function(p, k){ return chanInfo(res.W != null ? res.W : res.lens[k] + pieceAdj(p, st.mount, st.standoff).v, p); }), match = ch.every(function(c){ return c.n === ch[0].n && c.each === ch[0].each; });
+    pcs.forEach(function(p, k){ p.len = String(Math.round(res.lens[k] * 1e4) / 1e4); p.lenOk = true; p._spOff = Math.round(res.offs[k] * 1e4) / 1e4; p._spInfo = { guess: res.guess, ch: ch[0], chs: ch, match: match, longest: Math.max.apply(null, res.lens), custom: !!cj }; });
   });
 }
 function relinkSplits(u){
   for (var j = 0; j < u.secs.length; j++){
     var r = u.secs[j], L = r._spLoad; if (!L) continue;
     var js = []; for (var k = 0; k < L.n && j + k < u.secs.length; k++){ var q = u.secs[j + k]._spLoad; if (q && q.total === L.total && q.n === L.n) js.push(j + k); else break; }
-    if (js.length === L.n){ var id = 'sp' + j + '_' + Math.floor(Math.random() * 1e6); js.forEach(function(x, k){ u.secs[x]._sp = { id: id, n: L.n, k: k, total: L.total }; delete u.secs[x]._spLoad; }); j += L.n - 1; }
+    if (js.length === L.n){ var id = 'sp' + j + '_' + Math.floor(Math.random() * 1e6); js.forEach(function(x, k){ u.secs[x]._sp = { id: id, n: L.n, k: k, total: L.total }; delete u.secs[x]._spLoad; });
+      // pieces that aren't the equal split were a custom joint: keep where the joints were
+      var pcs = js.map(function(x){ return u.secs[x]; }), eq = splitLens(pcs, L.total, u).lens, got = pcs.map(function(q){ return parseLen(String(q.len)); });
+      if (got.every(function(v){ return v > 0; }) && got.some(function(v, k){ return Math.abs(v - eq[k]) > 1 / 32; })){ var c = 0; pcs[0]._sp.cj = got.slice(0, -1).map(function(v){ c += v; return numVal(Math.round(c * 16) / 16); }); }
+      j += L.n - 1; }
     else delete r._spLoad;
   }
   resplitUnit(u);
@@ -1237,9 +1251,10 @@ function unsplit(u, j){
 // all of a unit's splits in one fold at the bottom of the unit; closed by default, remembers if you open it
 function splitBox(u){
   var notes = u.secs.map(function(r, j){ return splitNote(u, j); }).filter(Boolean); if (!notes.length) return '';
-  var bad = u.secs.some(function(r){ return r._spInfo && (r._spInfo.guess || !r._spInfo.match || r._spInfo.longest > MAX_RAIL); });
+  var bad = u.secs.some(function(r){ return r._spInfo && (r._spInfo.guess || (!r._spInfo.match && !r._spInfo.custom) || r._spInfo.longest > MAX_RAIL); });
+  var cust = u.secs.some(function(r){ return r._spInfo && r._spInfo.custom; });
   return '<details class="fold splitfold' + (bad ? ' warn' : '') + '"' + (u._splitOpen || bad ? ' open' : '') + ' data-ufold="split"><summary>' + notes.length + ' rail' + (notes.length === 1 ? '' : 's') + ' split' +
-    '<em>' + (bad ? 'Check' : 'Channels matching') + ' <span>›</span></em></summary><div class="in">' + notes.join('') + '</div></details>';
+    '<em>' + (bad ? 'Check' : cust ? 'Custom joint' : 'Channels matching') + ' <span>›</span></em></summary><div class="in">' + notes.join('') + '</div></details>';
 }
 function splitNote(u, j){
   var r = u.secs[j]; if (!r._sp || r._sp.k !== r._sp.n - 1 || !r._spInfo) return '';
@@ -1247,8 +1262,19 @@ function splitNote(u, j){
   var line = inf.guess ? 'Pick both end codes so the split lengths come out right.' :
     (inf.match ? inf.ch.n + ' channel' + (inf.ch.n === 1 ? '' : 's') + ' @ ' + fmtFrac(inf.ch.each).replace(/"$/, '') + ' each on every piece, matching.' : 'Channels don’t match (check Mid ±).') +
     (inf.longest > MAX_RAIL ? ' A piece is still over ' + MAX_RAIL + '.' : '');
-  return '<div class="splitnote' + (inf.guess || !inf.match ? ' warn' : '') + '" data-s="' + i0 + '"><div><b>' + esc(names.join(' + ')) + '</b> split from ' + esc(fmtFrac(r._sp.total)) + '. ' + esc(line) +
-    ' Joined with CJ → CJO.</div><button type="button" class="btn ghost" data-act="unsplit">Undo split</button></div>';
+  var first = u.secs[i0], sp = first._sp, cum = 0, joints = [];
+  for (var k = i0; k < j; k++){ cum += parseLen(String(u.secs[k].len)) || 0; joints.push(cum); }
+  if (inf.custom) line = inf.chs.map(function(c, k){ return names[k] + ': ' + c.n + ' @ ' + fmtFrac(c.each).replace(/"$/, ''); }).join(' · ') + '. Custom joints, so the channels differ between pieces.' + (inf.longest > MAX_RAIL ? ' A piece is still over ' + MAX_RAIL + '.' : '');
+  var editing = !!(first._spEdit || inf.custom), bad = sp.cj && !inf.custom;
+  var ed = editing ? '<div class="spjoints" data-fracslot>' + joints.map(function(x, k){
+      var v = sp.cj && sp.cj[k] != null ? sp.cj[k] : '';
+      return '<div class="fld"><label for="sj' + i0 + '_' + k + '">Joint ' + (sp.n > 2 ? (k + 1) + ' ' : '') + '(' + esc(names[k]) + ' | ' + esc(names[k + 1]) + ') · from left end</label>' +
+        '<input id="sj' + i0 + '_' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-spj="' + k + '" placeholder="' + esc(fmtFrac(x).replace(/^≈ /, '').replace(/"$/, '')) + '" value="' + esc(v) + '"></div>';
+    }).join('') + (bad ? '<div class="lvmiss">Each joint has to be past the one before it and short of the end of the rail.</div>' : '') + '</div>' : '';
+  return '<div class="splitnote' + (inf.guess || (!inf.match && !inf.custom) || bad || inf.longest > MAX_RAIL ? ' warn' : '') + '" data-s="' + i0 + '"><div><b>' + esc(names.join(' + ')) + '</b> split from ' + esc(fmtFrac(r._sp.total)) + '. ' + esc(line) +
+    ' Joined with CJ → CJO' + (joints.length ? ', joint' + (joints.length === 1 ? '' : 's') + ' at ' + joints.map(function(x){ return fmtFrac(Math.round(x * 16) / 16).replace(/^≈ /, ''); }).join(', ') + ' from the left end' : '') + '.</div>' + ed +
+    '<div class="spbtns">' + (editing ? '<button type="button" class="btn ghost" data-act="spequal">Equal pieces</button>' : '<button type="button" class="btn ghost" data-act="spcustom">Custom joint</button>') +
+    '<button type="button" class="btn ghost" data-act="unsplit">Undo split</button></div></div>';
 }
 function unitSum(u){
   var len = 0, n = 0;
@@ -1954,6 +1980,16 @@ el('units').addEventListener('toggle', function(e){
 el('units').addEventListener('change', function(e){
   var t = e.target, p = at(t); if (!p) return;
   if (t.getAttribute('data-lv')) return;
+  var spj = t.getAttribute('data-spj');
+  if (spj != null){   // a custom joint position on a split rail
+    var f0 = p.u.secs[p.j], sp = f0 && f0._sp; if (!sp) return;
+    if (!sp.cj || sp.cj.length !== sp.n - 1) sp.cj = new Array(sp.n - 1).fill('');
+    sp.cj[+spj] = t.value.trim();
+    if (sp.cj.every(function(v){ return v === ''; })) delete sp.cj;
+    resplitUnit(p.u); renderRuns(); changed();
+    var nx = el('sj' + p.j + '_' + (+spj + 1)); if (nx && !nx.value) nx.focus();
+    return;
+  }
   // a section's length / ends / floats changed: the laser list may have more or fewer posts now
   if (p.u.laser && /^(len|l|r|fl|fr)$/.test(t.getAttribute('data-key') || '')) setTimeout(function(){ var b = el('u' + p.i + '_lv'); if (b && !b.contains(document.activeElement)) b.outerHTML = laserBox(p.u, p.i); }, 0);
   if (t.getAttribute('data-ufield') === 'unit'){
@@ -2056,6 +2092,8 @@ el('units').addEventListener('click', function(e){
   }
   else if (act === 'split'){ if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); var spr = u.secs[j]; spr.lenOk = true; delete spr._noSplit; if (!splitRun(u, j)) return; }
   else if (act === 'unsplit'){ unsplit(u, j); }
+  else if (act === 'spcustom'){ u.secs[j]._spEdit = true; u._splitOpen = true; focus = 'sj' + j + '_0'; }
+  else if (act === 'spequal'){ delete u.secs[j]._spEdit; if (u.secs[j]._sp) delete u.secs[j]._sp.cj; resplitUnit(u); }
   else if (act === 'open'){ u.secs[j]._open = true; focus = 'u' + p.i + 's' + j + '_len'; }
   else if (act === 'close'){ u.secs[j]._open = false; }
   else if (act === 'layout'){ u._layout = !u._layout; }
