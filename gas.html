@@ -493,7 +493,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-979ce8';
+var APP_VERSION = '2026.11.07-8f23cb';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1066,7 +1066,7 @@ function piecesFor(run, N){
   var out = [];
   for (var k = 0; k < N; k++){
     var c = JSON.parse(JSON.stringify(run)); c._open = false; c.lenOk = true; c._carried = false; c._floatsOk = run._floatsOk;
-    if (k > 0){ c.l = 'CJO'; c.fl = ''; c.ol = ''; c.pl = ''; c.al = ''; c._carried = true; }
+    if (k > 0){ delete c._id; c.l = 'CJO'; c.fl = ''; c.ol = ''; c.pl = ''; c.al = ''; c._carried = true; }
     if (k < N - 1){ c.r = 'CJ'; c.fr = ''; c.or = ''; c.pr = ''; c.ar = ''; }
     out.push(c);
   }
@@ -1152,8 +1152,19 @@ function updCalc(sec){
 }
 // ---------- laser post heights (top mount on an uneven surface) ----------
 // every post of the unit in CUSTOM POSTS order: each section left end → mids → right end; a shared post is listed once, on the side that owns it
+// a reading belongs to its own section (a stable id that survives adding, copying, deleting or splitting sections) and its own post
+// (left end, right end, or mid number), never to a position in the list
+function secId(run){ if (!run._id) run._id = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); return run._id; }
+function lvPos(rp, t){ return (t === 1 && rp.lo) ? 'L' : (t === rp.n && rp.ro) ? 'R' : 'M' + (t - (rp.lo ? 1 : 0)); }
+function lvKey(run, rp, t){ return secId(run) + ':' + lvPos(rp, t); }
 function laserPosts(u){
   var st = unitSetup(u), out = [], missing = [];
+  // older drafts filed readings as "section number:post number": move them onto the section's own id once
+  if (u.lv && Object.keys(u.lv).some(function(k){ return /^\d+:\d+$/.test(k); })){
+    var old = u.lv; u.lv = {};
+    Object.keys(old).forEach(function(k){ var m = k.match(/^(\d+):(\d+)$/); if (!m){ u.lv[k] = old[k]; return; }
+      var run = u.secs[+m[1]], rp = run && railPosts(run, st.mount, st.standoff); if (rp && +m[2] <= rp.n) u.lv[lvKey(run, rp, +m[2])] = old[k]; });
+  }
   u.secs.forEach(function(run, j){
     var rp = railPosts(run, st.mount, st.standoff); if (!rp){ missing.push(secLabel(u, j)); return; }
     var L = parseLen(String(run.len == null ? '' : run.len)), fl = parseLen(String(run.fl == null ? '' : run.fl)), fr = parseLen(String(run.fr == null ? '' : run.fr));
@@ -1173,7 +1184,7 @@ function laserPosts(u){
         else if (fr > 0 && mi === mids) hint = 'float post · ' + at(L - fr - 1);
         else if (s0 !== null && L > 0){ var k = mi - (fl > 0 ? 1 : 0); hint = at(s0 + k * ch.each + (k - 1) * 2 + 1); }
       }
-      out.push({ key: j + ':' + t, j: j, t: t, label: secLabel(u, j) + ' · ' + lab, hint: hint });
+      out.push({ key: lvKey(run, rp, t), j: j, t: t, label: secLabel(u, j) + ' · ' + lab, hint: hint });
     }
   });
   return { posts: out, missing: missing };
@@ -1940,7 +1951,7 @@ function applyDrawing(u, i){
   var go = function(){
     if (totalSecs() - u.secs.length + d.runs.length > MAX_RUNS) return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.');
     var rot = ((d.parts[0].r.h0 - 270) % 360 + 360) % 360, old = u.secs;
-    if (u._editing){ d.runs.forEach(function(run, k){ var o = old[k]; if (!o) return; ['len', 'fl', 'fr', '_floats', 'ph', 'bh', '_step'].concat(RUN_MORE.map(function(c){ return c.key; })).forEach(function(key){ if (o[key] !== undefined && o[key] !== '') run[key] = o[key]; }); if (o.lenOk && String(o.len || '').trim()){ run.lenOk = true; run._open = false; } }); }
+    if (u._editing){ d.runs.forEach(function(run, k){ var o = old[k]; if (!o) return; ['_id', 'len', 'fl', 'fr', '_floats', 'ph', 'bh', '_step'].concat(RUN_MORE.map(function(c){ return c.key; })).forEach(function(key){ if (o[key] !== undefined && o[key] !== '') run[key] = o[key]; }); if (o.lenOk && String(o.len || '').trim()){ run.lenOk = true; run._open = false; } }); }
     u._drawn = { W: u._dr.W, H: u._dr.H, done: drawStrokes(u).map(function(st){ return { pts: st.pts, s: st.s, e: st.e, ov: JSON.parse(JSON.stringify(st.ov || {})) }; }) };
     u.secs = d.runs; u._rot = rot; u._feet = (360 - rot) % 360; u._layout = true; u._full = !!u._drFull; u._dr = null; u._drFull = false; u._editing = false;
     renderRuns(); changed();
@@ -2194,7 +2205,7 @@ el('units').addEventListener('click', function(e){
   else if (act === 'mirror'){
     // .1 flipped end for end, added as the last section (the .3 of a U, say)
     var src = u.secs[j], last = u.secs[u.secs.length - 1], mr = JSON.parse(JSON.stringify(src));
-    delete mr._sp; delete mr._spInfo; delete mr._spOff; delete mr._noSplit;
+    delete mr._id; delete mr._sp; delete mr._spInfo; delete mr._spOff; delete mr._noSplit;
     mr.r = src.l; mr.l = CARRY[src.r] || src.r || '';   // straight mirror of .1: its far end flipped (EC → ECO, F stays F), nothing taken from the sections between
     [['fl', 'fr'], ['ol', 'or'], ['pl', 'pr'], ['al', 'ar']].forEach(function(k){ mr[k[0]] = src[k[1]] == null ? '' : src[k[1]]; mr[k[1]] = src[k[0]] == null ? '' : src[k[0]]; });
     if (mr.hi === 'L') mr.hi = 'R'; else if (mr.hi === 'R') mr.hi = 'L';
@@ -2205,7 +2216,7 @@ el('units').addEventListener('click', function(e){
     if (mt >= 0){ var tg = u.secs[mt]; ['len', 'lenOk', 'fl', 'fr', 'ol', 'or', 'pl', 'pr', 'al', 'ar', 'ns', 'mid', 'slope', 'hi', 'cust', 'ph', 'bh', '_step', '_floats', '_floatsOk'].forEach(function(k){ if (mr[k] !== undefined) tg[k] = mr[k]; }); tg._open = false; delete tg._sp; flashSec = { u: u, j: mt }; }
     else { u.secs.push(mr); flashSec = { u: u, j: u.secs.length - 1 }; }
   }
-  else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); c.len = ''; c.lenOk = false; c._open = true; delete c._sp; delete c._spInfo; delete c._spOff; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
+  else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); delete c._id; c.len = ''; c.lenOk = false; c._open = true; delete c._sp; delete c._spInfo; delete c._spOff; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
   else if (act === 'addsec'){
     var last = u.secs[u.secs.length - 1], r = blankRun();
     if (last){ last._open = false; if (CARRY[last.r]){ r.l = CARRY[last.r]; r._carried = true; } }
@@ -2222,7 +2233,7 @@ el('units').addEventListener('click', function(e){
     var cu = JSON.parse(JSON.stringify(u)); cu.unit = nextUnitNum(); cu._full = false; cu._dr = null;
     cu.secs = u.secs.map(function(r){ var n = blankRun(); n.l = r.l; n.r = r.r; if (r._turn) n._turn = r._turn; if (r._carried) n._carried = true; n._open = true; return n; });
     cu.screens = (u.screens || []).map(function(sc){ return { l: sc.l, r: sc.r, size: '', so: '' }; });
-    cu.hasNotes = false; cu.notes = '';
+    cu.hasNotes = false; cu.notes = ''; cu.lv = {};
     units.forEach(function(x){ x.secs.forEach(function(r){ r._open = false; }); (x.screens || []).forEach(function(sc){ if (String(sc.size || '').trim()) sc._done = true; }); });
     units.push(cu); sortUnits(); focus = 'u' + units.indexOf(cu) + 's0_len';
   } else return;
@@ -2539,7 +2550,7 @@ function saveNow(){
     var lzr = u.laser && unitSetup(u).mount === 'Top' ? laserHeights(u) : null;
     if (lzr){ if (lzr.bad.length) errs.push('Unit ' + (un || '?') + ': check the laser reading for ' + lzr.bad.join(', ') + ' (measure from the line down to the surface, no minus)'); else if (lzr.missing.length) errs.push('Unit ' + (un || '?') + ': ' + lzr.missing.length + ' post' + (lzr.missing.length === 1 ? '' : 's') + ' still need a laser reading'); }
     u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j;
-      if (lzr){ var rp = railPosts(r, 'Top', ''); c._lv = []; for (var t = 1; rp && t <= rp.n; t++) c._lv.push(lzr.ht[j + ':' + t]); c.ph = ''; c.bh = ''; }
+      if (lzr){ var rp = railPosts(r, 'Top', ''); c._lv = []; for (var t = 1; rp && t <= rp.n; t++) c._lv.push(lzr.ht[lvKey(r, rp, t)]); c.ph = ''; c.bh = ''; }
       rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
     var s = unitSetup(u), who = 'Unit ' + (un || '?');
     if (u.mountDiff && MOUNTS.indexOf(u.mount) < 0) errs.push(who + ': pick its mount');
