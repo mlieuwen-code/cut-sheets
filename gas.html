@@ -365,6 +365,8 @@ body.hasfloors .wrap{padding-bottom:170px}
 .calctab td.cc{font-weight:900;font-size:19px}
 .calctab td.fl{color:var(--muted);font-weight:700}
 .endpair > .fld > label{font-weight:900;font-size:17px;color:var(--ink);letter-spacing:.01em}
+/* fraction keys under a laser reading: their own full-width line, not squeezed into the row */
+.lvrow > .fracbar{grid-column:1/-1}
 </style>
 </head><body>
 
@@ -491,7 +493,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-2658be';
+var APP_VERSION = '2026.11.07-979ce8';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1148,7 +1150,7 @@ function updCalc(sec){
   if (isNaN(ang)){ out.textContent = 'Those three can’t make a triangle. Check C is shorter than A + B.'; out.className = 'calcout bad'; use.hidden = true; return; }
   var r = Math.round(ang * 2) / 2, ex = Math.round(ang * 10) / 10; out.textContent = 'Angle between the rails: ' + r + '°' + (ex !== r ? ' (worked out ' + ex + '°, rounded to the nearest ½)' : ''); out.className = 'calcout ok'; out.setAttribute('data-ang', r); use.hidden = false;
 }
-// ---------- laser post heights (top mount on an uneven curb) ----------
+// ---------- laser post heights (top mount on an uneven surface) ----------
 // every post of the unit in CUSTOM POSTS order: each section left end → mids → right end; a shared post is listed once, on the side that owns it
 function laserPosts(u){
   var st = unitSetup(u), out = [], missing = [];
@@ -1178,7 +1180,7 @@ function laserPosts(u){
 }
 function signedLen(v){ v = String(v == null ? '' : v).trim().replace(/[−–]/g, '-'); if (v === '') return null; var p = parseLen(v); return (p === null || isNaN(p)) ? NaN : p; }
 // heights: the highest reading (highest spot on the curb) gets the standard post; every other post is taller by how much lower it sits
-// every reading is measured from one laser line down to the curb: the shortest is the highest spot and gets the standard post,
+// every reading is measured from one laser line down to the mounting surface: the shortest is the highest spot and gets the standard post,
 // every other post is taller by how much longer its reading is
 function laserHeights(u, lp){
   lp = lp || laserPosts(u); var base = parseLen(String(header.B12 == null ? '' : header.B12)), rd = {}, min = null, missing = [], bad = [];
@@ -1192,10 +1194,10 @@ function laserBox(u, i){
     var h = lh.ht[p.key], hi = lh.max !== null && lh.rd[p.key] === lh.max && lh.missing.length === 0;
     return '<div class="lvrow"><div class="lvlbl"><b>' + esc(p.label) + '</b>' + (p.hint ? '<small>' + esc(p.hint) + '</small>' : '') + '</div>' +
       '<div class="lvin" data-fracslot>' +
-      '<input id="u' + i + 'lv' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-lv="' + esc(p.key) + '" placeholder="Line to curb" value=""' + esc((u.lv || {})[p.key] || '') + '" aria-label="Laser reading, ' + esc(p.label) + '"></div>' +
+      '<input id="u' + i + 'lv' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-lv="' + esc(p.key) + '" placeholder="Line to surface" value="' + esc((u.lv || {})[p.key] || '') + '" aria-label="Laser reading, ' + esc(p.label) + '"></div>' +
       '<div class="lvout' + (hi ? ' hi' : '') + '" data-lvout="' + esc(p.key) + '">' + (h != null ? fmtFrac(h) + (hi ? ' · highest' : '') : '') + '</div></div>';
   }).join('');
-  return '<div class="custbox laserbox" id="u' + i + '_lv"><div class="lvhead"><b>Laser post heights</b><span>Set your laser line once, then measure from the line down to the curb at every post. Once every post has a reading, the shortest one (the highest spot) gets the ' + esc(base) + ' post and the rest get taller by the difference.</span></div>' +
+  return '<div class="custbox laserbox" id="u' + i + '_lv"><div class="lvhead"><b>Laser post heights</b><span>Set your laser line once, then measure from the line down to the mounting surface at every post. Once every post has a reading, the shortest one (the highest spot) gets the ' + esc(base) + ' post and the rest get taller by the difference.</span></div>' +
     (lp.missing.length ? '<div class="lvmiss">Enter the measurement for ' + esc(lp.missing.join(', ')) + ' to list its posts.</div>' : '') +
     (rows || '<div class="lvmiss">Add a section to list its posts.</div>') +
     (lh.missing.length && lp.posts.length ? '<div class="lvmiss" data-lvleft>' + lh.missing.length + ' of ' + lp.posts.length + ' posts still need a reading.</div>' : '') + '</div>';
@@ -2535,7 +2537,7 @@ function saveNow(){
     seenU[un] = true;
     var rows = [];
     var lzr = u.laser && unitSetup(u).mount === 'Top' ? laserHeights(u) : null;
-    if (lzr){ if (lzr.bad.length) errs.push('Unit ' + (un || '?') + ': check the laser reading for ' + lzr.bad.join(', ') + ' (measure from the line down to the curb, no minus)'); else if (lzr.missing.length) errs.push('Unit ' + (un || '?') + ': ' + lzr.missing.length + ' post' + (lzr.missing.length === 1 ? '' : 's') + ' still need a laser reading'); }
+    if (lzr){ if (lzr.bad.length) errs.push('Unit ' + (un || '?') + ': check the laser reading for ' + lzr.bad.join(', ') + ' (measure from the line down to the surface, no minus)'); else if (lzr.missing.length) errs.push('Unit ' + (un || '?') + ': ' + lzr.missing.length + ' post' + (lzr.missing.length === 1 ? '' : 's') + ' still need a laser reading'); }
     u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j;
       if (lzr){ var rp = railPosts(r, 'Top', ''); c._lv = []; for (var t = 1; rp && t <= rp.n; t++) c._lv.push(lzr.ht[j + ':' + t]); c.ph = ''; c.bh = ''; }
       rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
