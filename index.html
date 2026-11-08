@@ -322,8 +322,8 @@ details.splitfold[open]>summary span{transform:rotate(90deg)}
 .floorbar{margin-bottom:6px}
 .ftab{min-height:38px;padding:0 14px}
 body.hasfloors .wrap{padding-bottom:170px}
-/* landscape: a soft line between the left-end and right-end columns */
-@media (orientation:landscape) and (min-width:600px){
+/* tablets (portrait or landscape): a soft line between the left-end and right-end columns */
+@media (min-width:600px){
   .endpair{position:relative;column-gap:34px}
   .endpair::before{content:"";position:absolute;top:2px;bottom:2px;left:50%;width:2px;margin-left:-1px;border-radius:2px;background:var(--line)}
 }
@@ -372,6 +372,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .calctab th:not(:first-child),.calctab td:not(:first-child){text-align:right}
 .calctab td.cc{font-weight:900;font-size:19px}
 .calctab td.fl{color:var(--muted);font-weight:700}
+.endpair > .fld > label{font-weight:900;font-size:17px;color:var(--ink);letter-spacing:.01em}
 </style>
 </head><body>
 
@@ -498,7 +499,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-398101';
+var APP_VERSION = '2026.11.07-5ec898';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
