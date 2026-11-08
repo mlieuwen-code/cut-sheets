@@ -367,6 +367,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .endpair > .fld > label{font-weight:900;font-size:17px;color:var(--ink);letter-spacing:.01em}
 /* fraction keys under a laser reading: their own full-width line, not squeezed into the row */
 .lvrow > .fracbar{grid-column:1/-1}
+.stepdir{display:flex;gap:8px;margin:6px 0 8px}.stepdir .btn{flex:1}.stepdir .btn.on{background:var(--accent);color:var(--onaccent);border-color:var(--accent)}
 </style>
 </head><body>
 
@@ -493,7 +494,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-8f23cb';
+var APP_VERSION = '2026.11.07-0636c5';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1114,8 +1115,24 @@ function relinkSplits(u){
 var customPath = '', endCat = {}, CP_FIRST = 10, CP_LAST = 177, CP_RAILS = 24;
 // height change going from section j-1 into section j, in the direction the run is numbered (+ = up)
 function secHt(u, run){ var su = unitSetup(u), p = parseLen(String(run.ph == null ? '' : run.ph)), b = parseLen(String(run.bh == null ? '' : run.bh)), dp = parseLen(String(su.post)), db = parseLen(String(su.block)); return { p: p > 0 ? p : dp, b: b > 0 ? b : db }; }
+// a step: entered on the section that steps (how much, up or down). Both sections keep the job's heights; only the
+// transition post where they meet changes (taller by the step, a block at each height), and it sits at the end of the section before
+function stepSigned(run){ var v = parseLen(String(run.st == null ? '' : run.st)); return v > 0 ? (run.sd === 'down' ? -v : v) : 0; }
+function transPost(prev, cur, mount, so){   // which rail lists the transition post: the section before when it has an end post there (CJ), else this one
+  var rp0 = prev && railPosts(prev, mount, so); if (!rp0 || rp0.ro) return { k: -1, t: rp0 ? rp0.n : 0 };
+  var rp1 = railPosts(cur, mount, so); return rp1 && rp1.lo ? { k: 0, t: 1 } : null;
+}
+function transHt(s, dP, dB){ var a = Math.abs(s); return { P: dP + a, BL: s > 0 ? dB : dB + a, BR: s > 0 ? dB + a : dB }; }
+function stepLine(u, j){
+  var s = stepDelta(u, j); if (!s) return 'Pick up or down and enter how much it steps.';
+  var su = unitSetup(u), dP = parseLen(String(su.post)), dB = parseLen(String(su.block)), h = transHt(s, dP, dB);
+  var tp = transPost(u.secs[j - 1], u.secs[j], su.mount, su.standoff), at = tp && tp.k === 0 ? 'the start of ' + secLabel(u, j) : 'the end of ' + secLabel(u, j - 1);
+  var nums = dP > 0 && dB >= 0 ? ': ' + fmtFrac(h.P) + ' post, blocks ' + fmtFrac(h.BL) + ' (' + secLabel(u, j - 1) + ' side) and ' + fmtFrac(h.BR) + ' (' + secLabel(u, j) + ' side)' : ' (set the job’s post and block heights to see its numbers)';
+  return stepTxt(s) + ' · transition post at ' + at + nums;
+}
 function stepDelta(u, j){
   if (j <= 0 || !u.secs[j] || !u.secs[j - 1]) return null;
+  if (stepSigned(u.secs[j])) return stepSigned(u.secs[j]);
   var a = secHt(u, u.secs[j - 1]), b = secHt(u, u.secs[j]);
   var d = (isFinite(b.p) && isFinite(a.p) && Math.abs(b.p - a.p) > 1e-6) ? b.p - a.p : ((isFinite(b.b) && isFinite(a.b) && Math.abs(b.b - a.b) > 1e-6) ? b.b - a.b : 0);
   return d ? d : null;
@@ -1227,7 +1244,7 @@ function adoptLaser(u){
   u.secs.forEach(function(r, j){ (r._lvP || []).forEach(function(P, k){ var h = typeof P === 'number' ? P : base; lv[j + ':' + (k + 1)] = h === base ? '0' : fmtFrac(h - base).replace(/"$/, '').replace(/^≈ /, ''); if (Math.abs(h - base) > 1e-6) any = true; }); delete r._lvP; });
   if (any){ u.laser = true; u.lv = lv; u.secs.forEach(function(r){ r.ph = ''; r.bh = ''; delete r._step; }); }
 }
-function hasStep(run){ return String(run.ph == null ? '' : run.ph).trim() !== '' || String(run.bh == null ? '' : run.bh).trim() !== ''; }
+function hasStep(run){ return !!stepSigned(run) || String(run.ph == null ? '' : run.ph).trim() !== '' || String(run.bh == null ? '' : run.bh).trim() !== ''; }
 function isOpen(code, mount){ return endCat[mount + '|' + code] === 'open'; }
 // how many posts the CUSTOM POSTS tab lists for one rail (mids + float posts + each end that isn't open), same as the sheet
 function railPosts(run, mount, so){
@@ -1250,7 +1267,13 @@ function stepPlan(rows, hdr){
     if (ro === no) return null;   // two posts (F/F) or no post: nothing shared
     return { owner: ro ? k : k + 1, step: diff(hts[k], hts[k + 1]) };
   });
-  var flag = rows.map(function(r, k){ return own[k] || (linkR[k] && linkR[k].step && linkR[k].owner === k) || (k > 0 && linkR[k - 1] && linkR[k - 1].step && linkR[k - 1].owner === k); });
+  var tr = rows.map(function(){ return null; });
+  rows.forEach(function(r, k){
+    var s = stepSigned(r), pv = rows[k - 1]; if (!s || !pv || pv._u !== r._u || pv._j !== r._j - 1) return;
+    var tp = transPost(pv, r, mount, so); if (!tp) return;
+    var kk = k + tp.k; (tr[kk] = tr[kk] || {})[tp.t] = transHt(s, dP, dB);
+  });
+  var flag = rows.map(function(r, k){ return !!tr[k] || own[k] || (linkR[k] && linkR[k].step && linkR[k].owner === k) || (k > 0 && linkR[k - 1] && linkR[k - 1].step && linkR[k - 1].owner === k); });
   var cust = rows.map(function(r, k){ return flag[k] || String(r.cust || '') === 'Yes'; });
   var nC = cust.filter(Boolean).length; if (!flag.some(Boolean)) return { cust: cust, cells: [], any: false };
   if (nC > CP_RAILS) return { err: 'More than ' + CP_RAILS + ' rails need custom posts on one sheet' };
@@ -1260,6 +1283,7 @@ function stepPlan(rows, hdr){
     var rp = railPosts(rows[k], mount, so); if (!rp) continue;
     for (var t = 1; t <= rp.n; t++, at++){
       if (at > CP_LAST) return { err: 'Too many custom posts on one sheet (the tab holds ' + (CP_LAST - CP_FIRST + 1) + ')' };
+      if (tr[k] && tr[k][t]){ var T = tr[k][t]; cells.push({ row: at, F: f(T.P, dP), G: f(T.BL, dB), H: f(T.BR, dB) }); continue; }
       if (rows[k]._lv){ var LP = rows[k]._lv[t - 1]; cells.push({ row: at, F: typeof LP === 'number' ? f(LP, dP) : '', G: '', H: '' }); continue; }
       var h = hts[k], P = h.p, BL = h.b, BR = h.b;
       if (t === 1 && rp.lo && k > 0 && linkR[k - 1] && linkR[k - 1].owner === k){ var ph = hts[k - 1]; P = Math.max(P, ph.p); BL = ph.b; }
@@ -1274,12 +1298,22 @@ function stepPlan(rows, hdr){
 function readSteps(runs, cpx){
   if (!cpx || !runs.length) return;
   var mount = String(header.B7 || ''), so = header.B11, at = CP_FIRST;
-  runs.forEach(function(r){
+  var dP = parseLen(String(header.B12)), dB = parseLen(String(header.B13));
+  runs.forEach(function(r, idx){
     if (String(r.cust || '') !== 'Yes') return;
     var rp = railPosts(r, mount, so); if (!rp) return;
     var vals = [];
     for (var t = 1; t <= rp.n; t++, at++) vals.push({ t: t, F: readCell(cpx, 'F' + at), G: readCell(cpx, 'G' + at), H: readCell(cpx, 'H' + at), x: ['E', 'I', 'J', 'K'].some(function(c){ return readCell(cpx, c + at) !== ''; }) });
-    if (mount === 'Top') r._lvP = vals.map(function(v){ return typeof v.F === 'number' ? v.F : ''; });
+    // a transition post (an end post with a block at two heights, taller by the difference): the step it came from
+    vals = vals.filter(function(v){
+      var end = (v.t === rp.n && rp.ro) ? 1 : (v.t === 1 && rp.lo) ? 0 : -1; if (end < 0) return true;
+      var G = v.G === '' ? dB : v.G, H = v.H === '' ? dB : v.H, F = v.F === '' ? dP : v.F;
+      if (typeof G !== 'number' || typeof H !== 'number' || typeof F !== 'number' || Math.abs(G - H) < 1e-6 || Math.abs(F - dP - Math.abs(H - G)) > 1e-6 || Math.abs(Math.min(G, H) - dB) > 1e-6) return true;
+      var tg = end === 1 ? runs[idx + 1] : (idx > 0 ? r : null); if (!tg) return true;
+      tg.st = numVal(Math.abs(H - G)); tg.sd = H > G ? 'up' : 'down'; tg._step = true; v.tp = true; return true;
+    });
+    if (mount === 'Top') r._lvP = vals.map(function(v){ return !v.tp && typeof v.F === 'number' ? v.F : ''; });
+    vals = vals.map(function(v){ return v.tp ? { t: v.t, F: '', G: '', H: '', x: v.x } : v; });
     var mids = vals.filter(function(v){ return !(v.t === 1 && rp.lo) && !(v.t === rp.n && rp.ro); }), pick = mids[0] || vals[0];
     if (!pick) return;
     // ends: post height is the taller one, so read the block on this rail's own side
@@ -1448,7 +1482,7 @@ function secHtml(u, i, run, j){
   if (run.lenOk && !run._open && String(run.len).trim() !== ''){
     var v = parseLen(run.len);
     return '<button type="button" class="secrow" data-s="' + j + '" data-act="open" aria-label="Edit section ' + esc(secLabel(u, j)) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
-      '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + (run._sp ? ' · split' : '') + (hasStep(run) ? ' · step ' + (String(run.ph || '').trim() ? numVal(parseLen(String(run.ph))) + '/' : '') + (String(run.bh || '').trim() ? numVal(parseLen(String(run.bh))) : '') : '') + '</span>' +
+      '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + (run._sp ? ' · split' : '') + (stepSigned(run) ? ' · ' + stepTxt(stepSigned(run)) : hasStep(run) ? ' · step ' + (String(run.ph || '').trim() ? numVal(parseLen(String(run.ph))) + '/' : '') + (String(run.bh || '').trim() ? numVal(parseLen(String(run.bh))) : '') : '') + '</span>' +
       (stepDelta(u, j) ? '<span class="stepbadge ' + (stepDelta(u, j) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j))) + '</span>' : '') +
       '<span class="len">' + esc(fmtFrac(v)) + '</span></button>';
   }
@@ -1478,12 +1512,11 @@ function secHtml(u, i, run, j){
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
     // a section that sits higher or lower than the one before (e.g. an Allan block wall that jumps a block): its own post / block height,
     // and the post where the two meet becomes a transition post on the Custom Posts tab
-    '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-sfield="step"' + (run._step || hasStep(run) ? ' checked' : '') + '>Step / transition post · this section sits higher or lower</label>' +
-    (run._step || hasStep(run) ? '<div class="g2" data-fracslot>' + numField(id + 'ph', 'This section’s post height', run.ph, { ph: numVal(unitSetup(u).post), attrs: ' data-key="ph"' }) + numField(id + 'bh', 'This section’s block height', run.bh, { ph: numVal(unitSetup(u).block), attrs: ' data-key="bh"' }) + '</div>' +
-      '<div class="stephint">Leave a box empty to keep the job’s height (' + esc(inches(unitSetup(u).post)) + '" post, ' + esc(inches(unitSetup(u).block)) + '" block).</div>' +
-      (stepDelta(u, j) ? '<div class="stepbox ' + (stepDelta(u, j) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j))) + ' from ' + esc(secLabel(u, j - 1)) + ' into ' + esc(secLabel(u, j)) + '</div>' : '') +
-      (stepDelta(u, j + 1) ? '<div class="stepbox ' + (stepDelta(u, j + 1) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j + 1))) + ' from ' + esc(secLabel(u, j)) + ' into ' + esc(secLabel(u, j + 1)) + '</div>' : '') +
-      '<div class="stephint">Where this section meets its neighbour, that post becomes a transition post: it’s cut to the taller side, with each side’s own block. It goes on the Custom Posts tab.</div>' : '') +
+    (j > 0 || hasStep(run) ? '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-sfield="step"' + (run._step || hasStep(run) ? ' checked' : '') + '>Steps up or down from the last section</label>' : '') +
+    (run._step || hasStep(run) ? '<div class="stepdir">' + ['up', 'down'].map(function(d){ var on = (run.sd || 'up') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="stepdir" data-v="' + d + '">' + (d === 'up' ? '▲ Up' : '▼ Down') + '</button>'; }).join('') + '</div>' +
+      '<div class="g2" data-fracslot>' + numField(id + 'st', 'Step height', run.st, { ph: 'e.g. 8', attrs: ' data-key="st"' }) + '</div>' +
+      '<div class="stepbox ' + ((stepDelta(u, j) || 1) > 0 ? 'up' : 'down') + '" data-stepline>' + esc(stepLine(u, j)) + '</div>' +
+      '<div class="stephint">Both sections keep the job’s post and block heights. Only the transition post where they meet changes, and it goes on the Custom Posts tab. Use CJ → CJO at the step.</div>' : '') +
     '<details class="more"' + (more ? ' open' : '') + '><summary>More options: overrides, plates, angles, slope ›</summary><div class="g" data-fracslot>' +
       RUN_MORE.filter(function(c){ return !((c.key === 'al' && angL) || (c.key === 'ar' && angR)); }).map(function(c){ return c.type === 'select' ? selField(id + c.key, c.label, c.opts, run[c.key], ' data-key="' + c.key + '"') : numField(id + c.key, c.label, run[c.key], { nofrac: c.nofrac, attrs: ' data-key="' + c.key + '"' }); }).join('') +
     '</div></details></div>';
@@ -1951,7 +1984,7 @@ function applyDrawing(u, i){
   var go = function(){
     if (totalSecs() - u.secs.length + d.runs.length > MAX_RUNS) return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.');
     var rot = ((d.parts[0].r.h0 - 270) % 360 + 360) % 360, old = u.secs;
-    if (u._editing){ d.runs.forEach(function(run, k){ var o = old[k]; if (!o) return; ['_id', 'len', 'fl', 'fr', '_floats', 'ph', 'bh', '_step'].concat(RUN_MORE.map(function(c){ return c.key; })).forEach(function(key){ if (o[key] !== undefined && o[key] !== '') run[key] = o[key]; }); if (o.lenOk && String(o.len || '').trim()){ run.lenOk = true; run._open = false; } }); }
+    if (u._editing){ d.runs.forEach(function(run, k){ var o = old[k]; if (!o) return; ['_id', 'len', 'fl', 'fr', '_floats', 'ph', 'bh', 'st', 'sd', '_step'].concat(RUN_MORE.map(function(c){ return c.key; })).forEach(function(key){ if (o[key] !== undefined && o[key] !== '') run[key] = o[key]; }); if (o.lenOk && String(o.len || '').trim()){ run.lenOk = true; run._open = false; } }); }
     u._drawn = { W: u._dr.W, H: u._dr.H, done: drawStrokes(u).map(function(st){ return { pts: st.pts, s: st.s, e: st.e, ov: JSON.parse(JSON.stringify(st.ov || {})) }; }) };
     u.secs = d.runs; u._rot = rot; u._feet = (360 - rot) % 360; u._layout = true; u._full = !!u._drFull; u._dr = null; u._drFull = false; u._editing = false;
     renderRuns(); changed();
@@ -2010,6 +2043,7 @@ el('units').addEventListener('input', function(e){
     var run = p.u.secs[p.j]; run[key] = t.value; if (t.hasAttribute('data-frac')) showHint(t); if (key === 'len') updLenHint(p.sec, run);
     if (key === 'len'){ if (run._sp){ unlinkSplit(p.u, run._sp.id); var sn = p.box.querySelector('.splitnote'); if (sn) sn.remove(); } run.lenOk = false; el('u' + p.i + '_sum').textContent = unitSum(p.u); updConf(p); updLayout(p.i); }
     if (key === 'ar' || key === 'al') updLayout(p.i);
+    if (key === 'st'){ run.ph = ''; run.bh = ''; var sl = p.sec && p.sec.querySelector('[data-stepline]'); if (sl){ sl.textContent = stepLine(p.u, p.j); sl.className = 'stepbox ' + ((stepDelta(p.u, p.j) || 1) > 0 ? 'up' : 'down'); } updLayout(p.i); }
     if (key === 'fl' || key === 'fr'){
       run._floatsOk = false; updLayout(p.i);
       var fb = p.sec && p.sec.querySelector('[data-act="floatok"]'), fh = p.sec && p.sec.querySelector('.floathint'); if (fb) fb.hidden = false; if (fh) fh.hidden = true;
@@ -2083,9 +2117,9 @@ el('units').addEventListener('change', function(e){
   }
   if (t.getAttribute('data-sfield') === 'step' && p.j >= 0){
     var stp = p.u.secs[p.j]; stp._step = t.checked;
-    if (!t.checked){ stp.ph = ''; stp.bh = ''; }
+    if (!t.checked){ stp.ph = ''; stp.bh = ''; stp.st = ''; stp.sd = ''; }
     renderRuns(); changed();
-    if (t.checked){ var sf3 = el('u' + p.i + 's' + p.j + '_ph'); if (sf3) sf3.focus(); }
+    if (t.checked){ var sf3 = el('u' + p.i + 's' + p.j + '_st'); if (sf3) sf3.focus(); }
     return;
   }
   if (t.getAttribute('data-sfield') === 'floats' && p.j >= 0){
@@ -2178,6 +2212,7 @@ el('units').addEventListener('click', function(e){
   else if (act === 'scrdone'){ var dk = +b.getAttribute('data-k'), dv = parseLen(u.screens[dk].size); if (dv === null || isNaN(dv) || dv <= 0){ var sf2 = el('u' + p.i + 'k' + dk + '_size'); if (sf2) sf2.focus(); return msg('Enter the screen size first.'); } u.screens[dk]._done = true; }
   else if (act === 'scropen'){ var ok = +b.getAttribute('data-k'); u.screens[ok]._done = false; focus = 'u' + p.i + 'k' + ok + '_size'; }
   else if (act === 'scrdel'){ if (!confirmDel(b, 'scr' + p.i + '.' + b.getAttribute('data-k'))) return; u.screens.splice(+b.getAttribute('data-k'), 1); if (!u.screens.length){ u.screen = false; } }
+  else if (act === 'stepdir'){ u.secs[j].sd = b.getAttribute('data-v'); u.secs[j].ph = ''; u.secs[j].bh = ''; renderRuns(); changed(); return; }
   else if (act === 'turn'){ var tj = +b.getAttribute('data-j'), tv = b.getAttribute('data-t'), sec = u.secs[tj]; sec._turn = autoTurnName(sec, unitSetup(u).mount) === { L:'Left', S:'Straight', R:'Right' }[tv] ? '' : tv; updLayout(p.i); changed(); return; }
   else if (act === 'rot'){ u._rot = ((u._rot || 0) + 90) % 360; updLayout(p.i); changed(); return; }
   else if (act === 'feet'){ u._feet = ((u._feet || 0) + 90) % 360; updLayout(p.i); changed(); return; }
@@ -2196,7 +2231,7 @@ el('units').addEventListener('click', function(e){
     me.l = CARRY[s1.r] || s1.r || ''; me.r = s1.l || '';
     me.len = s1.len == null ? '' : s1.len; me.lenOk = String(me.len || '').trim() !== '';
     [['fl', 'fr'], ['ol', 'or'], ['pl', 'pr'], ['al', 'ar']].forEach(function(k){ me[k[0]] = s1[k[1]] == null ? '' : s1[k[1]]; me[k[1]] = s1[k[0]] == null ? '' : s1[k[0]]; });
-    ['ns', 'mid', 'slope', 'cust', 'ph', 'bh', '_step', '_floatRail'].forEach(function(k){ me[k] = s1[k] == null ? '' : s1[k]; });
+    ['ns', 'mid', 'slope', 'cust', 'ph', 'bh', 'st', 'sd', '_step', '_floatRail'].forEach(function(k){ me[k] = s1[k] == null ? '' : s1[k]; });
     me.hi = s1.hi === 'L' ? 'R' : (s1.hi === 'R' ? 'L' : (s1.hi || ''));
     me._floats = !!(String(me.fl || '').trim() || String(me.fr || '').trim()); me._floatsOk = s1._floatsOk;
     delete me._sp; delete me._spInfo; delete me._spOff; me._carried = false; me._open = false;
@@ -2213,7 +2248,7 @@ el('units').addEventListener('click', function(e){
     src._open = false;
     // the last section already ends the way .1 starts (E → F … F → E, say): fill it in instead of adding another
     var mt = mirrorTarget(u);
-    if (mt >= 0){ var tg = u.secs[mt]; ['len', 'lenOk', 'fl', 'fr', 'ol', 'or', 'pl', 'pr', 'al', 'ar', 'ns', 'mid', 'slope', 'hi', 'cust', 'ph', 'bh', '_step', '_floats', '_floatsOk'].forEach(function(k){ if (mr[k] !== undefined) tg[k] = mr[k]; }); tg._open = false; delete tg._sp; flashSec = { u: u, j: mt }; }
+    if (mt >= 0){ var tg = u.secs[mt]; ['len', 'lenOk', 'fl', 'fr', 'ol', 'or', 'pl', 'pr', 'al', 'ar', 'ns', 'mid', 'slope', 'hi', 'cust', 'ph', 'bh', 'st', 'sd', '_step', '_floats', '_floatsOk'].forEach(function(k){ if (mr[k] !== undefined) tg[k] = mr[k]; }); tg._open = false; delete tg._sp; flashSec = { u: u, j: mt }; }
     else { u.secs.push(mr); flashSec = { u: u, j: u.secs.length - 1 }; }
   }
   else if (act === 'dup'){ var c = JSON.parse(JSON.stringify(u.secs[j])); delete c._id; c.len = ''; c.lenOk = false; c._open = true; delete c._sp; delete c._spInfo; delete c._spOff; u.secs.splice(j + 1, 0, c); focus = 'u' + p.i + 's' + (j + 1) + '_len'; }
