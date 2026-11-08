@@ -494,7 +494,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-0636c5';
+var APP_VERSION = '2026.11.08-5c869a';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1122,7 +1122,8 @@ function transPost(prev, cur, mount, so){   // which rail lists the transition p
   var rp0 = prev && railPosts(prev, mount, so); if (!rp0 || rp0.ro) return { k: -1, t: rp0 ? rp0.n : 0 };
   var rp1 = railPosts(cur, mount, so); return rp1 && rp1.lo ? { k: 0, t: 1 } : null;
 }
-function transHt(s, dP, dB){ var a = Math.abs(s); return { P: dP + a, BL: s > 0 ? dB : dB + a, BR: s > 0 ? dB + a : dB }; }
+// blocks are measured down from the top of the post: the higher rail gets the job's block, the lower rail sits the step further down
+function transHt(s, dP, dB){ var a = Math.abs(s); return { P: dP + a, BL: s > 0 ? dB + a : dB, BR: s > 0 ? dB : dB + a }; }
 function stepLine(u, j){
   var s = stepDelta(u, j); if (!s) return 'Pick up or down and enter how much it steps.';
   var su = unitSetup(u), dP = parseLen(String(su.post)), dB = parseLen(String(su.block)), h = transHt(s, dP, dB);
@@ -1310,7 +1311,7 @@ function readSteps(runs, cpx){
       var G = v.G === '' ? dB : v.G, H = v.H === '' ? dB : v.H, F = v.F === '' ? dP : v.F;
       if (typeof G !== 'number' || typeof H !== 'number' || typeof F !== 'number' || Math.abs(G - H) < 1e-6 || Math.abs(F - dP - Math.abs(H - G)) > 1e-6 || Math.abs(Math.min(G, H) - dB) > 1e-6) return true;
       var tg = end === 1 ? runs[idx + 1] : (idx > 0 ? r : null); if (!tg) return true;
-      tg.st = numVal(Math.abs(H - G)); tg.sd = H > G ? 'up' : 'down'; tg._step = true; v.tp = true; return true;
+      tg.st = numVal(Math.abs(H - G)); tg.sd = G > H ? 'up' : 'down'; tg._step = true; v.tp = true; return true;
     });
     if (mount === 'Top') r._lvP = vals.map(function(v){ return !v.tp && typeof v.F === 'number' ? v.F : ''; });
     vals = vals.map(function(v){ return v.tp ? { t: v.t, F: '', G: '', H: '', x: v.x } : v; });
