@@ -339,6 +339,20 @@ body.hasfloors .wrap{padding-bottom:170px}
   .uchecks{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 12px;align-items:center}
   .uchecks .chk{line-height:1.2;white-space:normal;min-width:0;font-size:16px}
 }
+.laserbox{margin-top:14px}
+.lvhead{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.lvhead span{font-size:14px;color:var(--muted);line-height:1.35}
+.lvrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.lvlbl{display:flex;flex-direction:column;min-width:0}
+.lvlbl b{font-size:16px}
+.lvlbl small{font-size:13px;color:var(--muted)}
+.lvin{display:flex;gap:6px;align-items:center}
+.lvin input{min-width:0;flex:1;min-height:48px;font-size:18px;font-weight:800;text-align:center;border:2px solid var(--line);border-radius:12px;background:var(--field)}
+.lvsign{min-width:48px;min-height:48px;padding:0;font-size:20px;font-weight:900}
+.lvout{min-width:7.5em;text-align:right;font-weight:900;font-size:16px}
+.lvout.hi{color:var(--deep)}
+.lvmiss{font-size:14px;color:var(--amber);font-weight:700;padding:6px 0}
+@media (max-width:600px){ .lvrow{grid-template-columns:minmax(0,1fr) auto} .lvin{grid-column:1/-1;order:3} .lvout{min-width:0} }
 </style>
 </head><body>
 
@@ -452,7 +466,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-ca1ad7';
+var APP_VERSION = '2026.11.07-f5794d';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -756,7 +770,7 @@ function loadData(data, name, isNew, opts, restore){
     if (isNew){ header.B4 = ''; runs = []; }
     if (String(header.B10 || '') === '') header.B10 = POST_WALLS[0];
     readSteps(runs, CPX);
-    units = groupUnits(runs); units.forEach(relinkSplits);
+    units = groupUnits(runs); units.forEach(relinkSplits); units.forEach(adoptLaser);
     if (!units.length) units.push(blankUnit(''));
     var fileB4 = String(header.B4 || '');   // the job name inside the opened file, before any draft is laid over it
     if (restore){ header = Object.assign(header, restore.header); units = restore.units || units; if (restore.header && restore.header._name == null){ delete header._name; delete header._floor; } }
@@ -1090,6 +1104,65 @@ function updCalc(sec){
   if (isNaN(ang)){ out.textContent = 'Those three can’t make a triangle. Check C is shorter than A + B.'; out.className = 'calcout bad'; use.hidden = true; return; }
   var r = Math.round(ang * 2) / 2, ex = Math.round(ang * 10) / 10; out.textContent = 'Angle between the rails: ' + r + '°' + (ex !== r ? ' (worked out ' + ex + '°, rounded to the nearest ½)' : ''); out.className = 'calcout ok'; out.setAttribute('data-ang', r); use.hidden = false;
 }
+// ---------- laser post heights (top mount on an uneven curb) ----------
+// every post of the unit in CUSTOM POSTS order: each section left end → mids → right end; a shared post is listed once, on the side that owns it
+function laserPosts(u){
+  var st = unitSetup(u), out = [], missing = [];
+  u.secs.forEach(function(run, j){
+    var rp = railPosts(run, st.mount, st.standoff); if (!rp){ missing.push(secLabel(u, j)); return; }
+    var L = parseLen(String(run.len == null ? '' : run.len)), fl = parseLen(String(run.fl == null ? '' : run.fl)), fr = parseLen(String(run.fr == null ? '' : run.fr));
+    var mids = rp.n - (rp.lo ? 1 : 0) - (rp.ro ? 1 : 0), nf = (fl > 0 ? 1 : 0) + (fr > 0 ? 1 : 0), reg = mids - nf;
+    for (var t = 1; t <= rp.n; t++){
+      var lab, hint = '';
+      if (t === 1 && rp.lo){ lab = 'Left end'; hint = String(run.l || ''); }
+      else if (t === rp.n && rp.ro){ lab = 'Right end'; hint = String(run.r || ''); }
+      else {
+        var mi = t - (rp.lo ? 1 : 0); lab = 'Mid ' + mi;
+        if (fl > 0 && mi === 1) hint = 'float · ' + fmtFrac(fl) + ' from left end';
+        else if (fr > 0 && mi === mids) hint = 'float · ' + fmtFrac(fr) + ' from right end';
+        else if (!nf && L > 0) hint = '≈ ' + fmtFrac(Math.round(L * mi / (reg + 1) * 16) / 16).replace(/^≈ /, '') + ' from left end';
+      }
+      out.push({ key: j + ':' + t, j: j, t: t, label: secLabel(u, j) + ' · ' + lab, hint: hint });
+    }
+  });
+  return { posts: out, missing: missing };
+}
+function signedLen(v){ v = String(v == null ? '' : v).trim().replace(/[−–]/g, '-'); if (v === '') return null; var p = parseLen(v); return (p === null || isNaN(p)) ? NaN : p; }
+// heights: the highest reading (highest spot on the curb) gets the standard post; every other post is taller by how much lower it sits
+function laserHeights(u, lp){
+  lp = lp || laserPosts(u); var base = parseLen(String(header.B12 == null ? '' : header.B12)), rd = {}, max = null, missing = [], bad = [];
+  lp.posts.forEach(function(p){ var r = signedLen((u.lv || {})[p.key]); if (r === null) missing.push(p.label); else if (isNaN(r)) bad.push(p.label); else { rd[p.key] = r; if (max === null || r > max) max = r; } });
+  var ht = {}; if (max !== null && base > 0) Object.keys(rd).forEach(function(k){ ht[k] = Math.round((base + (max - rd[k])) * 16) / 16; });
+  return { ht: ht, max: max, base: base, missing: missing, bad: bad, rd: rd };
+}
+function laserBox(u, i){
+  var lp = laserPosts(u), lh = laserHeights(u, lp), base = lh.base > 0 ? fmtFrac(lh.base) : 'the standard';
+  var rows = lp.posts.map(function(p, k){
+    var h = lh.ht[p.key], hi = lh.max !== null && lh.rd[p.key] === lh.max && lh.missing.length === 0;
+    return '<div class="lvrow"><div class="lvlbl"><b>' + esc(p.label) + '</b>' + (p.hint ? '<small>' + esc(p.hint) + '</small>' : '') + '</div>' +
+      '<div class="lvin" data-fracslot><button type="button" class="btn lvsign" data-lvsign="' + esc(p.key) + '" aria-label="Plus or minus">±</button>' +
+      '<input id="u' + i + 'lv' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-lv="' + esc(p.key) + '" placeholder="0" value="' + esc((u.lv || {})[p.key] || '') + '" aria-label="Laser reading, ' + esc(p.label) + '"></div>' +
+      '<div class="lvout' + (hi ? ' hi' : '') + '" data-lvout="' + esc(p.key) + '">' + (h != null ? fmtFrac(h) + (hi ? ' · highest' : '') : '') + '</div></div>';
+  }).join('');
+  return '<div class="custbox laserbox" id="u' + i + '_lv"><div class="lvhead"><b>Laser post heights</b><span>Enter each post’s reading against your 0. Lower than 0 is − (tap ±). Once every post has a reading, the highest spot gets the ' + esc(base) + ' post and the rest get taller.</span></div>' +
+    (lp.missing.length ? '<div class="lvmiss">Enter the measurement for ' + esc(lp.missing.join(', ')) + ' to list its posts.</div>' : '') +
+    (rows || '<div class="lvmiss">Add a section to list its posts.</div>') +
+    (lh.missing.length && lp.posts.length ? '<div class="lvmiss" data-lvleft>' + lh.missing.length + ' of ' + lp.posts.length + ' posts still need a reading.</div>' : '') + '</div>';
+}
+// refresh the heights in place (keeps the cursor in the box being typed in)
+function updLaser(u, i){
+  var box = el('u' + i + '_lv'); if (!box) return;
+  var lh = laserHeights(u), done = lh.missing.length === 0;
+  Array.prototype.forEach.call(box.querySelectorAll('[data-lvout]'), function(o){ var k = o.getAttribute('data-lvout'), h = lh.ht[k], hi = done && lh.rd[k] === lh.max; o.textContent = h != null ? fmtFrac(h) + (hi ? ' · highest' : '') : ''; o.classList.toggle('hi', hi); });
+  var left = box.querySelector('[data-lvleft]'); if (left){ left.hidden = done; left.textContent = lh.missing.length + ' of ' + (Object.keys(lh.rd).length + lh.missing.length) + ' posts still need a reading.'; }
+}
+// a reopened sheet: a top-mount rail whose posts have different heights comes back as laser readings (0 = the highest post)
+function adoptLaser(u){
+  var base = parseLen(String(header.B12 == null ? '' : header.B12)); if (!(base > 0) || unitSetup(u).mount !== 'Top') return;
+  var lv = {}, any = false;
+  u.secs.forEach(function(r, j){ (r._lvP || []).forEach(function(P, k){ var h = typeof P === 'number' ? P : base; lv[j + ':' + (k + 1)] = h === base ? '0' : fmtFrac(base - h).replace(/"$/, '').replace(/^≈ /, ''); if (Math.abs(h - base) > 1e-6) any = true; }); delete r._lvP; });
+  if (any){ u.laser = true; u.lv = lv; u.secs.forEach(function(r){ r.ph = ''; r.bh = ''; delete r._step; }); }
+}
 function hasStep(run){ return String(run.ph == null ? '' : run.ph).trim() !== '' || String(run.bh == null ? '' : run.bh).trim() !== ''; }
 function isOpen(code, mount){ return endCat[mount + '|' + code] === 'open'; }
 // how many posts the CUSTOM POSTS tab lists for one rail (mids + float posts + each end that isn't open), same as the sheet
@@ -1105,7 +1178,7 @@ function stepPlan(rows, hdr){
   var mount = String(hdr.B7 || ''), so = hdr.B11, dP = parseLen(String(hdr.B12)), dB = parseLen(String(hdr.B13));
   var hts = rows.map(function(r){ var p = parseLen(String(r.ph == null ? '' : r.ph)), b = parseLen(String(r.bh == null ? '' : r.bh)); return { p: p > 0 ? p : dP, b: b > 0 ? b : dB }; });
   var diff = function(a, b){ return Math.abs(a.p - b.p) > 1e-6 || Math.abs(a.b - b.b) > 1e-6; };
-  var own = hts.map(function(h){ return diff(h, { p: dP, b: dB }); });
+  var own = hts.map(function(h, k){ return !!rows[k]._lv || diff(h, { p: dP, b: dB }); });
   // shared post between two neighbouring sections (CJ/CJO, EC/ECO, IC/ICO…): it belongs to the side whose code isn't open
   var linkR = rows.map(function(r, k){
     var n = rows[k + 1]; if (!n || n._u !== r._u || n._j !== r._j + 1) return null;
@@ -1123,6 +1196,7 @@ function stepPlan(rows, hdr){
     var rp = railPosts(rows[k], mount, so); if (!rp) continue;
     for (var t = 1; t <= rp.n; t++, at++){
       if (at > CP_LAST) return { err: 'Too many custom posts on one sheet (the tab holds ' + (CP_LAST - CP_FIRST + 1) + ')' };
+      if (rows[k]._lv){ var LP = rows[k]._lv[t - 1]; cells.push({ row: at, F: typeof LP === 'number' ? f(LP, dP) : '', G: '', H: '' }); continue; }
       var h = hts[k], P = h.p, BL = h.b, BR = h.b;
       if (t === 1 && rp.lo && k > 0 && linkR[k - 1] && linkR[k - 1].owner === k){ var ph = hts[k - 1]; P = Math.max(P, ph.p); BL = ph.b; }
       if (t === rp.n && rp.ro && linkR[k] && linkR[k].owner === k){ var nh = hts[k + 1]; P = Math.max(P, nh.p); BR = nh.b; }
@@ -1141,6 +1215,7 @@ function readSteps(runs, cpx){
     var rp = railPosts(r, mount, so); if (!rp) return;
     var vals = [];
     for (var t = 1; t <= rp.n; t++, at++) vals.push({ t: t, F: readCell(cpx, 'F' + at), G: readCell(cpx, 'G' + at), H: readCell(cpx, 'H' + at), x: ['E', 'I', 'J', 'K'].some(function(c){ return readCell(cpx, c + at) !== ''; }) });
+    if (mount === 'Top') r._lvP = vals.map(function(v){ return typeof v.F === 'number' ? v.F : ''; });
     var mids = vals.filter(function(v){ return !(v.t === 1 && rp.lo) && !(v.t === rp.n && rp.ro); }), pick = mids[0] || vals[0];
     if (!pick) return;
     // ends: post height is the taller one, so read the block on this rail's own side
@@ -1348,7 +1423,8 @@ function unitHtml(u, i){
     '<div class="uchecks"><label class="chk" for="u' + i + '_cust"><input type="checkbox" id="u' + i + '_cust" data-ufield="custom"' + (u.custom ? ' checked' : '') + '>Custom post height</label>' +
       '<label class="chk" for="u' + i + '_md"><input type="checkbox" id="u' + i + '_md" data-ufield="mountdiff"' + (u.mountDiff ? ' checked' : '') + '>Different mount</label>' +
       '<label class="chk" for="u' + i + '_scr"><input type="checkbox" id="u' + i + '_scr" data-ufield="screen"' + (u.screen ? ' checked' : '') + '>Privacy screen</label>' +
-      '<label class="chk" for="u' + i + '_nt"><input type="checkbox" id="u' + i + '_nt" data-ufield="hasnotes"' + (u.hasNotes ? ' checked' : '') + '>Notes</label></div>' +
+      '<label class="chk" for="u' + i + '_nt"><input type="checkbox" id="u' + i + '_nt" data-ufield="hasnotes"' + (u.hasNotes ? ' checked' : '') + '>Notes</label>' +
+      (unitSetup(u).mount === 'Top' ? '<label class="chk" for="u' + i + '_lz"><input type="checkbox" id="u' + i + '_lz" data-ufield="laser"' + (u.laser ? ' checked' : '') + '>Laser post heights</label>' : '') + '</div>' +
     (u.hasNotes ? '<div class="custbox"><div class="fld"><label for="u' + i + '_notes">Notes <em style="font-style:normal;color:var(--muted)">· saved to the job’s notes file for review before fabrication</em></label>' +
       '<textarea id="u' + i + '_notes" class="notes" data-ufield="notetext" rows="3" placeholder="Anything to check before fabrication">' + esc(u.notes || '') + '</textarea></div></div>' : '') +
     (u.custom ? '<div class="custbox"><div class="g2" data-fracslot>' +
@@ -1358,7 +1434,7 @@ function unitHtml(u, i){
     (u._dr ? drawHtml(u, i) : '') +
     (u._layout ? '<div class="layout' + (u._full ? ' full' : '') + '" id="u' + i + '_lay">' + layoutSvg(u) + '</div>' : '') +
     u.secs.map(function(run, j){ return secHtml(u, i, run, j); }).join('') +
-    addButtons(u) + splitBox(u) + '</div>';
+    addButtons(u) + splitBox(u) + (u.laser && unitSetup(u).mount === 'Top' ? laserBox(u, i) : '') + '</div>';
 }
 function addButtons(u){
   return '<div class="addrow"><button type="button" class="addsec" data-act="addsec">+ Add section ' + esc(secLabel(u, u.secs.length)) + '</button>' +
@@ -1839,6 +1915,8 @@ function updBadge(){
 function at(t){ var ub = t.closest('.unit'); if (!ub) return null; var i = +ub.getAttribute('data-u'), sb = t.closest('[data-s]'); return { i: i, u: units[i], j: sb ? +sb.getAttribute('data-s') : -1, box: ub, sec: sb }; }
 el('units').addEventListener('input', function(e){
   var t = e.target, p = at(t); if (!p) return;
+  var lvk = t.getAttribute('data-lv');
+  if (lvk){ p.u.lv = p.u.lv || {}; p.u.lv[lvk] = t.value.replace(/[−–]/g, '-'); updLaser(p.u, p.i); changed(); return; }
   var uf = t.getAttribute('data-ufield'), key = t.getAttribute('data-key');
   if (uf === 'unit'){
     p.u.unit = t.value.trim();
@@ -1878,6 +1956,9 @@ el('units').addEventListener('toggle', function(e){
 }, true);
 el('units').addEventListener('change', function(e){
   var t = e.target, p = at(t); if (!p) return;
+  if (t.getAttribute('data-lv')) return;
+  // a section's length / ends / floats changed: the laser list may have more or fewer posts now
+  if (p.u.laser && /^(len|l|r|fl|fr)$/.test(t.getAttribute('data-key') || '')) setTimeout(function(){ var b = el('u' + p.i + '_lv'); if (b && !b.contains(document.activeElement)) b.outerHTML = laserBox(p.u, p.i); }, 0);
   if (t.getAttribute('data-ufield') === 'unit'){
     if (dupUnit(p.u)) return;   // leave it where it is with its warning showing, instead of jumping next to the other one
     var moved = p.u; if (!sortUnits()) return;
@@ -1885,8 +1966,13 @@ el('units').addEventListener('change', function(e){
     var box = document.querySelector('.unit[data-u="' + units.indexOf(moved) + '"]'); if (box) box.scrollIntoView({ block: 'start' });
     return;
   }
+  if (t.getAttribute('data-ufield') === 'laser'){
+    p.u.laser = t.checked; if (t.checked){ p.u.custom = false; p.u.lv = p.u.lv || {}; } renderRuns(); changed();
+    if (t.checked){ var lb = el('u' + p.i + '_lv'); if (lb) lb.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    return;
+  }
   if (t.getAttribute('data-ufield') === 'custom'){
-    p.u.custom = t.checked; renderRuns(); changed();
+    p.u.custom = t.checked; if (t.checked) p.u.laser = false; renderRuns(); changed();
     if (t.checked){ var f = el('u' + p.i + '_post'); if (f) f.focus(); }
     return;
   }
@@ -1956,6 +2042,8 @@ function confirmDel(b, key){
   b.style.minWidth = b.offsetWidth + 'px'; b.classList.add('arm'); b.textContent = 'Sure?'; return false;
 }
 el('units').addEventListener('click', function(e){
+  var lsg = e.target.closest('[data-lvsign]');
+  if (lsg){ var li = lsg.parentNode.querySelector('input[data-lv]'); if (li){ var v = li.value.trim(); li.value = v.charAt(0) === '-' ? v.slice(1) : (v && v !== '0' ? '-' + v : '-'); li.dispatchEvent(new Event('input', { bubbles: true })); li.focus(); } return; }
   var qe = e.target.closest('[data-qend]');
   if (qe){ var qs = qe.closest('.fld').querySelector('select'); if (qs){ qs.value = qe.getAttribute('data-qend'); qs.dispatchEvent(new Event('change', { bubbles: true })); var again = document.getElementById(qs.id); if (again) syncQuick(again); } return; }
   var se = e.target.closest('[data-scrend]');
@@ -2368,7 +2456,11 @@ function saveNow(){
     else if (seenU[un]) errs.push('Unit ' + un + ' is entered twice');
     seenU[un] = true;
     var rows = [];
-    u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j; rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
+    var lzr = u.laser && unitSetup(u).mount === 'Top' ? laserHeights(u) : null;
+    if (lzr){ if (lzr.bad.length) errs.push('Unit ' + (un || '?') + ': check the laser reading for ' + lzr.bad.join(', ')); else if (lzr.missing.length) errs.push('Unit ' + (un || '?') + ': ' + lzr.missing.length + ' post' + (lzr.missing.length === 1 ? '' : 's') + ' still need a laser reading'); }
+    u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j;
+      if (lzr){ var rp = railPosts(r, 'Top', ''); c._lv = []; for (var t = 1; rp && t <= rp.n; t++) c._lv.push(lzr.ht[j + ':' + t]); c.ph = ''; c.bh = ''; }
+      rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
     var s = unitSetup(u), who = 'Unit ' + (un || '?');
     if (u.mountDiff && MOUNTS.indexOf(u.mount) < 0) errs.push(who + ': pick its mount');
     if (u.custom){ if (!isNum(u.post) || !isNum(u.block)) errs.push(who + ' needs its own post and block height'); }
