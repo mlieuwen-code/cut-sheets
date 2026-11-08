@@ -361,8 +361,9 @@ body.hasfloors .wrap{padding-bottom:170px}
 .calctab{width:100%;border-collapse:collapse;font-size:17px}
 .calctab th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 4px;border-bottom:2px solid var(--line)}
 .calctab td{padding:10px 4px;border-bottom:1px solid var(--line)}
-.calctab td:last-child{font-weight:900;text-align:right}
-.calctab th:last-child{text-align:right}
+.calctab th:not(:first-child),.calctab td:not(:first-child){text-align:right}
+.calctab td.cc{font-weight:900;font-size:19px}
+.calctab td.fl{color:var(--muted);font-weight:700}
 </style>
 </head><body>
 
@@ -489,7 +490,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-e338a4';
+var APP_VERSION = '2026.11.07-cf8293';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2903,14 +2904,18 @@ function calcResult(){
   if (dl === null || dr === null){ out.hidden = false; out.innerHTML = '<div class="lvmiss">' + esc((dl === null ? c.l : c.r) + ' isn’t set up for ' + m + ' mount in the template.') + '</div>'; return; }
   var W = L + dl + dr, I = railMax[String(c.rt || '')] || 46, V = Math.max(0, Math.ceil((W - I) / (I + 2) - 1e-9)), P = V + 1, each = Math.round((W - 2 * V) / P * 16) / 16;
   var f = function(x){ return fmtFrac(Math.round(x * 16) / 16).replace(/^≈ /, ''); }, rows = [];
-  var lo = !isOpen(c.l, m), ro = !isOpen(c.r, m), s0 = -dl;
-  rows.push(['Left end · ' + c.l, lo ? f(s0 - 1) : 'open (no post)']);
-  for (var k = 1; k <= V; k++) rows.push(['Mid ' + k, f(s0 + k * each + (k - 1) * 2 + 1)]);
-  rows.push(['Right end · ' + c.r, ro ? f(L + dr + 1) : 'open (no post)']);
+  var lo = !isOpen(c.l, m), ro = !isOpen(c.r, m), s0 = -dl, prev = null;
+  // each post: centre from the left end, and centre-to-centre from the post before (what you mark with a tape, post to post)
+  var add = function(name, x){ rows.push([name, x == null ? null : x, x == null ? null : (prev == null ? null : x - prev)]); if (x != null) prev = x; };
+  add('Left end · ' + c.l, lo ? s0 - 1 : null);
+  for (var k = 1; k <= V; k++) add('Mid ' + k, s0 + k * each + (k - 1) * 2 + 1);
+  add('Right end · ' + c.r, ro ? L + dr + 1 : null);
   var over = L > MAX_RAIL;
   out.hidden = false;
   out.innerHTML = '<div class="calcsum"><b>' + V + ' mid post' + (V === 1 ? '' : 's') + '</b> · ' + P + ' channel' + (P === 1 ? '' : 's') + ' @ ' + f(each) + (V ? ' · ' + f(each + 2) + ' centre to centre' : '') + '</div>' +
-    '<table class="calctab"><thead><tr><th>Post</th><th>Centre from left end</th></tr></thead><tbody>' + rows.map(function(r){ return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') + '</tbody></table>' +
+    '<table class="calctab"><thead><tr><th>Post</th><th>From last post</th><th>From left end</th></tr></thead><tbody>' + rows.map(function(r){
+      return '<tr><td>' + esc(r[0]) + '</td>' + (r[1] == null ? '<td class="cc" colspan="2">open (no post)</td>' : '<td class="cc">' + (r[2] == null ? '–' : esc(f(r[2]))) + '</td><td class="fl">' + esc(f(r[1])) + '</td>') + '</tr>';
+    }).join('') + '</tbody></table>' +
     (over ? '<div class="lvmiss">Over ' + MAX_RAIL + '": in a job this rail would be split, which moves the posts. Split it yourself and run each piece.</div>' : '');
 }
 el('calcOpen').onclick = openCalc;
