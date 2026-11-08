@@ -458,7 +458,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-f5794d';
+var APP_VERSION = '2026.11.07-641c1d';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1103,16 +1103,21 @@ function laserPosts(u){
   u.secs.forEach(function(run, j){
     var rp = railPosts(run, st.mount, st.standoff); if (!rp){ missing.push(secLabel(u, j)); return; }
     var L = parseLen(String(run.len == null ? '' : run.len)), fl = parseLen(String(run.fl == null ? '' : run.fl)), fr = parseLen(String(run.fr == null ? '' : run.fr));
-    var mids = rp.n - (rp.lo ? 1 : 0) - (rp.ro ? 1 : 0), nf = (fl > 0 ? 1 : 0) + (fr > 0 ? 1 : 0), reg = mids - nf;
+    var mids = rp.n - (rp.lo ? 1 : 0) - (rp.ro ? 1 : 0), nf = (fl > 0 ? 1 : 0) + (fr > 0 ? 1 : 0);
+    // exact post centres, same maths as the sheet's ENGINE: the channel starts past the left end's deduction (or a float post),
+    // is cut into equal pieces, and each mid post (2") sits between two pieces
+    var m = run.ns === 'Yes' ? 'Top' : st.mount, g = m === 'Top' ? 0 : (parseLen(String(st.standoff == null ? '' : st.standoff)) || 0);
+    var dl = fl > 0 ? -fl - 2 : chDed(run.l, m, g, run.al), ch = chanInfo(L + pieceAdj(run, st.mount, st.standoff).v, run), s0 = dl === null ? null : -dl;
+    var at = function(x){ return fmtFrac(Math.round(x * 16) / 16).replace(/^≈ /, '') + ' from left end of ' + secLabel(u, j) + ' (post centre)'; };
     for (var t = 1; t <= rp.n; t++){
       var lab, hint = '';
       if (t === 1 && rp.lo){ lab = 'Left end'; hint = String(run.l || ''); }
       else if (t === rp.n && rp.ro){ lab = 'Right end'; hint = String(run.r || ''); }
       else {
         var mi = t - (rp.lo ? 1 : 0); lab = 'Mid ' + mi;
-        if (fl > 0 && mi === 1) hint = 'float · ' + fmtFrac(fl) + ' from left end';
-        else if (fr > 0 && mi === mids) hint = 'float · ' + fmtFrac(fr) + ' from right end';
-        else if (!nf && L > 0) hint = '≈ ' + fmtFrac(Math.round(L * mi / (reg + 1) * 16) / 16).replace(/^≈ /, '') + ' from left end';
+        if (fl > 0 && mi === 1) hint = 'float post · ' + at(fl + 1);
+        else if (fr > 0 && mi === mids) hint = 'float post · ' + at(L - fr - 1);
+        else if (s0 !== null && L > 0){ var k = mi - (fl > 0 ? 1 : 0); hint = at(s0 + k * ch.each + (k - 1) * 2 + 1); }
       }
       out.push({ key: j + ':' + t, j: j, t: t, label: secLabel(u, j) + ' · ' + lab, hint: hint });
     }
