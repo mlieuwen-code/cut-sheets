@@ -461,7 +461,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 <nav class="bottombar" id="bar" hidden>
   <div class="floorbar" id="floorbar" role="tablist" aria-label="Floors" hidden></div>
   <div class="in">
-    <button type="button" class="navtab on" data-t="job">Job</button>
+    <button type="button" class="navtab on" data-t="job">Job Info</button>
     <button type="button" class="navtab" data-t="units">Units · <span id="unitCount">0</span></button>
     <button type="button" class="savebtn" id="save">Save<span class="badge" id="checkBadge" hidden></span></button>
   </div>
@@ -491,7 +491,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-5ec898';
+var APP_VERSION = '2026.11.07-f868f5';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
