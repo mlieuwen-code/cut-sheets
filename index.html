@@ -468,7 +468,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-beb97c';
+var APP_VERSION = '2026.11.07-d0192d';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1148,22 +1148,24 @@ function laserPosts(u){
 }
 function signedLen(v){ v = String(v == null ? '' : v).trim().replace(/[−–]/g, '-'); if (v === '') return null; var p = parseLen(v); return (p === null || isNaN(p)) ? NaN : p; }
 // heights: the highest reading (highest spot on the curb) gets the standard post; every other post is taller by how much lower it sits
+// every reading is measured from one laser line down to the curb: the shortest is the highest spot and gets the standard post,
+// every other post is taller by how much longer its reading is
 function laserHeights(u, lp){
-  lp = lp || laserPosts(u); var base = parseLen(String(header.B12 == null ? '' : header.B12)), rd = {}, max = null, missing = [], bad = [];
-  lp.posts.forEach(function(p){ var r = signedLen((u.lv || {})[p.key]); if (r === null) missing.push(p.label); else if (isNaN(r)) bad.push(p.label); else { rd[p.key] = r; if (max === null || r > max) max = r; } });
-  var ht = {}; if (max !== null && base > 0) Object.keys(rd).forEach(function(k){ ht[k] = Math.round((base + (max - rd[k])) * 16) / 16; });
-  return { ht: ht, max: max, base: base, missing: missing, bad: bad, rd: rd };
+  lp = lp || laserPosts(u); var base = parseLen(String(header.B12 == null ? '' : header.B12)), rd = {}, min = null, missing = [], bad = [];
+  lp.posts.forEach(function(p){ var r = signedLen((u.lv || {})[p.key]); if (r === null) missing.push(p.label); else if (isNaN(r) || r < 0) bad.push(p.label); else { rd[p.key] = r; if (min === null || r < min) min = r; } });
+  var ht = {}; if (min !== null && base > 0) Object.keys(rd).forEach(function(k){ ht[k] = Math.round((base + (rd[k] - min)) * 16) / 16; });
+  return { ht: ht, max: min, base: base, missing: missing, bad: bad, rd: rd };
 }
 function laserBox(u, i){
   var lp = laserPosts(u), lh = laserHeights(u, lp), base = lh.base > 0 ? fmtFrac(lh.base) : 'the standard';
   var rows = lp.posts.map(function(p, k){
     var h = lh.ht[p.key], hi = lh.max !== null && lh.rd[p.key] === lh.max && lh.missing.length === 0;
     return '<div class="lvrow"><div class="lvlbl"><b>' + esc(p.label) + '</b>' + (p.hint ? '<small>' + esc(p.hint) + '</small>' : '') + '</div>' +
-      '<div class="lvin" data-fracslot><button type="button" class="btn lvsign" data-lvsign="' + esc(p.key) + '" aria-label="Plus or minus">±</button>' +
-      '<input id="u' + i + 'lv' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-lv="' + esc(p.key) + '" placeholder="0" value="' + esc((u.lv || {})[p.key] || '') + '" aria-label="Laser reading, ' + esc(p.label) + '"></div>' +
+      '<div class="lvin" data-fracslot>' +
+      '<input id="u' + i + 'lv' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-lv="' + esc(p.key) + '" placeholder="Line to curb" value=""' + esc((u.lv || {})[p.key] || '') + '" aria-label="Laser reading, ' + esc(p.label) + '"></div>' +
       '<div class="lvout' + (hi ? ' hi' : '') + '" data-lvout="' + esc(p.key) + '">' + (h != null ? fmtFrac(h) + (hi ? ' · highest' : '') : '') + '</div></div>';
   }).join('');
-  return '<div class="custbox laserbox" id="u' + i + '_lv"><div class="lvhead"><b>Laser post heights</b><span>Enter each post’s reading against your 0. Lower than 0 is − (tap ±). Once every post has a reading, the highest spot gets the ' + esc(base) + ' post and the rest get taller.</span></div>' +
+  return '<div class="custbox laserbox" id="u' + i + '_lv"><div class="lvhead"><b>Laser post heights</b><span>Set your laser line once, then measure from the line down to the curb at every post. Once every post has a reading, the shortest one (the highest spot) gets the ' + esc(base) + ' post and the rest get taller by the difference.</span></div>' +
     (lp.missing.length ? '<div class="lvmiss">Enter the measurement for ' + esc(lp.missing.join(', ')) + ' to list its posts.</div>' : '') +
     (rows || '<div class="lvmiss">Add a section to list its posts.</div>') +
     (lh.missing.length && lp.posts.length ? '<div class="lvmiss" data-lvleft>' + lh.missing.length + ' of ' + lp.posts.length + ' posts still need a reading.</div>' : '') + '</div>';
@@ -1179,7 +1181,7 @@ function updLaser(u, i){
 function adoptLaser(u){
   var base = parseLen(String(header.B12 == null ? '' : header.B12)); if (!(base > 0) || unitSetup(u).mount !== 'Top') return;
   var lv = {}, any = false;
-  u.secs.forEach(function(r, j){ (r._lvP || []).forEach(function(P, k){ var h = typeof P === 'number' ? P : base; lv[j + ':' + (k + 1)] = h === base ? '0' : fmtFrac(base - h).replace(/"$/, '').replace(/^≈ /, ''); if (Math.abs(h - base) > 1e-6) any = true; }); delete r._lvP; });
+  u.secs.forEach(function(r, j){ (r._lvP || []).forEach(function(P, k){ var h = typeof P === 'number' ? P : base; lv[j + ':' + (k + 1)] = h === base ? '0' : fmtFrac(h - base).replace(/"$/, '').replace(/^≈ /, ''); if (Math.abs(h - base) > 1e-6) any = true; }); delete r._lvP; });
   if (any){ u.laser = true; u.lv = lv; u.secs.forEach(function(r){ r.ph = ''; r.bh = ''; delete r._step; }); }
 }
 function hasStep(run){ return String(run.ph == null ? '' : run.ph).trim() !== '' || String(run.bh == null ? '' : run.bh).trim() !== ''; }
@@ -2500,7 +2502,7 @@ function saveNow(){
     seenU[un] = true;
     var rows = [];
     var lzr = u.laser && unitSetup(u).mount === 'Top' ? laserHeights(u) : null;
-    if (lzr){ if (lzr.bad.length) errs.push('Unit ' + (un || '?') + ': check the laser reading for ' + lzr.bad.join(', ')); else if (lzr.missing.length) errs.push('Unit ' + (un || '?') + ': ' + lzr.missing.length + ' post' + (lzr.missing.length === 1 ? '' : 's') + ' still need a laser reading'); }
+    if (lzr){ if (lzr.bad.length) errs.push('Unit ' + (un || '?') + ': check the laser reading for ' + lzr.bad.join(', ') + ' (measure from the line down to the curb, no minus)'); else if (lzr.missing.length) errs.push('Unit ' + (un || '?') + ': ' + lzr.missing.length + ' post' + (lzr.missing.length === 1 ? '' : 's') + ' still need a laser reading'); }
     u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j;
       if (lzr){ var rp = railPosts(r, 'Top', ''); c._lv = []; for (var t = 1; rp && t <= rp.n; t++) c._lv.push(lzr.ht[j + ':' + t]); c.ph = ''; c.bh = ''; }
       rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
