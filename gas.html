@@ -347,6 +347,22 @@ body.hasfloors .wrap{padding-bottom:170px}
 @media (max-width:600px){ .lvrow{grid-template-columns:minmax(0,1fr) auto} .lvin{grid-column:1/-1;order:3} .lvout{min-width:0} }
 .spjoints{display:grid;gap:10px;margin:10px 0}
 .spbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.toolbtn{margin-top:18px;width:100%;display:flex;align-items:center;gap:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:22px;padding:18px 22px;font:inherit;text-align:left;cursor:pointer}
+.toolbtn .ic{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:var(--chip);flex-shrink:0}
+.toolbtn strong{display:block;font-size:19px}
+.toolbtn .s{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.toolbtn .chev{margin-left:auto;font-size:28px;color:var(--muted)}
+#calc{padding-bottom:60px}
+.calctop{margin-bottom:10px}
+.calch{margin:6px 0 4px}
+.calcsub{color:var(--muted);margin:0 0 16px}
+.calcres{margin-top:16px}
+.calcsum{font-size:18px;margin-bottom:10px}
+.calctab{width:100%;border-collapse:collapse;font-size:17px}
+.calctab th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 4px;border-bottom:2px solid var(--line)}
+.calctab td{padding:10px 4px;border-bottom:1px solid var(--line)}
+.calctab td:last-child{font-weight:900;text-align:right}
+.calctab th:last-child{text-align:right}
 </style>
 </head><body>
 
@@ -376,6 +392,11 @@ body.hasfloors .wrap{padding-bottom:170px}
         <input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
       </label>
     </div>
+    <button type="button" class="toolbtn" id="calcOpen">
+      <span class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18M5 9v6M10 9v6M14 9v6M19 9v6"/></svg></span>
+      <span><strong>Post spacing calculator</strong><span class="s">Mark out post centres for backing, without starting a job.</span></span>
+      <span class="chev">›</span>
+    </button>
     <div class="resume" id="resume" hidden>
       <div class="eyebrow">Pick up where you left off</div>
       <div class="row">
@@ -409,6 +430,14 @@ body.hasfloors .wrap{padding-bottom:170px}
       <button type="button" class="btn" id="verBtn">Check for updates</button>
       <span id="verMsg" role="status" aria-live="polite"></span>
     </div>
+  </section>
+
+  <section id="calc" hidden>
+    <div class="calctop"><button type="button" class="btn" id="calcBack">‹ Start page</button></div>
+    <h1 class="calch">Post spacing</h1>
+    <p class="calcsub">Enter a run like a section: its ends and measurement. You get every post centre from the left end, the same way the cut sheet spaces them.</p>
+    <div class="card" id="calcBody"><div class="lvmiss">Loading the cut sheet template…</div></div>
+    <div class="card calcres" id="calcRes" hidden></div>
   </section>
 
   <section id="app" hidden>
@@ -460,7 +489,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-d0192d';
+var APP_VERSION = '2026.11.07-e338a4';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -702,6 +731,35 @@ function removeDraft(d){
 }
 
 // ---------- load ----------
+// the template's lists and tables: end codes, deductions, rail limits, mount standards
+var specsReady = false;
+function parseSpecs(L, RT, ET, inputXml){
+    endCat = {};
+    for (var ec4 = 4; ec4 <= 94; ec4++){ var eck = readCell(ET, 'A' + ec4), ecv = readCell(ET, 'M' + ec4); if (eck !== '') endCat[String(eck)] = String(ecv || '').toLowerCase(); }
+    lists.colours = colRange(L, 'A', 2, 40).filter(function(s){ return s.length < 40; });
+    lists.glass = colRange(L, 'C', 2, 12);
+    lists.channels = colRange(L, 'R', 3, 11);
+    lists.railTypes = colRange(RT, 'A', 4, 21);
+    // the two most common first, the rest in the template's order
+    var FIRST_RAILS = ['Glass', '5/8"']; lists.railTypes = FIRST_RAILS.filter(function(t){ return lists.railTypes.indexOf(t) >= 0; }).concat(lists.railTypes.filter(function(t){ return FIRST_RAILS.indexOf(t) < 0; }));
+    railFam = {}; for (var rf = 4; rf <= 21; rf++){ var rfn = readCell(RT, 'A' + rf); if (rfn !== '') railFam[String(rfn)] = String(readCell(RT, 'B' + rf) || ''); }
+    // mount standards from LISTS (E:H): standoff, post height, block height
+    for (var sr = 3; sr <= 8; sr++){ var smt = String(readCell(L, 'E' + sr) || ''); if (MOUNTS.indexOf(smt) < 0) continue; STD[smt] = { B11: readCell(L, 'F' + sr), B12: readCell(L, 'G' + sr), B13: readCell(L, 'H' + sr) }; }
+    var dv = inputXml.match(/<dataValidation\b[^>]*sqref="B20:C119"[^>]*>\s*<formula1>"([^"<]*)"<\/formula1>/);
+    lists.ends = dv ? dv[1].split(',') : ['E','F','FA','I6','I6A','6EP','6EPA','W','EC','ECO','IC','ICO','FC','FCO','CJ','CJO','CJO-1','3x2E','3x2FE','3x2IE','3x2TE','T','TO'];
+    // most-used codes first in the drop-downs, the rest after in their usual order
+    var FIRST_ENDS = ['E','F','EC','ECO','IC','ICO','CJ','CJO','FA'];
+    lists.ends = FIRST_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0; }).concat(lists.ends.filter(function(c){ return FIRST_ENDS.indexOf(c) < 0; }));
+    endDesc = {}; endCh = {}; railMax = {};
+    for (var q = 4; q <= 94; q++){ var ek = readCell(ET, 'A' + q), eb = readCell(ET, 'E' + q), ec = readCell(ET, 'F' + q); if (ek !== '' && typeof eb === 'number') endCh[String(ek)] = [eb, typeof ec === 'number' ? ec : 0]; }
+    var gnum = function(ref, d){ var v = readCell(ET, ref); return typeof v === 'number' ? v : d; };
+    geo = { p: gnum('S7', 2), ang: gnum('S10', 90), gap: gnum('S11', 1.25), top: gnum('W15', 0), dir: {} };
+    for (var q2 = 11; q2 <= 13; q2++){ var gc = readCell(ET, 'V' + q2), gd = readCell(ET, 'W' + q2); if (gc !== '' && typeof gd === 'number') geo.dir[String(gc)] = gd; }
+    if (!Object.keys(geo.dir).length) geo.dir = { FA: 1, I6A: -1, '6EPA': -1 };
+    for (var q3 = 4; q3 <= 21; q3++){ var rn = readCell(RT, 'A' + q3), rm = readCell(RT, 'E' + q3); if (rn !== '' && typeof rm === 'number') railMax[String(rn)] = rm; }
+    for (var r = 4; r <= 94; r++){ var mt = readCell(ET,'B'+r), cd = readCell(ET,'C'+r), ds = readCell(ET,'D'+r); if (cd !== '' && ds !== ''){ ds = String(ds).trim().replace(/\bFasica\b/g, 'Fascia'); endDesc[mt + '|' + cd] = ds; if (!endDesc['*|' + cd]) endDesc['*|' + cd] = ds; } }
+    specsReady = true;
+}
 function startNew(restore){ loadData(TEMPLATE_B64, 'new-job', true, { base64: true }, restore); }
 function loadData(data, name, isNew, opts, restore){
   clearMsg();
@@ -720,30 +778,7 @@ function loadData(data, name, isNew, opts, restore){
   }).then(function(x){
     sheetXml = x[0];
     var L = x[1], RT = x[2], ET = x[3], CPX = x[4] || '';
-    endCat = {};
-    for (var ec4 = 4; ec4 <= 94; ec4++){ var eck = readCell(ET, 'A' + ec4), ecv = readCell(ET, 'M' + ec4); if (eck !== '') endCat[String(eck)] = String(ecv || '').toLowerCase(); }
-    lists.colours = colRange(L, 'A', 2, 40).filter(function(s){ return s.length < 40; });
-    lists.glass = colRange(L, 'C', 2, 12);
-    lists.channels = colRange(L, 'R', 3, 11);
-    lists.railTypes = colRange(RT, 'A', 4, 21);
-    // the two most common first, the rest in the template's order
-    var FIRST_RAILS = ['Glass', '5/8"']; lists.railTypes = FIRST_RAILS.filter(function(t){ return lists.railTypes.indexOf(t) >= 0; }).concat(lists.railTypes.filter(function(t){ return FIRST_RAILS.indexOf(t) < 0; }));
-    railFam = {}; for (var rf = 4; rf <= 21; rf++){ var rfn = readCell(RT, 'A' + rf); if (rfn !== '') railFam[String(rfn)] = String(readCell(RT, 'B' + rf) || ''); }
-    // mount standards from LISTS (E:H): standoff, post height, block height
-    for (var sr = 3; sr <= 8; sr++){ var smt = String(readCell(L, 'E' + sr) || ''); if (MOUNTS.indexOf(smt) < 0) continue; STD[smt] = { B11: readCell(L, 'F' + sr), B12: readCell(L, 'G' + sr), B13: readCell(L, 'H' + sr) }; }
-    var dv = sheetXml.match(/<dataValidation\b[^>]*sqref="B20:C119"[^>]*>\s*<formula1>"([^"<]*)"<\/formula1>/);
-    lists.ends = dv ? dv[1].split(',') : ['E','F','FA','I6','I6A','6EP','6EPA','W','EC','ECO','IC','ICO','FC','FCO','CJ','CJO','CJO-1','3x2E','3x2FE','3x2IE','3x2TE','T','TO'];
-    // most-used codes first in the drop-downs, the rest after in their usual order
-    var FIRST_ENDS = ['E','F','EC','ECO','IC','ICO','CJ','CJO','FA'];
-    lists.ends = FIRST_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0; }).concat(lists.ends.filter(function(c){ return FIRST_ENDS.indexOf(c) < 0; }));
-    endDesc = {}; endCh = {}; railMax = {};
-    for (var q = 4; q <= 94; q++){ var ek = readCell(ET, 'A' + q), eb = readCell(ET, 'E' + q), ec = readCell(ET, 'F' + q); if (ek !== '' && typeof eb === 'number') endCh[String(ek)] = [eb, typeof ec === 'number' ? ec : 0]; }
-    var gnum = function(ref, d){ var v = readCell(ET, ref); return typeof v === 'number' ? v : d; };
-    geo = { p: gnum('S7', 2), ang: gnum('S10', 90), gap: gnum('S11', 1.25), top: gnum('W15', 0), dir: {} };
-    for (var q2 = 11; q2 <= 13; q2++){ var gc = readCell(ET, 'V' + q2), gd = readCell(ET, 'W' + q2); if (gc !== '' && typeof gd === 'number') geo.dir[String(gc)] = gd; }
-    if (!Object.keys(geo.dir).length) geo.dir = { FA: 1, I6A: -1, '6EPA': -1 };
-    for (var q3 = 4; q3 <= 21; q3++){ var rn = readCell(RT, 'A' + q3), rm = readCell(RT, 'E' + q3); if (rn !== '' && typeof rm === 'number') railMax[String(rn)] = rm; }
-    for (var r = 4; r <= 94; r++){ var mt = readCell(ET,'B'+r), cd = readCell(ET,'C'+r), ds = readCell(ET,'D'+r); if (cd !== '' && ds !== ''){ ds = String(ds).trim().replace(/\bFasica\b/g, 'Fascia'); endDesc[mt + '|' + cd] = ds; if (!endDesc['*|' + cd]) endDesc['*|' + cd] = ds; } }
+    parseSpecs(L, RT, ET, sheetXml);
     header = {};
     WRITE.forEach(function(f){ header[f.cell] = readCell(sheetXml, f.cell); });
     // newer templates fill standoff / post / block (B11:B13) from the mount standards, with the job's own number in the override column D
@@ -2810,6 +2845,83 @@ fracBar.addEventListener('click', function(e){
   // a message (save result, warning) brings it back so Save is in reach
   var m = el('msg'); if (m && window.MutationObserver) new MutationObserver(function(){ if (!m.hidden) el('bar').classList.remove('away'); }).observe(m, { attributes: true, childList: true, subtree: true });
 })();
+
+// ---------- post spacing calculator (start page): a one-off run, no job ----------
+var CALC_KEY = 'ridgeway-calc';
+var calc = (function(){ try { return JSON.parse(localStorage.getItem(CALC_KEY)) || {}; } catch (e) { return {}; } })();
+function calcSave(){ try { localStorage.setItem(CALC_KEY, JSON.stringify(calc)); } catch (e) {} }
+// get the template's tables without opening a job (the Google copy keeps the template on the tablet once it has been loaded)
+function loadSpecs(cb){
+  if (specsReady) return cb(true);
+  var go = function(b64){
+    if (!b64) return cb(false);
+    JSZip.loadAsync(b64, { base64: true, createFolders: false }).then(function(z){
+      return Promise.all([z, z.file('xl/workbook.xml').async('string'), z.file('xl/_rels/workbook.xml.rels').async('string'), z.file('xl/sharedStrings.xml') ? z.file('xl/sharedStrings.xml').async('string') : Promise.resolve('')]);
+    }).then(function(a){
+      var z = a[0], paths = sheetPaths(a[1], a[2]); shared = parseShared(a[3]);
+      return Promise.all(['INPUT', 'LISTS', 'SPEC_RailTypes', 'SPEC_EndTypes'].map(function(n){ return paths[n] && z.file(paths[n]) ? z.file(paths[n]).async('string') : Promise.resolve(''); }));
+    }).then(function(x){ parseSpecs(x[1], x[2], x[3], x[0]); cb(true); }, function(){ cb(false); });
+  };
+  if (TEMPLATE_B64) return go(TEMPLATE_B64);
+  kvGet('template').then(function(c){
+    if (c){ TEMPLATE_B64 = c; return go(c); }
+    if (window.google && google.script && google.script.run) google.script.run.withSuccessHandler(function(b64){ TEMPLATE_B64 = b64; kvSet('template', b64); go(b64); }).withFailureHandler(function(){ cb(false); }).getTemplate();
+    else cb(false);
+  }, function(){ cb(false); });
+}
+function openCalc(){
+  el('start').hidden = true; el('calc').hidden = false; window.scrollTo(0, 0);
+  loadSpecs(function(ok){
+    if (!ok){ el('calcBody').innerHTML = '<div class="lvmiss">Couldn’t load the cut sheet template. Open the app once with signal first.</div>'; return; }
+    if (!calc.mount) calc.mount = 'Fascia';
+    if (!calc.rt || lists.railTypes.indexOf(calc.rt) < 0) calc.rt = lists.railTypes[0];
+    if (calc.so == null || calc.so === '') calc.so = (STD.Fascia && STD.Fascia.B11 !== '' && STD.Fascia.B11 != null) ? numVal(STD.Fascia.B11) : '1 1/2';
+    renderCalc();
+  });
+}
+function closeCalc(){ parkFrac(); el('calc').hidden = true; el('start').hidden = false; }
+function renderCalc(){
+  parkFrac();
+  var c = calc, top = c.mount === 'Top';
+  var angF = function(side){ var code = c[side]; return geo.dir[code] ? numField('cc_a' + side, (side === 'l' ? 'Left' : 'Right') + ' angle (°)', c['a' + side], { ph: String(geo.ang), attrs: ' data-cc="a' + side + '"', nofrac: true }) : ''; };
+  el('calcBody').innerHTML =
+    '<div class="fld"><label>Mount</label><div class="chips">' + MOUNTS.map(function(m){ return '<button type="button" class="chip" data-ccm="' + m + '" aria-pressed="' + (c.mount === m) + '">' + m + '</button>'; }).join('') + '</div></div>' +
+    '<div class="g2"><div class="fld"><label for="cc_rt">Rail type</label><select id="cc_rt" data-cc="rt">' + optList(lists.railTypes, c.rt, railLabel) + '</select></div>' +
+      (top ? '<div></div>' : '<div data-fracslot>' + numField('cc_so', 'Standoff (in)', c.so, { attrs: ' data-cc="so"' }) + '</div>') + '</div>' +
+    '<div class="g2 endpair"><div class="fld"><label for="cc_l">Left end</label><select id="cc_l" data-cc="l">' + optList(lists.ends, c.l, function(o){ return endLabel(o, c.mount); }) + '</select>' + quickEnds('Left', c.l) + '</div>' +
+      '<div class="fld"><label for="cc_r">Right end</label><select id="cc_r" data-cc="r">' + optList(lists.ends, c.r, function(o){ return endLabel(o, c.mount); }) + '</select>' + quickEnds('Right', c.r) + '</div></div>' +
+    (geo.dir[c.l] || geo.dir[c.r] ? '<div class="g2">' + (angF('l') || '<div></div>') + (angF('r') || '<div></div>') + '</div>' : '') +
+    '<div data-fracslot>' + numField('cc_len', 'Measurement (in)', c.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-cc="len"' }) + '</div>';
+  calcResult();
+}
+// same maths as the cut sheet's ENGINE: channel = measurement + both end deductions, cut into equal pieces with a 2" post between each
+function calcResult(){
+  var c = calc, out = el('calcRes'), L = parseLen(String(c.len == null ? '' : c.len));
+  if (!c.l || !c.r || !(L > 0)){ out.hidden = true; return; }
+  var m = c.mount, g = m === 'Top' ? 0 : (parseLen(String(c.so == null ? '' : c.so)) || 0);
+  var dl = chDed(c.l, m, g, c.al), dr = chDed(c.r, m, g, c.ar);
+  if (dl === null || dr === null){ out.hidden = false; out.innerHTML = '<div class="lvmiss">' + esc((dl === null ? c.l : c.r) + ' isn’t set up for ' + m + ' mount in the template.') + '</div>'; return; }
+  var W = L + dl + dr, I = railMax[String(c.rt || '')] || 46, V = Math.max(0, Math.ceil((W - I) / (I + 2) - 1e-9)), P = V + 1, each = Math.round((W - 2 * V) / P * 16) / 16;
+  var f = function(x){ return fmtFrac(Math.round(x * 16) / 16).replace(/^≈ /, ''); }, rows = [];
+  var lo = !isOpen(c.l, m), ro = !isOpen(c.r, m), s0 = -dl;
+  rows.push(['Left end · ' + c.l, lo ? f(s0 - 1) : 'open (no post)']);
+  for (var k = 1; k <= V; k++) rows.push(['Mid ' + k, f(s0 + k * each + (k - 1) * 2 + 1)]);
+  rows.push(['Right end · ' + c.r, ro ? f(L + dr + 1) : 'open (no post)']);
+  var over = L > MAX_RAIL;
+  out.hidden = false;
+  out.innerHTML = '<div class="calcsum"><b>' + V + ' mid post' + (V === 1 ? '' : 's') + '</b> · ' + P + ' channel' + (P === 1 ? '' : 's') + ' @ ' + f(each) + (V ? ' · ' + f(each + 2) + ' centre to centre' : '') + '</div>' +
+    '<table class="calctab"><thead><tr><th>Post</th><th>Centre from left end</th></tr></thead><tbody>' + rows.map(function(r){ return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') + '</tbody></table>' +
+    (over ? '<div class="lvmiss">Over ' + MAX_RAIL + '": in a job this rail would be split, which moves the posts. Split it yourself and run each piece.</div>' : '');
+}
+el('calcOpen').onclick = openCalc;
+el('calcBack').onclick = closeCalc;
+el('calc').addEventListener('click', function(e){
+  var mb = e.target.closest('[data-ccm]'); if (mb){ calc.mount = mb.getAttribute('data-ccm'); calcSave(); renderCalc(); return; }
+  var qe = e.target.closest('[data-qend]');
+  if (qe){ var sel = qe.closest('.fld').querySelector('select'); sel.value = qe.getAttribute('data-qend'); calc[sel.getAttribute('data-cc')] = sel.value; calcSave(); renderCalc(); return; }
+});
+el('calc').addEventListener('input', function(e){ var t = e.target, k = t.getAttribute('data-cc'); if (!k) return; calc[k] = t.value; calcSave(); if (t.tagName === 'SELECT') renderCalc(); else calcResult(); });
+el('calc').addEventListener('change', function(e){ var t = e.target, k = t.getAttribute('data-cc'); if (!k) return; calc[k] = t.value; calcSave(); renderCalc(); });
 
 // ---------- draft (per tablet, best effort) ----------
 var pillTimer = null;
