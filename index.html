@@ -499,7 +499,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.07-f868f5';
+var APP_VERSION = '2026.11.07-2658be';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -835,8 +835,9 @@ function numVal(v){ if (typeof v !== 'number') return v == null ? '' : v; var t 
 // the read-back under a box only shows when it adds something (96.375 -> 96 3/8"), not when it repeats what's typed
 // one-tap buttons for the end codes used most; the drop-down above still has them all
 var QUICK_ENDS = ['E', 'F', 'EC', 'ECO', 'IC', 'ICO', 'CJ', 'CJO'];
-function quickEnds(side, cur){
-  var q = QUICK_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0; }); if (!q.length) return '';
+function quickEnds(side, cur, mount){
+  // F (fascia end post) is never used on top mount, so its button goes; it's still in the drop-down
+  var q = QUICK_ENDS.filter(function(c){ return lists.ends.indexOf(c) >= 0 && !(mount === 'Top' && c === 'F'); }); if (!q.length) return '';
   return '<div class="qends" role="group" aria-label="' + side + ' end, quick pick">' + q.map(function(c){ return '<button type="button" class="qend" data-qend="' + c + '" aria-pressed="' + (String(cur) === c) + '">' + c + '</button>'; }).join('') + '</div>';
 }
 function syncQuick(sel){ var g = sel.parentNode.querySelector('.qends'); if (g) Array.prototype.forEach.call(g.querySelectorAll('[data-qend]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-qend') === sel.value)); }); }
@@ -1456,8 +1457,8 @@ function secHtml(u, i, run, j){
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
       (!run._sp && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
       (j === 2 && u.secs[0] && u.secs.length <= 3 ? '<button type="button" class="btn" data-act="same1">Same as .1, flipped</button> ' : '')   /* U decks only: gone once a 4th section is added */ + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
-    '<div class="g2 endpair"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select>' + quickEnds('Left', run.l) + '</div>' +
-      '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select>' + quickEnds('Right', run.r) + '</div></div>' +
+    '<div class="g2 endpair"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select>' + quickEnds('Left', run.l, run.ns === 'Yes' ? 'Top' : unitSetup(u).mount) + '</div>' +
+      '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select>' + quickEnds('Right', run.r, run.ns === 'Yes' ? 'Top' : unitSetup(u).mount) + '</div></div>' +
     // angled corner posts (FA, I6A, 6EPA…): ask for the angle right here instead of under More options
     (angL || angR ? '<div class="anglebox"><div class="anglehd">Angled post: enter the angle between the two rails <span>(blank = 90°)</span></div><div class="g2">' +
       (angL ? numField(id + 'al', 'Angle L (°) · ' + esc(run.l), run.al, { nofrac: true, ph: 'e.g. 135', attrs: ' data-key="al"' }) : '<div></div>') +
@@ -2901,8 +2902,8 @@ function renderCalc(){
     '<div class="fld"><label>Mount</label><div class="chips">' + MOUNTS.map(function(m){ return '<button type="button" class="chip" data-ccm="' + m + '" aria-pressed="' + (c.mount === m) + '">' + m + '</button>'; }).join('') + '</div></div>' +
     '<div class="g2"><div class="fld"><label for="cc_rt">Rail type</label><select id="cc_rt" data-cc="rt">' + optList(lists.railTypes, c.rt, railLabel) + '</select></div>' +
       (top ? '<div></div>' : '<div data-fracslot>' + numField('cc_so', 'Standoff (in)', c.so, { attrs: ' data-cc="so"' }) + '</div>') + '</div>' +
-    '<div class="g2 endpair"><div class="fld"><label for="cc_l">Left end</label><select id="cc_l" data-cc="l">' + optList(lists.ends, c.l, function(o){ return endLabel(o, c.mount); }) + '</select>' + quickEnds('Left', c.l) + '</div>' +
-      '<div class="fld"><label for="cc_r">Right end</label><select id="cc_r" data-cc="r">' + optList(lists.ends, c.r, function(o){ return endLabel(o, c.mount); }) + '</select>' + quickEnds('Right', c.r) + '</div></div>' +
+    '<div class="g2 endpair"><div class="fld"><label for="cc_l">Left end</label><select id="cc_l" data-cc="l">' + optList(lists.ends, c.l, function(o){ return endLabel(o, c.mount); }) + '</select>' + quickEnds('Left', c.l, c.mount) + '</div>' +
+      '<div class="fld"><label for="cc_r">Right end</label><select id="cc_r" data-cc="r">' + optList(lists.ends, c.r, function(o){ return endLabel(o, c.mount); }) + '</select>' + quickEnds('Right', c.r, c.mount) + '</div></div>' +
     (geo.dir[c.l] || geo.dir[c.r] ? '<div class="g2">' + (angF('l') || '<div></div>') + (angF('r') || '<div></div>') + '</div>' : '') +
     '<div data-fracslot>' + numField('cc_len', 'Measurement (in)', c.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-cc="len"' }) + '</div>';
   calcResult();
