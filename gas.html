@@ -399,6 +399,10 @@ body.hasfloors .wrap{padding-bottom:170px}
 @media (max-width:600px){.frow1{grid-template-columns:1fr 1fr}.frow1 .foo{grid-column:1/-1;order:3}.fpcols{grid-template-columns:1fr}}
 .frow1 > .fracbar{grid-column:1/-1;order:9}
 @media (max-width:600px){.fextra summary .muted{display:none}}
+.fextra summary .muted{white-space:nowrap}
+@media (min-width:601px){.fpcols{position:relative;column-gap:34px}.fpcols::before{content:"";position:absolute;top:2px;bottom:2px;left:50%;width:2px;margin-left:-1px;border-radius:2px;background:var(--line)}}
+.ftie{margin-top:8px;display:flex;flex-direction:column;gap:6px}.ftie label{font-weight:700}
+.ftiest{font-weight:900;font-size:15px}.ftiest.ok{color:var(--deep)}.ftiest.warn{color:var(--needtxt,#9a5b00)}
 </style>
 </head><body>
 
@@ -528,7 +532,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.09-524859';
+var APP_VERSION = '2026.11.09-2fb5f0';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3112,12 +3116,38 @@ function fencePosts(){
   });
   return out;
 }
-function fenceLaser(){   // shortest reading in a setup = highest spot = standard post; every other post is taller by the difference
-  var ops = fenceOps(), ps = fencePosts(), mins = {}, std = fStd('fH4');
-  ps.forEach(function(p){ var r = fNum(ops[p.i][p.f]); p.r = r; if (r !== null && !isNaN(r) && r >= 0) mins[p.g] = mins[p.g] == null ? r : Math.min(mins[p.g], r); });
-  ps.forEach(function(p){ var ok = p.r !== null && !isNaN(p.r) && p.r >= 0 && mins[p.g] != null; p.h = ok ? std + (p.r - mins[p.g]) : null; p.top = ok && Math.abs(p.r - mins[p.g]) < 1e-9; });
+// Moving the laser: a tie-in reading (from the new laser spot, read the last post of the old setup again) carries the same level
+// line on: new readings + (old reading − tie-in) are on the old setup's scale. Without a tie-in the setup is levelled on its own.
+// The shortest reading on a scale = the highest spot = standard post; every other post is taller by the difference.
+function fenceLaser(){
+  var ops = fenceOps(), ps = fencePosts(), std = fStd('fH4'), ok = function(r){ return r !== null && !isNaN(r) && r >= 0; };
+  ps.forEach(function(p){ p.r = fNum(ops[p.i][p.f]); });
+  var C = { 0: 0 }, chain = { 0: 0 }, ties = {}, ng = ps.length ? ps[ps.length - 1].g : 0;
+  for (var g = 1; g <= ng; g++){
+    var first = ps.filter(function(p){ return p.g === g; })[0], prev = ps.filter(function(p){ return p.g === g - 1 && ok(p.r); }).pop();
+    var oi = first ? first.i : -1, t = oi >= 0 ? fNum(ops[oi].lt) : null;
+    for (var j = oi; j > 0 && !ops[j].ls; j--); if (j > 0) oi = j;
+    var linked = !!(prev && ok(t));
+    ties[g] = { i: oi, prev: prev || null, t: t, linked: linked };
+    if (linked){ C[g] = C[g - 1] + (prev.r - t); chain[g] = chain[g - 1]; } else { C[g] = 0; chain[g] = chain[g - 1] + 1; }
+  }
+  var mins = {};
+  ps.forEach(function(p){ if (!ok(p.r)) return; p.R = p.r + C[p.g]; var c = chain[p.g]; mins[c] = mins[c] == null ? p.R : Math.min(mins[c], p.R); });
+  ps.forEach(function(p){ var c = chain[p.g], good = ok(p.r) && mins[c] != null; p.h = good ? std + (p.R - mins[c]) : null; p.top = good && Math.abs(p.R - mins[c]) < 1e-9; });
+  ps.ties = ties; ps.byOpen = {}; Object.keys(ties).forEach(function(g){ ps.byOpen[ties[g].i] = ties[g]; });
   return ps;
 }
+function postLbl(p, ops){ return String(ops[p.i].u || p.i + 1) + ' · ' + p.side + ' ' + p.code; }
+// the tie-in box shown where a new laser setup starts
+function tieHtml(o, i, L, idp){
+  var ops = fenceOps(), tie = L.byOpen && L.byOpen[i];
+  if (!tie) return '';
+  var prev = tie.prev, lbl = prev ? postLbl(prev, ops) : 'the last post before the move';
+  return '<div class="ftie" data-fracslot><div class="fld"><label for="' + idp + i + 'lt">Tie-in: from the new laser spot, read <b>' + esc(lbl) + '</b> again' + (prev ? ' (was ' + esc(numVal(prev.r)) + ')' : '') + '</label>' +
+    '<input id="' + idp + i + 'lt" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="lt" placeholder="Line to surface" value="' + esc(o.lt || '') + '"></div>' +
+    '<div class="ftiest ' + (tie.linked ? 'ok' : 'warn') + '" data-ftie="' + i + '">' + esc(tieTxt(tie)) + '</div></div>';
+}
+function tieTxt(tie){ return tie.linked ? '✓ Carries the same level line on from the last setup' : (tie.prev ? 'No tie-in yet: this setup is levelled on its own' : 'Read a post in the last setup first'); }
 function laserMap(){ var m = {}; fenceLaser().forEach(function(p){ m[p.k] = p; }); return m; }
 function laserOutTxt(p){ return !p || p.h == null ? '' : '→ ' + fmtFrac(p.h) + ' post' + (p.top ? ' · highest' : ''); }
 // the height a post will get: from the laser when that's on, else what was typed (blank = standard)
@@ -3134,7 +3164,7 @@ function laserListHtml(){
     var o = ops[p.i];
     if (p.i !== lastI){
       lastI = p.i;
-      if (p.i > 0) out.push('<div class="fsetup" data-fo="' + p.i + '"><button type="button" class="btn' + (o.ls ? ' on' : '') + '" aria-pressed="' + !!o.ls + '" data-fact="ls">' + (o.ls ? '✓ New laser setup from opening ' + esc(String(o.u || p.i + 1)) : '+ New laser setup from opening ' + esc(String(o.u || p.i + 1))) + '</button></div>');
+      if (p.i > 0) out.push('<div class="fsetup" data-fo="' + p.i + '"><button type="button" class="btn' + (o.ls ? ' on' : '') + '" aria-pressed="' + !!o.ls + '" data-fact="ls">' + (o.ls ? '✓ Laser moved: new setup from opening ' + esc(String(o.u || p.i + 1)) : '+ Laser moved here (new setup from opening ' + esc(String(o.u || p.i + 1)) + ')') + '</button>' + (o.ls ? tieHtml(o, p.i, L, 'fl') : '') + '</div>');
       else out.push('<div class="fsetup"><b>Laser setup 1</b></div>');
     }
     out.push('<div class="lvrow" data-fo="' + p.i + '"><div class="lvlbl"><b>' + esc(String(o.u || p.i + 1)) + ' · ' + p.side + '</b> ' + esc(p.code) + '</div>' +
@@ -3142,13 +3172,14 @@ function laserListHtml(){
       '<div class="lvout" data-flout="' + p.k + '">' + esc(laserOutTxt(p)) + '</div></div>');
   });
   return '<div class="card"><h3>Laser readings · ' + done + ' of ' + L.length + ' posts</h3>' +
-    '<div class="stephint">Tape from the laser line down to the surface at every post, in order. The shortest reading in each laser setup is the highest spot and gets the ' + numVal(fStd('fH4')) + '" post; the rest are taller by the difference. When you move the laser, tap "New laser setup" at that opening.</div>' +
+    '<div class="stephint">Tape from the laser line down to the surface at every post, in order. The shortest reading is the highest spot and gets the ' + numVal(fStd('fH4')) + '" post; the rest are taller by the difference. Moving the laser: tap "Laser moved here" at the next opening, then from the new spot read the last post again (the tie-in) so the level line carries on.</div>' +
     (L.length ? out.join('') : '<div class="stephint">No posts yet: add openings first.</div>') + '</div>';
 }
 function updLaserOuts(){
   var L = fenceLaser(), done = 0;
   L.forEach(function(p){ if (p.h != null) done++; Array.prototype.forEach.call(el('fence').querySelectorAll('[data-flout="' + p.k + '"]'), function(s){ s.textContent = laserOutTxt(p); }); });
   var h = el('fence').querySelector('.card h3'); if (fenceView === 'laser' && h) h.textContent = 'Laser readings · ' + done + ' of ' + L.length + ' posts';
+  Object.keys(L.ties || {}).forEach(function(g){ var tie = L.ties[g]; Array.prototype.forEach.call(el('fence').querySelectorAll('[data-ftie="' + tie.i + '"]'), function(s){ s.textContent = tieTxt(tie); s.className = 'ftiest ' + (tie.linked ? 'ok' : 'warn'); }); });
   var vb = el('fence').querySelector('[data-fview="laser"]'); if (vb) vb.textContent = 'Laser readings · ' + done + '/' + L.length;
 }
 function postTag(code, ht){ return code === 'Open' ? 'Open' : code + (String(ht || '').trim() ? ' ' + fmtFrac(parseLen(String(ht))) : ''); }
@@ -3212,11 +3243,11 @@ function openingHtml(o, i){
     '<div class="conf" data-fconf>' + fConfHtml(o) + '</div>' +
     '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
-    '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · step · notes' : 'Post heights · step · notes') + (extra ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
+    '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · step · notes' : 'Post heights · step · notes') + (extra || LM ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
       (!LM ? '<div class="g2" data-fracslot>' +
         (o.lp !== 'Open' ? numField(id + 'lh', 'Left post height (in)', o.lh, { ph: std, attrs: ' data-ff="lh"' }) : '<div class="stephint">Left: Open (no post)</div>') +
         (o.rp !== 'Open' ? numField(id + 'rh', 'Right post height (in)', o.rh, { ph: std, attrs: ' data-ff="rh"' }) : '<div class="stephint">Right: Open (no post)</div>') + '</div>' : '') +
-      (LM && i > 0 ? '<label class="chk" for="' + id + 'ls"><input type="checkbox" id="' + id + 'ls" data-ff="ls"' + (o.ls ? ' checked' : '') + '>New laser setup starts at this opening</label>' : '') +
+      (LM && i > 0 ? '<label class="chk" for="' + id + 'ls"><input type="checkbox" id="' + id + 'ls" data-ff="ls"' + (o.ls ? ' checked' : '') + '>Laser moved: new setup starts at this opening</label>' + (o.ls ? tieHtml(o, i, fenceLaser(), 'f') : '') : '') +
       '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-ff="stepon"' + (o.stepon ? ' checked' : '') + '>Steps up or down at the right post</label>' +
       (o.stepon ? '<div class="stepdir">' + ['up', 'down'].map(function(d){ var on = (o.sd || 'up') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fact="sd" data-v="' + d + '">' + (d === 'up' ? '▲ Up' : '▼ Down') + '</button>'; }).join('') + '</div>' +
         '<div class="g2" data-fracslot>' + numField(id + 'st', 'Step height (in)', o.st, { ph: 'e.g. 4', attrs: ' data-ff="st"' }) + '<div></div></div>' : '') +
@@ -3252,7 +3283,7 @@ el('fence').addEventListener('input', function(e){
   p.o[k] = t.value;
   if (t.hasAttribute('data-frac')) showHint(t);
   if (k === 'oo'){ p.o.ok = false; var cb = p.card.querySelector('[data-fconf]'); if (cb) cb.innerHTML = fConfHtml(p.o); }
-  if (k === 'lr' || k === 'rr') updLaserOuts();
+  if (k === 'lr' || k === 'rr' || k === 'lt') updLaserOuts();
   updFres(p); changed();
 });
 el('fence').addEventListener('change', function(e){
@@ -3343,10 +3374,10 @@ function buildFenceBlob(ops){
         var v = o ? { A: /^\d+$/.test(u) ? +u : u, B: num(o.oo), C: o.gate ? 'Yes' : '', D: o.lp, E: o.lp === 'Open' ? '' : num(postHt(o, all.indexOf(o), 'l', LM)), F: o.rp, G: o.rp === 'Open' ? '' : num(postHt(o, all.indexOf(o), 'r', LM)),
           H: st > 0 ? r6(o.sd === 'down' ? -st : st) : '', I: String(o.notes || '').trim() } : {};
         // laser readings kept beside the openings (K, L) with setup breaks (M), so the job reopens ready to carry on; the sheet's maths never reads them
-        if (o && LM){ v.K = o.lp === 'Open' ? '' : num(o.lr); v.L = o.rp === 'Open' ? '' : num(o.rr); v.M = o.ls && i > 0 ? 'New setup' : ''; }
-        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M'].forEach(function(c){ xml = writeCell(xml, c + row, v[c] == null ? '' : v[c]); });
+        if (o && LM){ v.K = o.lp === 'Open' ? '' : num(o.lr); v.L = o.rp === 'Open' ? '' : num(o.rr); v.M = o.ls && i > 0 ? 'New setup' : ''; v.N = o.ls && i > 0 ? num(o.lt) : ''; }
+        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N'].forEach(function(c){ xml = writeCell(xml, c + row, v[c] == null ? '' : v[c]); });
       }
-      [['K19', 'Laser reading L'], ['L19', 'Laser reading R'], ['M19', 'Laser setup']].forEach(function(x){ xml = writeCell(xml, x[0], LM ? x[1] : ''); });
+      [['K19', 'Laser reading L'], ['L19', 'Laser reading R'], ['M19', 'Laser setup'], ['N19', 'Laser tie-in']].forEach(function(x){ xml = writeCell(xml, x[0], LM ? x[1] : ''); });
       z.file(path, xml, { createFolders: false });
       if (/<calcPr\b[^>]*fullCalcOnLoad=/.test(wb)) wb = wb.replace(/fullCalcOnLoad="[^"]*"/, 'fullCalcOnLoad="1"');
       else if (/<calcPr\b/.test(wb)) wb = wb.replace(/<calcPr\b/, '<calcPr fullCalcOnLoad="1"');
@@ -3365,7 +3396,7 @@ function fenceFromSheet(xml){
     var A = rv('A' + r), B = rv('B' + r); if (A === '' && B === '') continue;
     var H = readCell(xml, 'H' + r), D = rv('D' + r) || 'Open', F = rv('F' + r) || 'Open';
     h.fops.push({ u: A, oo: B, ok: B !== '', gate: /^yes$/i.test(rv('C' + r)), lp: D, lh: D === 'Open' ? '' : rv('E' + r), rp: F, rh: F === 'Open' ? '' : rv('G' + r),
-      lr: rv('K' + r), rr: rv('L' + r), ls: /new setup/i.test(rv('M' + r)), stepon: typeof H === 'number' && H !== 0, st: typeof H === 'number' && H !== 0 ? numVal(Math.abs(H)) : '', sd: typeof H === 'number' && H < 0 ? 'down' : 'up', notes: rv('I' + r), _open: false, _dp: false });
+      lr: rv('K' + r), rr: rv('L' + r), ls: /new setup/i.test(rv('M' + r)), lt: rv('N' + r), stepon: typeof H === 'number' && H !== 0, st: typeof H === 'number' && H !== 0 ? numVal(Math.abs(H)) : '', sd: typeof H === 'number' && H < 0 ? 'down' : 'up', notes: rv('I' + r), _open: false, _dp: false });
   }
   if (h.fops.some(function(o){ return o.lr !== '' || o.rr !== ''; })) h.fLaser = true;
   return h;
