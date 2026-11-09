@@ -416,6 +416,11 @@ body.hasfloors .wrap{padding-bottom:170px}
 .ptypes{grid-template-columns:repeat(3,1fr)}.flz.big input{min-height:60px;font-size:24px}.flz.big .lvout{font-size:18px}
 @media (max-width:600px){.prow{grid-template-columns:1fr 1fr}.prow > .fld:last-child{grid-column:1/-1}}
 .stepdir .btn{white-space:normal;line-height:1.2}
+.sentlist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:320px;overflow:auto}
+.sentlist li{display:flex;gap:12px;align-items:baseline;padding:8px 10px;border-radius:12px;background:var(--tint)}
+.sentlist .tm{font-weight:900;color:var(--muted);min-width:72px;font-variant-numeric:tabular-nums}.sentlist .nm{font-weight:800;color:var(--deep)}.sentlist em{font-weight:700;color:var(--muted);font-style:normal}
+.dot.idle{background:var(--line)}
+.sentcard .dot.ok{background:var(--accent)}
 </style>
 </head><body>
 
@@ -473,6 +478,14 @@ body.hasfloors .wrap{padding-bottom:170px}
         <div class="t"><b id="obName">Nothing waiting</b><span id="obInfo">Everything you’ve saved is in Drive.</span></div>
         <button type="button" class="btn" id="obBtn" style="min-height:56px;font-size:18px">Open</button>
       </div>
+    </div>
+    <div class="resume sentcard" id="sentCard">
+      <div class="eyebrow">Sent today</div>
+      <div class="row">
+        <span class="dot idle" id="sentDot"></span>
+        <div class="t"><b id="sentName">Nothing sent yet today</b><span>Each sheet shows here once Drive has it. Starts fresh every morning.</span></div>
+      </div>
+      <ul class="sentlist" id="sentList" hidden></ul>
     </div>
     <div class="note">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;color:var(--accent)"><path d="M20 6 9 17l-5-5"/></svg>
@@ -545,7 +558,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.09-539539';
+var APP_VERSION = '2026.11.09-7cee5f';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2839,6 +2852,7 @@ function flushOutbox(){
 }
 var outboxTimer = null;
 function updOutbox(){
+  updSentToday();
   outboxList().then(function(items){
     var b = el('outbox'); if (!b) return;
     b.hidden = !items.length;
@@ -2864,7 +2878,20 @@ el('verText').textContent = 'Version ' + APP_VERSION;
 el('verBtn').onclick = function(){ checkUpdates(); };
 // ---------- outbox view: what's waiting on this tablet, and what went to Drive lately ----------
 function logSent(name, info, fromOutbox){
-  kvGet('sent-log').then(function(a){ a = Array.isArray(a) ? a : []; a.unshift({ name: name, info: info || name, t: Date.now(), late: !!fromOutbox }); return kvSet('sent-log', a.slice(0, 15)); });
+  kvGet('sent-log').then(function(a){ a = Array.isArray(a) ? a : []; a.unshift({ name: name, info: info || name, t: Date.now(), late: !!fromOutbox }); return kvSet('sent-log', a.slice(0, 60)); }).then(updSentToday, updSentToday);
+}
+// "Sent today" on the start page: every sheet Drive confirmed today, newest first. A new day starts empty.
+function updSentToday(){
+  var card = el('sentCard'); if (!card) return;
+  kvGet('sent-log').then(function(a){
+    var today = new Date().toDateString(), list = (Array.isArray(a) ? a : []).filter(function(x){ return new Date(x.t).toDateString() === today; });
+    el('sentName').textContent = list.length ? list.length + ' sent to Drive today' : 'Nothing sent yet today';
+    el('sentDot').className = 'dot ' + (list.length ? 'ok' : 'idle');
+    el('sentList').innerHTML = list.map(function(x){
+      return '<li><span class="tm">' + esc(new Date(x.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) + '</span><span class="nm">✓ ' + esc(x.info || x.name) + (x.late ? ' <em>(from the outbox)</em>' : '') + '</span></li>';
+    }).join('');
+    el('sentList').hidden = !list.length;
+  }, function(){});
 }
 function whenTxt(t){
   var d = new Date(t), now = new Date(), tm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
