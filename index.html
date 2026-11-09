@@ -517,7 +517,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.08-2f929e';
+var APP_VERSION = '2026.11.09-c79668';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3270,7 +3270,7 @@ el('addOpening').onclick = function(){
 function fenceSheets(errs){
   if (MOUNTS.indexOf(String(header.B7 || '')) < 0) errs.push('Pick the mount (Job Info)');
   if (!FENCE_PUNCH[String(header.fB9 || '')]) errs.push('Pick the picket size (Job Info)');
-  Object.keys(FENCE_STD).forEach(function(k){ if (isNaN(fStd(k))) errs.push('Check the ' + ({ fH4: 'standard post height', fH5: 'panel deduction', fH6: 'gate deduction', fH9: 'bottom channel block', fH10: 'top channel block', fH11: 'channel height' })[k] + ' (Job Info)'); });
+  Object.keys(FENCE_STD).forEach(function(k){ if (isNaN(fStd(k))) errs.push('Check the ' + ({ fH4: 'post height', fH5: 'post size', fH6: 'gate deduction', fH9: 'top channel block', fH10: 'bottom channel block', fH11: 'channel height' })[k] + ' (Job Info)'); });
   var ops = fenceOps().filter(function(o){ return String(o.oo || '').trim() !== '' || String(o.notes || '').trim() !== ''; }), seen = {};
   ops.forEach(function(o, k){
     var u = String(o.u || '').trim(), who = 'Opening ' + (u || '#' + (k + 1));
