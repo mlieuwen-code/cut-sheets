@@ -545,7 +545,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.09-93fa0c';
+var APP_VERSION = '2026.11.09-c77f19';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3234,7 +3234,6 @@ function fenceSetupHtml(colourOpts, col, isOther){
   return '<div class="card"><h3>Fence setup</h3>' +
       '<div class="fpick">' + chips('fTop', 'Fence type', ['Channel', 'Top rail', 'Posts'], ['Open top', 'Top rail (between posts)', 'Posts only']) + '</div>' +
       (fTopRail() ? '<div class="ftopprof">' + chips('fTopProf', 'Top rail', FENCE_PROFS, FENCE_TOPS.slice(1)) + '</div>' : '') +
-      '<div class="g2">' + tf('h_fB5', 'Customer', 'fB5', 'e.g. Astoria') + tf('h_fB6', 'P.O. #', 'fB6', '') + '</div>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
         '<input id="h_B6o" type="text" autocomplete="off" aria-label="Other colour" placeholder="Type the colour" value="' + esc(isOther ? col : '') + '"' + (isOther ? '' : ' hidden') + ' style="margin-top:4px;border-color:var(--need);background:var(--needbg)"></div><div></div></div>' +
       chips('B7', 'Mount', MOUNTS, null, MOUNT_COLOR) +
