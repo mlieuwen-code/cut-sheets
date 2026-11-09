@@ -395,7 +395,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .flz .lvout{min-width:0;flex-basis:100%;text-align:left;font-size:15px}
 .flz > .fracbar{flex-basis:100%}
 .fextra summary .muted{color:var(--muted);font-weight:700}
-.facts{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+.facts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 @media (max-width:600px){.frow1{grid-template-columns:1fr 1fr}.frow1 .foo{grid-column:1/-1;order:3}.fpcols{grid-template-columns:1fr}}
 .frow1 > .fracbar{grid-column:1/-1;order:9}
 @media (max-width:600px){.fextra summary .muted{display:none}}
@@ -528,7 +528,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.09-3043b7';
+var APP_VERSION = '2026.11.09-524859';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3188,6 +3188,13 @@ function postCol(o, i, side, LM){
     (o[pk] !== 'Open' && LM ? '<div class="flz"><input id="f' + i + f + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="' + f + '" placeholder="Laser: line to surface" value="' + esc(o[f] || '') + '" aria-label="' + (side === 'l' ? 'Left' : 'Right') + ' post laser reading">' +
       '<div class="lvout" data-flout="' + k + '">' + esc(laserOutTxt(LM[k])) + '</div></div>' : '') + '</div>';
 }
+// the railing read-back: once an O-O is typed, a box asks to check it against the tape before it counts
+function fConfHtml(o){
+  var raw = String(o.oo == null ? '' : o.oo).trim(); if (!raw || o.ok) return '';
+  var v = parseLen(raw); if (v === null || isNaN(v) || !(v > 0)) return '';
+  return '<div class="confbox"><div class="t"><div class="q">Read it back. Does this match the tape?</div><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><span class="big">' + esc(fmtFrac(v) + ' O-O' + (o.gate ? ' · Gate' : '')) + '</span></div>' +
+    lenWarn(raw, v).map(function(x){ return '<div class="warn">' + esc(x) + '</div>'; }).join('') + '</div><button type="button" class="btn pri" data-fact="ok">' + CHECK + 'Confirm</button></div>';
+}
 function openingHtml(o, i){
   var LM = fLaserOn() ? laserMap() : null;
   var id = 'f' + i;
@@ -3202,6 +3209,7 @@ function openingHtml(o, i){
     '<div class="frow1"><div class="fld fnum"><label for="' + id + 'u">Opening</label><input id="' + id + 'u" type="text" autocomplete="off" data-ff="u" value="' + esc(o.u) + '"></div>' +
       '<div class="foo" data-fracslot>' + numField(id + 'oo', 'O-O (in)', o.oo, { cls: 'meas', ph: '65 then tap 3/8', attrs: ' data-ff="oo"' }) + '</div>' +
       '<label class="chk fgatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-ff="gate"' + (o.gate ? ' checked' : '') + '>Gate</label></div>' +
+    '<div class="conf" data-fconf>' + fConfHtml(o) + '</div>' +
     '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
     '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · step · notes' : 'Post heights · step · notes') + (extra ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
@@ -3215,7 +3223,7 @@ function openingHtml(o, i){
       '<div class="fld"><label for="' + id + 'n">Notes</label><input id="' + id + 'n" type="text" autocomplete="off" data-ff="notes" value="' + esc(o.notes) + '"></div>' +
     '</div></details>' +
     '<div class="facts">' +
-      '<button type="button" class="btn pri big" data-fact="ok"' + (rb ? '' : ' disabled') + '>' + (o.ok ? '✓ Done' : 'Confirm ' + esc(rb || 'O-O')) + '</button>' +
+      '<button type="button" class="btn ghost" data-fact="done">Done</button>' +
       '<button type="button" class="btn" data-fact="copy">Copy</button>' +
       '<button type="button" class="btn danger" data-fact="del">Delete</button>' +
     '</div></div>';
@@ -3243,7 +3251,7 @@ el('fence').addEventListener('input', function(e){
   var t = e.target, p = fenceAt(t), k = t.getAttribute('data-ff'); if (!p || !k || t.type === 'checkbox') return;
   p.o[k] = t.value;
   if (t.hasAttribute('data-frac')) showHint(t);
-  if (k === 'oo'){ p.o.ok = false; var b = p.card.querySelector('[data-fact="ok"]'), v = fNum(t.value); if (b){ b.disabled = !(v > 0); b.textContent = 'Confirm ' + (v > 0 ? fmtFrac(v) : 'O-O'); } }
+  if (k === 'oo'){ p.o.ok = false; var cb = p.card.querySelector('[data-fconf]'); if (cb) cb.innerHTML = fConfHtml(p.o); }
   if (k === 'lr' || k === 'rr') updLaserOuts();
   updFres(p); changed();
 });
@@ -3271,7 +3279,8 @@ el('fence').addEventListener('click', function(e){
   if (a === 'pmore'){ o._more = o._more || {}; o._more[b.getAttribute('data-v')] = true; renderFence(); return; }
   if (a === 'ls'){ o.ls = !o.ls; renderFence(); changed(); return; }
   if (a === 'sd'){ o.sd = b.getAttribute('data-v'); renderFence(); changed(); return; }
-  if (a === 'ok'){ if (!(fNum(o.oo) > 0)) return; o.ok = true; o._open = false; renderFence(); changed(); return; }
+  if (a === 'done'){ o._open = false; if (!o.ok && fNum(o.oo) > 0){ renderFence(); var cf = el('fence').querySelector('[data-fo="' + p.i + '"] [data-fconf] .confbox'); if (cf) cf.scrollIntoView({ block: 'center' }); return; } renderFence(); return; }
+  if (a === 'ok'){ if (!(fNum(o.oo) > 0)) return; o.ok = true; o._open = true; renderFence(); changed(); return; }   // stays open for the posts; Done or + New opening folds it
   if (a === 'copy'){
     var c2 = JSON.parse(JSON.stringify(o)); delete c2._more; c2.u = nextOpeningNum(o.u) + (o.gate ? '-G' : ''); if (c2.u === (o.gate ? '-G' : '')) c2.u = '';
     ops.forEach(function(x){ if (x.ok) x._open = false; }); c2._open = true; ops.splice(p.i + 1, 0, c2);
