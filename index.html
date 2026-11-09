@@ -389,6 +389,24 @@ body.hasfloors .wrap{padding-bottom:170px}
 #fence .lvrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 190px}
 @media (max-width:600px){#fence .lvrow{grid-template-columns:minmax(0,1fr) auto}}
 @media (max-width:600px){.lvrow > .fracbar{order:4}}
+/* fence card, streamlined */
+.fop.card{gap:12px}
+.frow1{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;align-items:end}
+.frow1 .fgatechk{margin:0 0 10px}
+.fpcols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.fpcol .lbl{font-weight:900;margin-bottom:6px}
+.fpcols .fposts{grid-template-columns:repeat(3,1fr);gap:6px}
+.fpcols .qend{min-height:48px;font-size:15px;padding:4px}
+.fmore{color:var(--muted)}
+.flz{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.flz input{flex:1 1 140px;min-width:0;min-height:48px;font-size:17px;font-weight:800;text-align:center;border:2px solid var(--line);border-radius:12px;background:var(--field)}
+.flz .lvout{min-width:0;flex-basis:100%;text-align:left;font-size:15px}
+.flz > .fracbar{flex-basis:100%}
+.fextra summary .muted{color:var(--muted);font-weight:700}
+.facts{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+@media (max-width:600px){.frow1{grid-template-columns:1fr 1fr}.frow1 .foo{grid-column:1/-1;order:3}.fpcols{grid-template-columns:1fr}}
+.frow1 > .fracbar{grid-column:1/-1;order:9}
+@media (max-width:600px){.fextra summary .muted{display:none}}
 </style>
 </head><body>
 
@@ -479,6 +497,7 @@ body.hasfloors .wrap{padding-bottom:170px}
       <div id="units" class="stack"></div>
       <div id="fence" class="stack" hidden></div>
       <button type="button" class="btn big" id="addOpening" style="background:var(--chip2)" hidden>+ New opening</button>
+      <button type="button" class="btn big pri" id="laserGo" hidden>Next: laser post heights ›</button>
       <button type="button" class="btn big" id="addUnit" style="background:var(--chip2)">+ New unit</button>
     </div>
   </section>
@@ -517,7 +536,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.09-c79668';
+var APP_VERSION = '2026.11.09-3043b7';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1600,7 +1619,7 @@ function addButtons(u){
 }
 function renderRuns(){
   parkFrac();
-  var fz = isFence(); el('units').hidden = fz; el('addUnit').hidden = fz; el('fence').hidden = !fz; el('addOpening').hidden = !fz; el('unitsWord').textContent = fz ? 'Openings' : 'Units';
+  var fz = isFence(); el('units').hidden = fz; el('addUnit').hidden = fz; el('fence').hidden = !fz; el('addOpening').hidden = !fz; el('laserGo').hidden = true; el('unitsWord').textContent = fz ? 'Openings' : 'Units';
   if (fz) return renderFence();
   units.forEach(resplitUnit);
   el('units').innerHTML = units.map(unitHtml).join('');
@@ -3163,38 +3182,49 @@ function fenceSetupHtml(colourOpts, col, isOther){
       '<div class="stephint">Blocks are measured from the top of the post down to each channel and are the same on every post, so the channels stay level. A taller post just leaves more post under the bottom channel. A gate uses the gate deduction instead of the post size. Leave a box empty for the standard.</div>' +
     '</div></details>';
 }
-function postChips(i, side, cur){
-  return '<div class="qends fposts" role="group" aria-label="' + (side === 'lp' ? 'Left' : 'Right') + ' post">' + FENCE_POSTS.map(function(c){
-    return '<button type="button" class="qend" data-fpost="' + side + '" data-val="' + esc(c) + '" aria-pressed="' + (cur === c) + '">' + esc(c) + '</button>'; }).join('') + '</div>';
+var FENCE_QUICK = ['Open', 'End', 'Mid', 'Cor', 'Float E'];   // the common ones; "More" shows the rest
+function postChips(i, side, cur, more){
+  var all = more || FENCE_QUICK.indexOf(cur) < 0, list = all ? FENCE_POSTS : FENCE_QUICK;
+  return '<div class="qends fposts" role="group" aria-label="' + (side === 'lp' ? 'Left' : 'Right') + ' post">' + list.map(function(c){
+    return '<button type="button" class="qend" data-fpost="' + side + '" data-val="' + esc(c) + '" aria-pressed="' + (cur === c) + '">' + esc(c) + '</button>'; }).join('') +
+    (all ? '' : '<button type="button" class="qend fmore" data-fact="pmore" data-v="' + side + '">More…</button>') + '</div>';
+}
+// one post column: its buttons, and (laser on) the reading box with the height it works out to
+function postCol(o, i, side, LM){
+  var pk = side === 'l' ? 'lp' : 'rp', f = side === 'l' ? 'lr' : 'rr', k = i + ':' + side;
+  return '<div class="fpcol"><div class="lbl">' + (side === 'l' ? 'Left post' : 'Right post') + '</div>' + postChips(i, pk, o[pk], o._more && o._more[pk]) +
+    (o[pk] !== 'Open' && LM ? '<div class="flz"><input id="f' + i + f + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="' + f + '" placeholder="Laser: line to surface" value="' + esc(o[f] || '') + '" aria-label="' + (side === 'l' ? 'Left' : 'Right') + ' post laser reading">' +
+      '<div class="lvout" data-flout="' + k + '">' + esc(laserOutTxt(LM[k])) + '</div></div>' : '') + '</div>';
 }
 function openingHtml(o, i){
   var LM = fLaserOn() ? laserMap() : null;
-  var id = 'f' + i, who = 'Opening ' + (String(o.u || '').trim() || (i + 1));
+  var id = 'f' + i;
   if (o.ok && !o._open){
     return '<button type="button" class="secrow fop" data-fo="' + i + '" data-fact="open"><span class="lab">' + esc(String(o.u || '?')) + (o.gate ? ' <em class="fgate">Gate</em>' : '') + '</span>' +
       '<span class="ends">' + esc(postTag(o.lp, postHt(o, i, 'l', LM)) + ' → ' + postTag(o.rp, postHt(o, i, 'r', LM))) + (stepTxtF(o) ? ' · ' + esc(stepTxtF(o)) : '') + '</span>' +
       '<span class="len">' + esc(fmtFrac(parseLen(String(o.oo)))) + '</span><span class="fsum">' + esc(fenceResTxt(o).replace(/^Channel /, '')) + '</span></button>';
   }
-  var oo = fNum(o.oo), rb = oo > 0 ? fmtFrac(oo) : '';
+  var oo = fNum(o.oo), rb = oo > 0 ? fmtFrac(oo) : '', std = 'Std ' + numVal(fStd('fH4'));
+  var extra = !!(String(o.lh || '').trim() || String(o.rh || '').trim() || o.stepon || String(o.notes || '').trim() || o.ls);
   return '<div class="card fop" data-fo="' + i + '">' +
-    '<div class="g2"><div class="fld"><label for="' + id + 'u">Opening #</label><input id="' + id + 'u" type="text" autocomplete="off" data-ff="u" value="' + esc(o.u) + '"></div>' +
-      '<div data-fracslot>' + numField(id + 'oo', 'O-O (in)', o.oo, { cls: 'meas', ph: '65 then tap 3/8', attrs: ' data-ff="oo"' }) + '</div></div>' +
-    '<label class="chk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-ff="gate"' + (o.gate ? ' checked' : '') + '>Gate</label>' +
-    '<div class="fld"><div class="lbl">Left post</div>' + postChips(i, 'lp', o.lp) + '</div>' +
-    (o.lp !== 'Open' && fLaserOn() ? laserField(o, i, 'l', LM) : '') +
-    (o.lp !== 'Open' && !fLaserOn() ? '<div class="g2" data-fracslot>' + numField(id + 'lh', 'Left post height (in)', o.lh, { ph: 'Std ' + numVal(fStd('fH4')), attrs: ' data-ff="lh"' }) + '<div></div></div>' : '') + (o.lp === 'Open' ? '<div class="stephint">Open: no post here, the opening before owns it.</div>' : '') +
-    '<div class="fld"><div class="lbl">Right post</div>' + postChips(i, 'rp', o.rp) + '</div>' +
-    (o.rp !== 'Open' && fLaserOn() ? laserField(o, i, 'r', LM) : '') +
-    (o.rp !== 'Open' && !fLaserOn() ? '<div class="g2" data-fracslot>' + numField(id + 'rh', 'Right post height (in)', o.rh, { ph: 'Std ' + numVal(fStd('fH4')), attrs: ' data-ff="rh"' }) + '<div></div></div>' : '') + (o.rp === 'Open' ? '<div class="stephint">Open: no post here, the next opening owns it.</div>' : '') +
-    (fLaserOn() && i > 0 ? '<label class="chk" for="' + id + 'ls"><input type="checkbox" id="' + id + 'ls" data-ff="ls"' + (o.ls ? ' checked' : '') + '>New laser setup starts at this opening</label>' : '') +
-    '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-ff="stepon"' + (o.stepon ? ' checked' : '') + '>Steps up or down at the right post</label>' +
-    (o.stepon ? '<div class="stepdir">' + ['up', 'down'].map(function(d){ var on = (o.sd || 'up') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fact="sd" data-v="' + d + '">' + (d === 'up' ? '▲ Up' : '▼ Down') + '</button>'; }).join('') + '</div>' +
-      '<div class="g2" data-fracslot>' + numField(id + 'st', 'Step height (in)', o.st, { ph: 'e.g. 4', attrs: ' data-ff="st"' }) + '<div></div></div>' : '') +
-    '<div class="fld"><label for="' + id + 'n">Notes</label><input id="' + id + 'n" type="text" autocomplete="off" data-ff="notes" value="' + esc(o.notes) + '"></div>' +
+    '<div class="frow1"><div class="fld fnum"><label for="' + id + 'u">Opening</label><input id="' + id + 'u" type="text" autocomplete="off" data-ff="u" value="' + esc(o.u) + '"></div>' +
+      '<div class="foo" data-fracslot>' + numField(id + 'oo', 'O-O (in)', o.oo, { cls: 'meas', ph: '65 then tap 3/8', attrs: ' data-ff="oo"' }) + '</div>' +
+      '<label class="chk fgatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-ff="gate"' + (o.gate ? ' checked' : '') + '>Gate</label></div>' +
+    '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
-    '<div class="uacts">' +
-      '<button type="button" class="btn pri" data-fact="ok"' + (rb ? '' : ' disabled') + '>' + (o.ok ? '✓ Done' : 'Confirm ' + esc(rb || 'O-O')) + '</button>' +
-      '<button type="button" class="btn" data-fact="copy">Copy opening</button>' +
+    '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · step · notes' : 'Post heights · step · notes') + (extra ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
+      (!LM ? '<div class="g2" data-fracslot>' +
+        (o.lp !== 'Open' ? numField(id + 'lh', 'Left post height (in)', o.lh, { ph: std, attrs: ' data-ff="lh"' }) : '<div class="stephint">Left: Open (no post)</div>') +
+        (o.rp !== 'Open' ? numField(id + 'rh', 'Right post height (in)', o.rh, { ph: std, attrs: ' data-ff="rh"' }) : '<div class="stephint">Right: Open (no post)</div>') + '</div>' : '') +
+      (LM && i > 0 ? '<label class="chk" for="' + id + 'ls"><input type="checkbox" id="' + id + 'ls" data-ff="ls"' + (o.ls ? ' checked' : '') + '>New laser setup starts at this opening</label>' : '') +
+      '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-ff="stepon"' + (o.stepon ? ' checked' : '') + '>Steps up or down at the right post</label>' +
+      (o.stepon ? '<div class="stepdir">' + ['up', 'down'].map(function(d){ var on = (o.sd || 'up') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fact="sd" data-v="' + d + '">' + (d === 'up' ? '▲ Up' : '▼ Down') + '</button>'; }).join('') + '</div>' +
+        '<div class="g2" data-fracslot>' + numField(id + 'st', 'Step height (in)', o.st, { ph: 'e.g. 4', attrs: ' data-ff="st"' }) + '<div></div></div>' : '') +
+      '<div class="fld"><label for="' + id + 'n">Notes</label><input id="' + id + 'n" type="text" autocomplete="off" data-ff="notes" value="' + esc(o.notes) + '"></div>' +
+    '</div></details>' +
+    '<div class="facts">' +
+      '<button type="button" class="btn pri big" data-fact="ok"' + (rb ? '' : ' disabled') + '>' + (o.ok ? '✓ Done' : 'Confirm ' + esc(rb || 'O-O')) + '</button>' +
+      '<button type="button" class="btn" data-fact="copy">Copy</button>' +
       '<button type="button" class="btn danger" data-fact="del">Delete</button>' +
     '</div></div>';
 }
@@ -3205,6 +3235,8 @@ function renderFence(){
   var L = fLaserOn() ? fenceLaser() : [], dn = L.filter(function(p){ return p.h != null; }).length;
   var sw = fLaserOn() ? '<div class="stepdir fview">' + [['ops', 'Openings'], ['laser', 'Laser readings · ' + dn + '/' + L.length]].map(function(v){ var on = fenceView === v[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fview="' + v[0] + '">' + v[1] + '</button>'; }).join('') + '</div>' : '';
   el('addOpening').hidden = fenceView === 'laser';
+  var lg = el('laserGo'); lg.hidden = fenceView === 'laser' || !ops.some(function(o){ return fNum(o.oo) > 0; });
+  lg.textContent = fLaserOn() ? 'Laser readings · ' + dn + ' of ' + L.length + ' posts ›' : 'Next: laser post heights ›';
   el('fence').innerHTML = sw + '<div class="fhead">' + esc(fenceTotals(ops)) + '</div>' + (fenceView === 'laser' ? laserListHtml() : ops.map(openingHtml).join(''));
   el('unitCount').textContent = ops.length;
 }
@@ -3244,11 +3276,12 @@ el('fence').addEventListener('click', function(e){
   if (b.hasAttribute('data-fpost')){ o[b.getAttribute('data-fpost')] = b.getAttribute('data-val'); o._dp = false; renderFence(); changed(); return; }
   var a = b.getAttribute('data-fact');
   if (a === 'open'){ ops.forEach(function(x){ if (x.ok) x._open = false; }); o._open = true; renderFence(); var c = el('fence').querySelector('[data-fo="' + p.i + '"]'); if (c) c.scrollIntoView({ block: 'center' }); return; }
+  if (a === 'pmore'){ o._more = o._more || {}; o._more[b.getAttribute('data-v')] = true; renderFence(); return; }
   if (a === 'ls'){ o.ls = !o.ls; renderFence(); changed(); return; }
   if (a === 'sd'){ o.sd = b.getAttribute('data-v'); renderFence(); changed(); return; }
   if (a === 'ok'){ if (!(fNum(o.oo) > 0)) return; o.ok = true; o._open = false; renderFence(); changed(); return; }
   if (a === 'copy'){
-    var c2 = JSON.parse(JSON.stringify(o)); c2.u = nextOpeningNum(o.u) + (o.gate ? '-G' : ''); if (c2.u === (o.gate ? '-G' : '')) c2.u = '';
+    var c2 = JSON.parse(JSON.stringify(o)); delete c2._more; c2.u = nextOpeningNum(o.u) + (o.gate ? '-G' : ''); if (c2.u === (o.gate ? '-G' : '')) c2.u = '';
     ops.forEach(function(x){ if (x.ok) x._open = false; }); c2._open = true; ops.splice(p.i + 1, 0, c2);
     renderFence(); changed(); var f = el('f' + (p.i + 1) + 'oo'); if (f) f.focus(); return;
   }
@@ -3261,6 +3294,10 @@ document.addEventListener('change', function(e){
   if (!e.target || e.target.id !== 'h_fLaser') return;
   header.fLaser = e.target.checked; if (!header.fLaser) fenceView = 'ops'; changed();
 });
+el('laserGo').onclick = function(){
+  if (!fLaserOn()){ header.fLaser = true; changed(); }
+  fenceView = 'laser'; renderFence(); window.scrollTo(0, 0);
+};
 el('addOpening').onclick = function(){
   var ops = fenceOps(); ops.forEach(function(x){ if (x.ok) x._open = false; });
   ops.push(blankOpening(ops[ops.length - 1] || null)); renderFence(); changed();
