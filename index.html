@@ -563,7 +563,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.10-ca807e';
+var APP_VERSION = '2026.11.10-de7796';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2585,7 +2585,19 @@ function driveError(e){
   if (c === 'tool_error') return 'Drive refused the file' + (e.message ? ' (' + String(e.message).slice(0, 120) + ')' : '');
   return 'Couldn’t reach Google Drive' + (c ? ' (' + c + ')' : '');
 }
+// This copy is the claude.ai preview: Save downloads the workbook to the computer (so test files can be looked at, and never land in the
+// real Cut Sheets folder). The tablet / installed / Google-hosted builds replace upload() and save to Drive as usual.
+var savedDownload = false;
 function upload(blob, name){
+  return cap('downloads').then(function(d){
+    if (!d) return uploadDrive(blob, name);
+    return d.save({ filename: name, data: blob }).then(function(){ savedDownload = true; return { download: true }; }, function(e){
+      if (e && e.code === 'declined') throw { code: 'declined' };
+      return uploadDrive(blob, name);
+    });
+  });
+}
+function uploadDrive(blob, name){
   return cap('mcp').then(function(mcp){
     if (!mcp) throw { code: 'no_mcp' };
     return mcp.listTools().then(function(l){ return !!(l && l.fileArgs); }, function(){ return false; }).then(function(fileArgs){
@@ -2758,12 +2770,13 @@ function saveNow(){
   saveOk = false;
   var btn = el('save'); btn.disabled = true; btn.firstChild.textContent = 'Saving…'; busy = true;
   var savingFloor = curFloor;
-  var done = [], local = [], failed = [], queued = [], why = '';
+  var done = [], local = [], failed = [], queued = [], why = ''; savedDownload = false;
   sheets.reduce(function(chain, s){
     return chain.then(function(){ return s.make ? s.make() : makeBlob(s.xml, s.steps); }).then(function(blob){ return outboxIdle().then(function(){ return outboxDrop(s.name); }).then(function(){ return blob; }); }).then(function(blob){
       var info = s.info || (s.name + ' (' + s.units + ' unit' + (s.units === 1 ? '' : 's') + ', ' + s.rows.length + ' section' + (s.rows.length === 1 ? '' : 's') + ')');
       return upload(blob, s.name).then(function(){ done.push(info); logSent(s.name, info, false); markMine(s.name); lastDirect[s.name] = { t: Date.now(), blob: blob }; keepOpenSrc(blob, s); }, function(e){
         why = driveError(e);
+        if (e && e.code === 'declined'){ failed.push(info); why = 'you chose not to save it'; return; }
         var fallback = function(){ return saveToTablet(blob, s.name).then(function(ok){ (ok ? local : failed).push(info); }); };
         return shouldQueue(e) ? outboxAdd(blob, s.name, info).then(function(){ queued.push(info); markMine(s.name); }, fallback) : fallback();
       });
@@ -2778,7 +2791,8 @@ function saveNow(){
       else { try { localStorage.removeItem(DRAFT_PREFIX + fileName); } catch (e) {} }
       el('draftPill').hidden = true;
       saveLast();
-      if (!queued.length) msgLinks('Saved to the Cut Sheets folder in Drive: ' + done.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
+      if (!queued.length && savedDownload) msg('Downloaded to this computer: ' + done.join(' · ') + '. (The preview saves here instead of Drive; the tablets still save to Drive.)', true);
+      else if (!queued.length) msgLinks('Saved to the Cut Sheets folder in Drive: ' + done.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
       else msg((done.length ? 'Saved to Drive: ' + done.join(' · ') + '. ' : '') + 'No signal right now, so ' + queued.join(' · ') + (queued.length === 1 ? ' is' : ' are') + ' saved on this tablet and will go to Drive by itself once you’re on a hotspot or Wi-Fi. Keep the app open, or open it again when you have signal.', true);
       var nf = document.createElement('div'); nf.style.marginTop = '10px';
       nf.innerHTML = '<button type="button" class="btn pri" id="nextFloorGo">Start next ' + nextWord() + ' · same setup ›</button>';
