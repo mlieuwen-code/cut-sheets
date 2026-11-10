@@ -395,7 +395,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .flz .lvout{min-width:0;flex-basis:100%;text-align:left;font-size:15px}
 .flz > .fracbar{flex-basis:100%}
 .fextra summary .muted{color:var(--muted);font-weight:700}
-.facts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:600px){.frow1{grid-template-columns:1fr 1fr}.frow1 .foo{grid-column:1/-1;order:3}.fpcols{grid-template-columns:1fr}}
 .frow1 > .fracbar{grid-column:1/-1;order:9}
 @media (max-width:600px){.fextra summary .muted{display:none}}
@@ -413,6 +413,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .sentlist .tm{font-weight:900;color:var(--muted);min-width:72px;font-variant-numeric:tabular-nums}.sentlist .nm{font-weight:800;color:var(--deep)}.sentlist em{font-weight:700;color:var(--muted);font-style:normal}
 .dot.idle{background:var(--line)}
 .sentcard .dot.ok{background:var(--accent)}
+#fenceDone{background:var(--accent);color:#fff;border-color:var(--accent)}
 </style>
 </head><body>
 
@@ -510,6 +511,7 @@ body.hasfloors .wrap{padding-bottom:170px}
     <div id="tab-units" class="stack" hidden>
       <div id="units" class="stack"></div>
       <div id="fence" class="stack" hidden></div>
+      <button type="button" class="btn big" id="fenceDone" hidden>Done</button>
       <button type="button" class="btn big" id="addOpening" style="background:var(--chip2)" hidden>+ New opening</button>
       <button type="button" class="btn big pri" id="laserGo" hidden>Next: laser post heights ›</button>
       <button type="button" class="btn big" id="addUnit" style="background:var(--chip2)">+ New unit</button>
@@ -550,7 +552,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.09-7cee5f';
+var APP_VERSION = '2026.11.10-537f03';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1637,7 +1639,7 @@ function addButtons(u){
 }
 function renderRuns(){
   parkFrac();
-  var fz = isFence(); el('units').hidden = fz; el('addUnit').hidden = fz; el('fence').hidden = !fz; el('addOpening').hidden = !fz; el('laserGo').hidden = true; el('unitsWord').textContent = fz ? 'Openings' : 'Units';
+  var fz = isFence(); el('units').hidden = fz; el('addUnit').hidden = fz; el('fence').hidden = !fz; el('addOpening').hidden = !fz; el('fenceDone').hidden = true; el('laserGo').hidden = true; el('unitsWord').textContent = fz ? 'Openings' : 'Units';
   if (fz) return renderFence();
   units.forEach(resplitUnit);
   el('units').innerHTML = units.map(unitHtml).join('');
@@ -3333,7 +3335,6 @@ function openingHtml(o, i){
       '<div class="fld"><label for="' + id + 'n">Notes</label><input id="' + id + 'n" type="text" autocomplete="off" data-ff="notes" value="' + esc(o.notes) + '"></div>' +
     '</div></details>' +
     '<div class="facts">' +
-      '<button type="button" class="btn ghost" data-fact="done">Done</button>' +
       '<button type="button" class="btn" data-fact="copy">Copy</button>' +
       '<button type="button" class="btn danger" data-fact="del">Delete</button>' +
     '</div></div>';
@@ -3347,6 +3348,7 @@ function renderFence(){
   var L = fLaserOn() ? fenceLaser() : [], dn = L.filter(function(p){ return p.h != null; }).length;
   var sw = fLaserOn() ? '<div class="stepdir fview">' + [['ops', 'Openings'], ['laser', 'Laser readings · ' + dn + '/' + L.length]].map(function(v){ var on = fenceView === v[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fview="' + v[0] + '">' + v[1] + '</button>'; }).join('') + '</div>' : '';
   el('addOpening').hidden = fenceView === 'laser';
+  el('fenceDone').hidden = fenceView === 'laser' || !ops.some(function(o){ return !(o.ok && !o._open); });
   var lg = el('laserGo'); lg.hidden = fenceView === 'laser' || !ops.some(function(o){ return fNum(o.oo) > 0; });
   lg.textContent = fLaserOn() ? 'Laser readings · ' + dn + ' of ' + L.length + ' posts ›' : 'Next: laser post heights ›';
   el('fence').innerHTML = sw + '<div class="fhead">' + esc(fenceTotals(ops)) + '</div>' + (fenceView === 'laser' ? laserListHtml() : ops.map(openingHtml).join(''));
@@ -3411,6 +3413,15 @@ document.addEventListener('change', function(e){
 el('laserGo').onclick = function(){
   if (!fLaserOn()){ header.fLaser = true; changed(); }
   fenceView = 'laser'; renderFence(); window.scrollTo(0, 0);
+};
+// Done (the long button above + New opening): folds the open opening; one with an unconfirmed O-O stays open at its Confirm box
+el('fenceDone').onclick = function(){
+  if (isPostsOnly()){ postList().forEach(function(x){ x._open = false; }); renderPosts(); return; }
+  var ops = fenceOps(), wait = -1;
+  ops.forEach(function(o, i){ if (o.ok) o._open = false; else if (fNum(o.oo) > 0 && wait < 0) wait = i; });
+  renderFence();
+  if (wait >= 0){ var cf = el('fence').querySelector('[data-fo="' + wait + '"] [data-fconf] .confbox'); if (cf) cf.scrollIntoView({ block: 'center' }); }
+  else window.scrollTo(0, 0);
 };
 el('addOpening').onclick = function(){
   if (isPostsOnly()) return addPost();
@@ -3549,7 +3560,7 @@ function postHtml(p, i, ties){
       chips('pm' + i, 'Mount (blank = job mount ' + esc(String(header.B7 || '—')) + ')', MOUNTS, null, MOUNT_COLOR).replace(/data-chip="pm\d+"/g, 'data-pmount="1"').replace(/aria-pressed="(true|false)"/g, function(m){ return m; }) +
       '<div class="fld"><label for="' + id + 'nt">Notes</label><input id="' + id + 'nt" type="text" autocomplete="off" data-pf="notes" value="' + esc(p.notes || '') + '"></div>' +
     '</div></details>' +
-    '<div class="facts"><button type="button" class="btn ghost" data-pact="done">Done</button><button type="button" class="btn" data-pact="copy">Copy</button><button type="button" class="btn danger" data-pact="del">Delete</button></div></div>';
+    '<div class="facts"><button type="button" class="btn" data-pact="copy">Copy</button><button type="button" class="btn danger" data-pact="del">Delete</button></div></div>';
 }
 function postsTotals(){
   var L = postList(), n = 0, ft = 0, by = {};
@@ -3567,6 +3578,7 @@ function renderPosts(){
     var p = L[+c.getAttribute('data-po')]; Array.prototype.forEach.call(c.querySelectorAll('[data-pmount]'), function(b){ b.setAttribute('aria-pressed', String(p.mount === b.getAttribute('data-val'))); });
   });
   el('unitCount').textContent = L.length;
+  el('fenceDone').hidden = !L.some(function(p){ return p._open; });
   el('addOpening').textContent = '+ New post'; el('laserGo').hidden = true; el('unitsWord').textContent = 'Posts';
 }
 function updPostOuts(){
