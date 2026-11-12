@@ -359,6 +359,17 @@ body.hasfloors .wrap{padding-bottom:170px}
 .calcres{margin-top:16px}
 .calcsum{font-size:18px;margin-bottom:10px}
 .calctab{width:100%;border-collapse:collapse;font-size:17px}
+.stairsk{margin:0 0 14px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--card,#fff)}
+.stairsk.empty{color:var(--muted);font-size:14px;padding:14px}
+.stairsk svg{width:100%;height:auto;max-height:380px;display:block}
+.stairsk line{vector-effect:non-scaling-stroke;stroke-linecap:round}
+.stairsk .sk{stroke:currentColor;stroke-width:1.6}
+.stairsk .nl{stroke:#888;stroke-width:1;stroke-dasharray:5 4}
+.stairsk .sg{stroke:#999;stroke-width:1.2;stroke-dasharray:8 4}
+.stairsk .rl{stroke:#c0392b;stroke-width:3}
+.stairsk .pt{fill:#1f5fbf}
+.stairsk text{font-size:var(--fs);font-weight:700;fill:#1f5fbf}
+.stairsk text.dk{fill:currentColor}.stairsk text.rd{fill:#c0392b}
 .calctab th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 4px;border-bottom:2px solid var(--line)}
 .calctab td{padding:10px 4px;border-bottom:1px solid var(--line)}
 .calctab th:not(:first-child),.calctab td:not(:first-child){text-align:right}
@@ -590,7 +601,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.12-406abd';
+var APP_VERSION = '2026.11.12-397f62';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3851,6 +3862,32 @@ function renderStairs(){
     '</div>';
   renderStairRes();
 }
+// a live sketch of the stair from what's been entered: same geometry as the fab drawing (page 2 of the PDF)
+function stairSvg(c){
+  var L = sNum('plast'); if (!(L > 0) || c.ang == null) return '<div class="stairsk empty">Enter the total rise and run and bottom nose to last tread nose to see the stair.</div>';
+  var H = sNum('height') > 0 ? sNum('height') : 36, lvl = sNum('lastLevel') > 0 ? sNum('lastLevel') : 0, sd = sNum('stringer') > 0 ? sNum('stringer') : 0;
+  var co = Math.cos(c.ang), si = Math.sin(c.ang), at = function(d){ return [d * co, d * si]; }, top = at(L);
+  var m = Math.max(1, Math.round(top[1] / (c.st.rise || 7.5))), rs = top[1] / m, rn = top[0] / m;
+  var bth = sNum('bth') > 0 ? sNum('bth') : rs, landX = top[0] + (lvl || rn), deck = [landX, top[1] + rs];
+  var minX = -rn * 1.2, maxX = landX + rn * 1.5, minY = Math.min(-bth, -sd) - 4, maxY = deck[1] + H + 14;
+  var X = function(x){ return (maxX - x).toFixed(2); }, Y = function(y){ return (maxY - y).toFixed(2); };   // mirrored: climbs to the left, as on the sheet
+  var ln = function(a, b, cls){ return '<line class="' + cls + '" x1="' + X(a[0]) + '" y1="' + Y(a[1]) + '" x2="' + X(b[0]) + '" y2="' + Y(b[1]) + '"/>'; };
+  var tx = function(t, x, y, cls, anchor){ return '<text class="' + cls + '" x="' + X(x) + '" y="' + Y(y) + '" text-anchor="' + (anchor || 'middle') + '">' + esc(t) + '</text>'; };
+  var fs = Math.max(2.4, (maxX - minX) / 38), o = [];
+  o.push(ln([-rn * 1.2, -bth], [rn * 0.2, -bth], 'sk'), ln([0, -bth], [0, 0], 'sk'));
+  for (var i = 0; i < m; i++){ var a = [i * rn, i * rs]; o.push(ln(a, [a[0] + rn, a[1]], 'sk'), ln([a[0] + rn, a[1]], [(i + 1) * rn, (i + 1) * rs], 'sk')); }
+  o.push(ln(top, [landX, top[1]], 'sk'), ln([landX, top[1]], deck, 'sk'), ln(deck, [maxX, deck[1]], 'sk'));
+  o.push(ln([0, 0], top, 'nl'));
+  if (sd) o.push(ln([0, -sd], [top[0], top[1] - sd], 'sg'));
+  o.push(ln([0, H], [top[0], top[1] + H], 'rl')); if (lvl) o.push(ln([top[0], top[1] + H], [landX, top[1] + H], 'rl'));
+  c.posts.forEach(function(p){
+    var b = at(p.d); o.push('<circle class="pt" cx="' + X(b[0]) + '" cy="' + Y(b[1]) + '" r="' + (fs * 0.35).toFixed(2) + '"/>');
+    o.push(tx(p.name === 'Bottom' ? 'Bottom nose' : p.name === 'LAST' ? 'Last tread nose' : p.name + (p.d ? ' · ' + fmtFrac(p.d) : ''), b[0] - fs * 0.8, b[1] + fs * 0.2, 'lb', 'start'));
+  });
+  if (lvl) o.push(tx('Top tread ' + fmtFrac(lvl), landX + fs * 0.4, top[1] + fs * 0.4, 'lb dk', 'end'));
+  o.push(tx(c.deg.toFixed(1) + '°', -fs * 0.8, -fs * 1.3, 'lb rd', 'start'));
+  return '<div class="stairsk"><svg viewBox="0 0 ' + (maxX - minX).toFixed(2) + ' ' + (maxY - minY).toFixed(2) + '" style="--fs:' + fs.toFixed(2) + 'px" role="img" aria-label="Sketch of the stair">' + o.join('') + '</svg></div>';
+}
 function renderStairRes(){
   var c = stairCalc(), r = el('stairRes'), rows = [];
   if (c.deg != null) rows.push(['Stair angle', c.deg.toFixed(1) + '°']);
@@ -3859,7 +3896,7 @@ function renderStairRes(){
   if (c.vert != null) rows.push(['Bottom nose to last tread nose', 'rises ' + fmtFrac(c.vert) + ', runs ' + fmtFrac(c.horiz) + ' (about ' + c.steps + ' step' + (c.steps === 1 ? '' : 's') + ')']);
   if (sNum('lastLevel') > 0) rows.push(['Top tread length', fmtFrac(sNum('lastLevel'))]);
   if (sNum('stringer') > 0) rows.push(['Tread to underside of stringer', fmtFrac(sNum('stringer')) + ' (most a post can drop below the tread)']);
-  r.innerHTML = (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the total rise and run, and the nosing measurements, to see the angle and spacing.</div>') +
+  r.innerHTML = stairSvg(c) + (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the total rise and run, and the nosing measurements, to see the angle and spacing.</div>') +
     (c.bad ? '<div class="warn">Each point should be further from the bottom nose than the one before (MP1 &lt; MP2 &lt; MP3 &lt; last tread nose). Check the numbers.</div>' : '') +
     '<div class="stairbtns"><button type="button" class="btn big pri" id="stairPdf">Save PDF · sheet + fab drawing</button><button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
     '<div class="stairmsg" id="stairMsg"></div>';
