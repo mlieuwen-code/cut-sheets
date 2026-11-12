@@ -367,7 +367,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .stairsk .nl{stroke:#888;stroke-width:1;stroke-dasharray:5 4}
 .stairsk .sg{stroke:#999;stroke-width:1.2;stroke-dasharray:8 4}
 .stairsk .rl{stroke:#c0392b;stroke-width:3}
-.stairsk .pt{fill:#1f5fbf}
+.stairsk .pt{fill:#1f5fbf}.stairsk .pt.bad{fill:#c0392b}
 .stairsk text{font-size:var(--fs);font-weight:700;fill:#1f5fbf}
 .stairsk text.dk{fill:currentColor}.stairsk text.rd{fill:#c0392b}
 .calctab th{text-align:left;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 4px;border-bottom:2px solid var(--line)}
@@ -601,7 +601,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.12-501ee3';
+var APP_VERSION = '2026.11.12-baba66';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3824,6 +3824,12 @@ function stairCalc(){
   var L = sNum('plast');
   if (L > 0 && out.ang != null){ out.vert = L * Math.sin(out.ang); out.horiz = L * Math.cos(out.ang); out.steps = Math.round(out.vert / rise); }
   out.bad = out.posts.some(function(p){ return p.gap != null && p.gap <= 0; });
+  // every point sits on a tread nose: snap each one to the nearest nose by one step's length along the nosing line (from the rise / run)
+  if (st.rise && st.run){
+    out.diag = Math.sqrt(st.rise * st.rise + st.run * st.run);
+    out.posts.forEach(function(p){ p.nose = Math.round(p.d / out.diag); p.calc = p.nose * out.diag; p.off = p.d - p.calc; });
+    out.offNose = out.posts.filter(function(p){ return p.d && (Math.abs(p.off) > 0.75 || p.nose < 1); });
+  }
   return out;
 }
 function stairField(k, label, ph, frac){
@@ -3862,41 +3868,51 @@ function renderStairs(){
     '</div>';
   renderStairRes();
 }
+// geometry shared by the sketch and the fab drawing: steps at the rise / run, every point on its tread nose
+function stairGeom(c){
+  var L = sNum('plast'); if (!(L > 0) || c.ang == null || !c.diag) return null;
+  var g = { rs: c.st.rise, rn: c.st.run, H: sNum('height') > 0 ? sNum('height') : 36, lvl: sNum('lastLevel') > 0 ? sNum('lastLevel') : 0, sd: sNum('stringer') > 0 ? sNum('stringer') : 0, add: sNum('postAdd') > 0 ? sNum('postAdd') : 0 };
+  var last = c.posts[c.posts.length - 1]; g.m = Math.max(1, last.nose || 1);
+  g.nose = function(i){ return [i * g.rn, i * g.rs]; };
+  g.top = g.nose(g.m); g.bth = sNum('bth') > 0 ? sNum('bth') : g.rs;
+  g.landX = g.top[0] + (g.lvl || g.rn); g.deck = [g.landX, g.top[1] + g.rs];
+  g.minX = -g.rn * 1.4; g.maxX = g.landX + g.rn * 1.5; g.minY = Math.min(-g.bth, -g.sd) - 8; g.maxY = g.deck[1] + g.H + 14;
+  g.slope = 'Slope ' + fmtFrac(g.rs) + ' / ' + fmtFrac(g.rn) + ' · ' + c.deg.toFixed(1) + '°';
+  return g;
+}
+function stairPtLabel(p){ return p.name === 'Bottom' ? 'Bottom nose' : (p.name === 'LAST' ? 'Last tread nose' : p.name) + ' · ' + fmtFrac(p.d); }
 // a live sketch of the stair from what's been entered: same geometry as the fab drawing (page 2 of the PDF)
 function stairSvg(c){
-  var L = sNum('plast'); if (!(L > 0) || c.ang == null) return '<div class="stairsk empty">Enter the total rise and run and bottom nose to last tread nose to see the stair.</div>';
-  var H = sNum('height') > 0 ? sNum('height') : 36, lvl = sNum('lastLevel') > 0 ? sNum('lastLevel') : 0, sd = sNum('stringer') > 0 ? sNum('stringer') : 0;
-  var co = Math.cos(c.ang), si = Math.sin(c.ang), at = function(d){ return [d * co, d * si]; }, top = at(L);
-  var m = Math.max(1, Math.round(top[1] / (c.st.rise || 7.5))), rs = top[1] / m, rn = top[0] / m;
-  var bth = sNum('bth') > 0 ? sNum('bth') : rs, landX = top[0] + (lvl || rn), deck = [landX, top[1] + rs];
-  var minX = -rn * 1.2, maxX = landX + rn * 1.5, minY = Math.min(-bth, -sd) - 4, maxY = deck[1] + H + 14;
-  var X = function(x){ return (maxX - x).toFixed(2); }, Y = function(y){ return (maxY - y).toFixed(2); };   // mirrored: climbs to the left, as on the sheet
+  var g = stairGeom(c); if (!g) return '<div class="stairsk empty">Enter the total rise and run and bottom nose to last tread nose to see the stair.</div>';
+  var X = function(x){ return (g.maxX - x).toFixed(2); }, Y = function(y){ return (g.maxY - y).toFixed(2); };   // mirrored: climbs to the left, as on the sheet
   var ln = function(a, b, cls){ return '<line class="' + cls + '" x1="' + X(a[0]) + '" y1="' + Y(a[1]) + '" x2="' + X(b[0]) + '" y2="' + Y(b[1]) + '"/>'; };
   var tx = function(t, x, y, cls, anchor){ return '<text class="' + cls + '" x="' + X(x) + '" y="' + Y(y) + '" text-anchor="' + (anchor || 'middle') + '">' + esc(t) + '</text>'; };
-  var fs = Math.max(2.4, (maxX - minX) / 38), o = [];
-  o.push(ln([-rn * 1.2, -bth], [rn * 0.2, -bth], 'sk'), ln([0, -bth], [0, 0], 'sk'));
-  for (var i = 0; i < m; i++){ var a = [i * rn, i * rs]; o.push(ln(a, [a[0] + rn, a[1]], 'sk'), ln([a[0] + rn, a[1]], [(i + 1) * rn, (i + 1) * rs], 'sk')); }
-  o.push(ln(top, [landX, top[1]], 'sk'), ln([landX, top[1]], deck, 'sk'), ln(deck, [maxX, deck[1]], 'sk'));
+  var fs = Math.max(2.4, (g.maxX - g.minX) / 38), o = [], top = g.top;
+  o.push(ln([-g.rn * 1.4, -g.bth], [g.rn * 0.2, -g.bth], 'sk'), ln([0, -g.bth], [0, 0], 'sk'));
+  for (var i = 0; i < g.m; i++){ var a = g.nose(i), b = g.nose(i + 1); o.push(ln(a, [b[0], a[1]], 'sk'), ln([b[0], a[1]], b, 'sk')); }
+  o.push(ln(top, [g.landX, top[1]], 'sk'), ln([g.landX, top[1]], g.deck, 'sk'), ln(g.deck, [g.maxX, g.deck[1]], 'sk'));
   o.push(ln([0, 0], top, 'nl'));
-  if (sd) o.push(ln([0, -sd], [top[0], top[1] - sd], 'sg'));
-  o.push(ln([0, H], [top[0], top[1] + H], 'rl')); if (lvl) o.push(ln([top[0], top[1] + H], [landX, top[1] + H], 'rl'));
+  if (g.sd) o.push(ln([0, -g.sd], [top[0], top[1] - g.sd], 'sg'));
+  o.push(ln([0, g.H], [top[0], top[1] + g.H], 'rl')); if (g.lvl) o.push(ln([top[0], top[1] + g.H], [g.landX, top[1] + g.H], 'rl'));
   c.posts.forEach(function(p){
-    var b = at(p.d); o.push('<circle class="pt" cx="' + X(b[0]) + '" cy="' + Y(b[1]) + '" r="' + (fs * 0.35).toFixed(2) + '"/>');
-    o.push(tx(p.name === 'Bottom' ? 'Bottom nose' : p.name === 'LAST' ? 'Last tread nose' : p.name + (p.d ? ' · ' + fmtFrac(p.d) : ''), b[0] - fs * 0.8, b[1] + fs * 0.2, 'lb', 'start'));
+    var b = g.nose(p.nose), off = p.d && Math.abs(p.off) > 0.75;
+    o.push('<circle class="pt' + (off ? ' bad' : '') + '" cx="' + X(b[0]) + '" cy="' + Y(b[1]) + '" r="' + (fs * 0.35).toFixed(2) + '"/>');
+    o.push(tx(stairPtLabel(p), b[0] - fs * 0.8, b[1] + fs * 0.2, 'lb' + (off ? ' rd' : ''), 'start'));
   });
-  if (lvl) o.push(tx('Top tread ' + fmtFrac(lvl), landX + fs * 0.4, top[1] + fs * 0.4, 'lb dk', 'end'));
-  o.push(tx(c.deg.toFixed(1) + '°', -fs * 0.8, -fs * 1.3, 'lb rd', 'start'));
-  return '<div class="stairsk"><svg viewBox="0 0 ' + (maxX - minX).toFixed(2) + ' ' + (maxY - minY).toFixed(2) + '" style="--fs:' + fs.toFixed(2) + 'px" role="img" aria-label="Sketch of the stair">' + o.join('') + '</svg></div>';
+  if (g.lvl) o.push(tx('Top tread ' + fmtFrac(g.lvl), g.landX + fs * 0.4, top[1] + fs * 0.4, 'lb dk', 'end'));
+  o.push(tx(g.slope, -fs * 0.8, -g.bth - fs * 1.3, 'lb rd', 'start'));
+  return '<div class="stairsk"><svg viewBox="0 0 ' + (g.maxX - g.minX).toFixed(2) + ' ' + (g.maxY - g.minY).toFixed(2) + '" style="--fs:' + fs.toFixed(2) + 'px" role="img" aria-label="Sketch of the stair">' + o.join('') + '</svg></div>';
 }
 function renderStairRes(){
   var c = stairCalc(), r = el('stairRes'), rows = [];
   if (c.deg != null) rows.push(['Stair angle', c.deg.toFixed(1) + '°']);
   if (c.st.rise && c.st.run) rows.push(['Each step', 'rise ' + fmtFrac(c.st.rise) + ', run ' + fmtFrac(c.st.run) + ' (' + c.st.n + ' risers' + (c.st.guess ? ', estimated' : '') + ')']);
-  c.posts.forEach(function(p){ if (p.gap != null) rows.push([p.name === 'LAST' ? 'Last tread nose' : 'Mid point ' + p.name.slice(2), fmtFrac(p.d) + ' from the bottom nose · ' + fmtFrac(p.gap) + ' from the point before']); });
+  c.posts.forEach(function(p){ if (p.gap != null) rows.push([p.name === 'LAST' ? 'Last tread nose' : 'Mid point ' + p.name.slice(2), fmtFrac(p.d) + ' from the bottom nose · ' + fmtFrac(p.gap) + ' from the point before' + (p.nose != null ? ' · nose ' + p.nose + ' up' : '')]); });
   if (c.vert != null) rows.push(['Bottom nose to last tread nose', 'rises ' + fmtFrac(c.vert) + ', runs ' + fmtFrac(c.horiz) + ' (about ' + c.steps + ' step' + (c.steps === 1 ? '' : 's') + ')']);
   if (sNum('lastLevel') > 0) rows.push(['Top tread length', fmtFrac(sNum('lastLevel'))]);
   if (sNum('stringer') > 0) rows.push(['Tread to underside of stringer', fmtFrac(sNum('stringer')) + ' (most a post can drop below the tread)']);
   r.innerHTML = stairSvg(c) + (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the total rise and run, and the nosing measurements, to see the angle and spacing.</div>') +
+    (c.offNose && c.offNose.length ? '<div class="warn">' + c.offNose.map(function(p){ return esc((p.name === 'LAST' ? 'Last tread nose' : p.name) + ' ' + fmtFrac(p.d)); }).join(', ') + ' doesn’t land on a tread nose with this rise and run (each step is ' + esc(fmtFrac(c.diag)) + ' along the nosings). Check the rise, run and risers, or the tape.</div>' : '') +
     (c.bad ? '<div class="warn">Each point should be further from the bottom nose than the one before (MP1 &lt; MP2 &lt; MP3 &lt; last tread nose). Check the numbers.</div>' : '') +
     '<div class="stairbtns"><button type="button" class="btn big pri" id="stairPdf">Save PDF · sheet + fab drawing</button><button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
     '<div class="stairmsg" id="stairMsg"></div>';
@@ -3973,54 +3989,43 @@ function stairPdf(){
     });
   });
 }
-// page 2: the stair drawn to scale along the nosing line: bottom nose, mid points, last tread nose, the top tread and the landing, the rail and the stringer underside
+// page 2: the stair drawn to scale from the rise / run: every point on its tread nose, the top tread and landing, the rail and the stringer underside
 function stairFabPage(doc, P, B, R, ink, red, blue){
-  var pg = doc.addPage([792, 612]), c = stairCalc(), H = sNum('height') > 0 ? sNum('height') : 36;
-  var L = sNum('plast'), lvl = sNum('lastLevel') > 0 ? sNum('lastLevel') : 0, add = sNum('postAdd') > 0 ? sNum('postAdd') : 0, sd = sNum('stringer') > 0 ? sNum('stringer') : 0;
-  var th = c.ang, co = Math.cos(th), si = Math.sin(th);
-  var at = function(d){ return [d * co, d * si]; }, top = at(L);
-  // steps between the bottom nose and the last tread nose, sized so they land exactly on the measured last tread nose
-  var m = Math.max(1, Math.round(top[1] / (c.st.rise || 7.5))), rs = top[1] / m, rn = top[0] / m;
-  var bth = sNum('bth') > 0 ? sNum('bth') : rs, nose = function(i){ return [i * rn, i * rs]; };
-  var landX = top[0] + (lvl || rn), deck = [landX, top[1] + rs];   // landing nose: one riser above the top tread
-  var minX = -rn * 1.2, maxX = landX + rn * 1.5, minY = Math.min(-bth, -sd) - 6, maxY = deck[1] + H + 12;
-  var areaW = 700, areaH = 400, s = Math.min(areaW / (maxX - minX), areaH / (maxY - minY));
-  var ox = 46 + areaW + minX * s - (areaW - (maxX - minX) * s) / 2, oy = 110 + (-minY) * s;   // x mirrored so the stair climbs to the left, as on the sheet
+  var pg = doc.addPage([792, 612]), c = stairCalc(), g = stairGeom(c), grey = P.rgb(0.5, 0.5, 0.5);
+  var text = function(t, x, y, sz, font, col){ pg.drawText(String(t), { x: x, y: y, size: sz || 9, font: font || R, color: col || ink }); };
+  text('STAIR FAB DRAWING', 46, 570, 18, B); text([stair.project, stair.location].filter(Boolean).join(' · ') || ' ', 46, 550, 12, B, blue);
+  if (!g){ text('Needs the total rise and run to draw the stair.', 46, 500, 12, B, red); return; }
+  var H = g.H, add = g.add, top = g.top, si = Math.sin(c.ang), co = Math.cos(c.ang);
+  var areaW = 700, areaH = 400, s = Math.min(areaW / (g.maxX - g.minX), areaH / (g.maxY - g.minY));
+  var ox = 46 + areaW + g.minX * s - (areaW - (g.maxX - g.minX) * s) / 2, oy = 110 + (-g.minY) * s;   // x mirrored so the stair climbs to the left, as on the sheet
   var P2 = function(x, y){ return { x: ox - x * s, y: oy + y * s }; };
   var line = function(a, b, col, w, dash){ pg.drawLine({ start: P2(a[0], a[1]), end: P2(b[0], b[1]), thickness: w || 1, color: col || ink, dashArray: dash }); };
-  var text = function(t, x, y, sz, font, col){ pg.drawText(String(t), { x: x, y: y, size: sz || 9, font: font || R, color: col || ink }); };
-  var grey = P.rgb(0.5, 0.5, 0.5);
-  text('STAIR FAB DRAWING', 46, 570, 18, B); text([stair.project, stair.location].filter(Boolean).join(' · ') || ' ', 46, 550, 12, B, blue);
-  text('Total rise ' + fmtFrac(sNum('rise')) + ' · Total run ' + fmtFrac(sNum('run')) + ' · ' + c.st.n + ' risers · Angle ' + c.deg.toFixed(1) + '° · Rail height ' + fmtFrac(H) + (add ? ' · Post add ' + fmtFrac(add) : '') + (stair.mount ? ' · ' + stair.mount + ' mount' : '') + (stair.hand ? ' · Hand up ' + stair.hand : '') + (stair.tread ? ' · ' + stair.tread + ' treads' : ''), 46, 532, 10);
-  // ground, steps, top tread, landing
-  line([-rn * 1.2, -bth], [rn * 0.2, -bth], ink, 1.2); line([0, -bth], [0, 0], ink, 1.2);
-  for (var i = 0; i < m; i++){ var a = nose(i); line(a, [a[0] + rn, a[1]], ink, 1.2); line([a[0] + rn, a[1]], nose(i + 1), ink, 1.2); }
-  line(top, [landX, top[1]], ink, 1.2); line([landX, top[1]], deck, ink, 1.2); line(deck, [maxX, deck[1]], ink, 1.2);
-  var dk = P2(maxX, deck[1]); text('TOP OF DECK', dk.x, dk.y + 4, 8);
-  // nosing line, stringer underside, rail
+  text('Total rise ' + fmtFrac(sNum('rise')) + ' · Total run ' + fmtFrac(sNum('run')) + ' · ' + c.st.n + ' risers · Rail height ' + fmtFrac(H) + (add ? ' · Post add ' + fmtFrac(add) : '') + (stair.mount ? ' · ' + stair.mount + ' mount' : '') + (stair.hand ? ' · Hand up ' + stair.hand : '') + (stair.tread ? ' · ' + stair.tread + ' treads' : ''), 46, 532, 10);
+  line([-g.rn * 1.4, -g.bth], [g.rn * 0.2, -g.bth], ink, 1.2); line([0, -g.bth], [0, 0], ink, 1.2);
+  for (var i = 0; i < g.m; i++){ var a = g.nose(i), b = g.nose(i + 1); line(a, [b[0], a[1]], ink, 1.2); line([b[0], a[1]], b, ink, 1.2); }
+  line(top, [g.landX, top[1]], ink, 1.2); line([g.landX, top[1]], g.deck, ink, 1.2); line(g.deck, [g.maxX, g.deck[1]], ink, 1.2);
+  var dk = P2(g.maxX, g.deck[1]); text('TOP OF DECK', dk.x, dk.y + 4, 8);
   line([0, 0], top, grey, 0.8, [4, 3]);
-  if (sd){ line([0, -sd], [top[0], top[1] - sd], grey, 1, [6, 3]); var u = P2(top[0] * 0.8, top[1] * 0.8 - sd); pg.drawText('UNDERSIDE OF STRINGER · ' + fmtFrac(sd) + ' below the tread', { x: u.x - 10 * si, y: u.y - 10 * co, size: 8, font: R, color: grey, rotate: P.degrees(-c.deg) }); }
+  if (g.sd){ var u = P2(top[0] * 0.8, top[1] * 0.8 - g.sd); line([0, -g.sd], [top[0], top[1] - g.sd], grey, 1, [6, 3]); pg.drawText('UNDERSIDE OF STRINGER · ' + fmtFrac(g.sd) + ' below the tread', { x: u.x - 10 * si, y: u.y - 10 * co, size: 8, font: R, color: grey, rotate: P.degrees(-c.deg) }); }
   line([0, H], [top[0], top[1] + H], red, 2.4);
-  if (lvl) line([top[0], top[1] + H], [landX, top[1] + H], red, 2.4);
-  // points on the nosing line, labelled with their distance from the bottom nose
+  if (g.lvl) line([top[0], top[1] + H], [g.landX, top[1] + H], red, 2.4);
   c.posts.forEach(function(p){
-    var b = at(p.d), q = P2(b[0], b[1]);
-    pg.drawCircle({ x: q.x, y: q.y, size: 3, color: blue });
+    var b = g.nose(p.nose), q = P2(b[0], b[1]), off = p.d && Math.abs(p.off) > 0.75, col = off ? red : blue;
+    pg.drawCircle({ x: q.x, y: q.y, size: 3, color: col });
     var lbl = p.name === 'Bottom' ? 'BOTTOM NOSE' : p.name === 'LAST' ? 'LAST TREAD NOSE' : p.name, lw = B.widthOfTextAtSize(lbl, 8);
-    text(lbl, q.x - lw / 2, q.y + 8, 8, B, blue);
-    if (p.d){ var dt = fmtFrac(p.d); text(dt, q.x - R.widthOfTextAtSize(dt, 8) / 2, q.y + 18, 8, R, blue); }
+    text(lbl, q.x - lw / 2, q.y + 8, 8, B, col);
+    if (p.d){ var dt = fmtFrac(p.d) + ' · nose ' + p.nose; text(dt, q.x - R.widthOfTextAtSize(dt, 8) / 2, q.y + 18, 8, R, col); }
   });
-  // spacing along the nosing line, offset below it
-  var off = -Math.max(10, H * 0.3) - sd;
+  var offd = -Math.max(10, H * 0.3) - g.sd;
   c.posts.forEach(function(p, k){
-    if (!k) return; var a = at(c.posts[k - 1].d), b = at(p.d);
-    var oa = [a[0] - off * si, a[1] + off * co], ob = [b[0] - off * si, b[1] + off * co];
+    if (!k) return; var a = g.nose(c.posts[k - 1].nose), b = g.nose(p.nose);
+    var oa = [a[0] - offd * si, a[1] + offd * co], ob = [b[0] - offd * si, b[1] + offd * co];
     line(oa, ob, ink, 0.8); line(a, oa, P.rgb(0.75, 0.75, 0.75), 0.4); line(b, ob, P.rgb(0.75, 0.75, 0.75), 0.4);
     var mid = P2((oa[0] + ob[0]) / 2, (oa[1] + ob[1]) / 2); text(fmtFrac(p.gap), mid.x - 14, mid.y - 12, 9, B);
   });
-  if (lvl){ var la = P2(top[0], top[1] - 6), lb = P2(landX, top[1] - 6); pg.drawLine({ start: la, end: lb, thickness: 0.8, color: ink }); text('Top tread ' + fmtFrac(lvl), Math.min(la.x, lb.x), la.y - 12, 9, B); }
-  var o = P2(0, 0); text(c.deg.toFixed(1) + '°', o.x - 60, o.y + 6, 10, B, red);
-  text('Drawn to scale from the measurements along the nosing line (bottom nose to last tread nose); check against site before cutting.', 46, 40, 8, R, grey);
+  if (g.lvl){ var la = P2(top[0], top[1] - 6), lb = P2(g.landX, top[1] - 6); pg.drawLine({ start: la, end: lb, thickness: 0.8, color: ink }); text('Top tread ' + fmtFrac(g.lvl), Math.min(la.x, lb.x), la.y - 12, 9, B); }
+  var o = P2(0, -g.bth); text(g.slope, o.x + 6, o.y - 16, 11, B, red);
+  text('Drawn to scale from the rise and run; every point sits on a tread nose. Red points don’t match the rise and run — check before cutting.', 46, 40, 8, R, grey);
 }
 
 function syncFloor(){ if (floors && floors[curFloor]){ floors[curFloor].header = header; floors[curFloor].units = units; } }
