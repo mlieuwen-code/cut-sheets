@@ -590,7 +590,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.12-30b88e';
+var APP_VERSION = '2026.11.12-366dec';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3790,17 +3790,22 @@ function postsFromSheet(xml){
 }
 
 // ---------- Stair measurer: the Ridgeway stair measurement sheet as a form → a PDF with the sheet filled in + a to-scale fab drawing ----------
-// P-MP1 / P-MP2 / P-MP3 / P-LAST are measured up the rake (parallel to the nosings) from the bottom post. Rise / Run are one step.
+// P-MP1 / P-MP2 / P-MP3 / P-LAST are measured up the rake (parallel to the nosings) from the bottom post. Rise / Run are totals for the whole flight; one step = total / number of risers.
 // Height is the rail height measured plumb above the nosing line. Last level is the level run at the top, from the last stair post on.
 var STAIR_KEY = 'ridgeway-stairs';
-var STAIR_NUM = ['height', 'rise', 'run', 'postAdd', 'bth', 'mp1', 'mp2', 'mp3', 'plast', 'lastLevel'];
+var STAIR_NUM = ['height', 'rise', 'run', 'risers', 'postAdd', 'bth', 'mp1', 'mp2', 'mp3', 'plast', 'lastLevel'];
 var stair = (function(){ try { return JSON.parse(localStorage.getItem(STAIR_KEY) || 'null') || {}; } catch (e){ return {}; } })();
 function stairSave(){ try { localStorage.setItem(STAIR_KEY, JSON.stringify(stair)); } catch (e){} }
 function sNum(k){ var v = String(stair[k] == null ? '' : stair[k]).trim(); if (!v) return null; var n = parseLen(v); return n === null || isNaN(n) ? NaN : n; }
 function sOk(k){ var n = sNum(k); return n !== null && !isNaN(n); }
+// one step from the totals: risers typed in, or estimated at about 7 1/2 a rise
+function stairStep(){
+  var R = sNum('rise'), U = sNum('run'), k = sNum('risers'), n = k > 0 ? Math.round(k) : (R > 0 ? Math.max(1, Math.round(R / 7.5)) : null);
+  return { n: n, guess: !(k > 0), rise: R > 0 && n ? R / n : null, run: U > 0 && n ? U / n : null };
+}
 function stairCalc(){
-  var rise = sNum('rise'), run = sNum('run'), out = { posts: [] };
-  if (rise > 0 && run > 0){ out.ang = Math.atan2(rise, run); out.deg = out.ang * 180 / Math.PI; }
+  var st = stairStep(), rise = st.rise, out = { posts: [], st: st };
+  if (sNum('rise') > 0 && sNum('run') > 0){ out.ang = Math.atan2(sNum('rise'), sNum('run')); out.deg = out.ang * 180 / Math.PI; }
   var names = [['mp1', 'MP1'], ['mp2', 'MP2'], ['mp3', 'MP3'], ['plast', 'LAST']], prev = 0;
   out.posts.push({ k: 'bottom', name: 'Bottom', d: 0 });
   names.forEach(function(n){ var d = sNum(n[0]); if (d > 0){ out.posts.push({ k: n[0], name: n[1], d: d, gap: d - prev }); prev = d; } });
@@ -3828,8 +3833,8 @@ function renderStairs(){
       '<div class="g2">' + stairField('standoff', 'Standoff', 'e.g. Centered') + '<div></div></div>' +
     '</div>' +
     '<div class="card"><h3>Steps</h3>' +
-      '<div class="g2" data-fracslot>' + stairField('rise', 'Rise (one step)', 'e.g. 7 1/4', true) + stairField('run', 'Run (one step)', 'e.g. 11', true) + '</div>' +
-      '<div class="g2" data-fracslot>' + stairField('bth', 'Bottom tread height', 'ground to top of 1st tread', true) + '<div></div></div>' +
+      '<div class="g2" data-fracslot>' + stairField('rise', 'Total rise', 'whole flight, e.g. 43 1/2', true) + stairField('run', 'Total run', 'whole flight, e.g. 55', true) + '</div>' +
+      '<div class="g2" data-fracslot>' + stairField('risers', 'Number of risers', 'e.g. 6', true) + stairField('bth', 'Bottom tread height', 'ground to top of 1st tread', true) + '</div>' +
     '</div>' +
     '<div class="card"><h3>Posts · measured up the rake from the bottom post</h3>' +
       '<div class="g2" data-fracslot>' + stairField('mp1', 'P-MP1', 'to 1st mid post', true) + stairField('mp2', 'P-MP2', 'to 2nd mid post', true) + '</div>' +
@@ -3847,6 +3852,7 @@ function renderStairs(){
 function renderStairRes(){
   var c = stairCalc(), r = el('stairRes'), rows = [];
   if (c.deg != null) rows.push(['Stair angle', c.deg.toFixed(1) + '°']);
+  if (c.st.rise && c.st.run) rows.push(['Each step', 'rise ' + fmtFrac(c.st.rise) + ', run ' + fmtFrac(c.st.run) + ' (' + c.st.n + ' risers' + (c.st.guess ? ', estimated' : '') + ')']);
   c.posts.forEach(function(p){ if (p.gap != null) rows.push([p.name === 'LAST' ? 'Last post' : 'Mid post ' + p.name.slice(2), fmtFrac(p.d) + ' up the rake · ' + fmtFrac(p.gap) + ' from the post before']); });
   if (c.vert != null) rows.push(['Bottom to last post', 'rises ' + fmtFrac(c.vert) + ', runs ' + fmtFrac(c.horiz) + ' (about ' + c.steps + ' step' + (c.steps === 1 ? '' : 's') + ')']);
   if (sNum('lastLevel') > 0) rows.push(['Level at the top', fmtFrac(sNum('lastLevel'))]);
@@ -3929,7 +3935,7 @@ function stairPdf(){
 }
 // page 2: the stair drawn to scale from rise / run, with the rail, the posts where they were measured, spacings and the level at the top
 function stairFabPage(doc, P, B, R, ink, red, blue){
-  var pg = doc.addPage([792, 612]), c = stairCalc(), rise = sNum('rise'), run = sNum('run'), H = sNum('height') > 0 ? sNum('height') : 36;
+  var pg = doc.addPage([792, 612]), c = stairCalc(), rise = c.st.rise, run = c.st.run, H = sNum('height') > 0 ? sNum('height') : 36;
   var L = sNum('plast'), lvl = sNum('lastLevel') > 0 ? sNum('lastLevel') : 0, bth = sNum('bth') > 0 ? sNum('bth') : rise, add = sNum('postAdd') > 0 ? sNum('postAdd') : 0;
   var th = c.ang, co = Math.cos(th), si = Math.sin(th), n = Math.max(1, Math.ceil((L * si) / rise));
   // stair coordinates in inches: x grows to the LEFT (up the stair, as on the sheet), y up; the bottom post sits on the bottom nosing at (0, 0)
@@ -3945,7 +3951,7 @@ function stairFabPage(doc, P, B, R, ink, red, blue){
   var line = function(a, b, col, w, dash){ pg.drawLine({ start: P2(a[0], a[1]), end: P2(b[0], b[1]), thickness: w || 1, color: col || ink, dashArray: dash }); };
   var text = function(t, x, y, sz, font, col){ pg.drawText(String(t), { x: x, y: y, size: sz || 9, font: font || R, color: col || ink }); };
   text('STAIR FAB DRAWING', 46, 570, 18, B); text([stair.project, stair.location].filter(Boolean).join(' · ') || ' ', 46, 550, 12, B, blue);
-  text('Rise ' + fmtFrac(rise) + ' · Run ' + fmtFrac(run) + ' · Angle ' + c.deg.toFixed(1) + '° · Rail height ' + fmtFrac(H) + (add ? ' · Post add ' + fmtFrac(add) : '') + (stair.mount ? ' · ' + stair.mount + ' mount' : '') + (stair.hand ? ' · Hand up ' + stair.hand : '') + (stair.tread ? ' · ' + stair.tread + ' treads' : ''), 46, 532, 10);
+  text('Total rise ' + fmtFrac(sNum('rise')) + ' · Total run ' + fmtFrac(sNum('run')) + ' · ' + c.st.n + ' risers · Angle ' + c.deg.toFixed(1) + '° · Rail height ' + fmtFrac(H) + (add ? ' · Post add ' + fmtFrac(add) : '') + (stair.mount ? ' · ' + stair.mount + ' mount' : '') + (stair.hand ? ' · Hand up ' + stair.hand : '') + (stair.tread ? ' · ' + stair.tread + ' treads' : ''), 46, 532, 10);
   // ground and steps
   line([-run * 1.2, -bth], [run * 0.2, -bth], ink, 1.2);
   line([0, -bth], [0, 0], ink, 1.2);
@@ -3977,7 +3983,7 @@ function stairFabPage(doc, P, B, R, ink, red, blue){
   if (lvl){ var la = P2(top[0], top[1] + H + 10), lb = P2(top[0] + lvl, top[1] + H + 10); pg.drawLine({ start: la, end: lb, thickness: 0.8, color: ink }); text('Level ' + fmtFrac(lvl), (la.x + lb.x) / 2 - 18, la.y + 4, 9, B); }
   // angle note at the bottom
   var o = P2(0, 0); text(c.deg.toFixed(1) + '°', o.x - 60, o.y + 6, 10, B, red);
-  text('Drawn to scale from the rise and run. Posts are placed where they were measured up the rake from the bottom post; check against site before cutting.', 46, 40, 8, R, P.rgb(0.4, 0.4, 0.4));
+  text('Drawn to scale from the total rise and run. Posts are placed where they were measured up the rake from the bottom post; check against site before cutting.', 46, 40, 8, R, P.rgb(0.4, 0.4, 0.4));
 }
 
 function syncFloor(){ if (floors && floors[curFloor]){ floors[curFloor].header = header; floors[curFloor].units = units; } }
