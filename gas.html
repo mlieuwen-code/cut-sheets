@@ -601,7 +601,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-f4591d';
+var APP_VERSION = '2026.11.13-91223f';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3811,10 +3811,10 @@ function stairSave(){ try { localStorage.setItem(STAIR_KEY, JSON.stringify(stair
 function sNum(k){ var v = String(stair[k] == null ? '' : stair[k]).trim(); if (!v) return null; var n = parseLen(v); return n === null || isNaN(n) ? NaN : n; }
 function sOk(k){ var n = sNum(k); return n !== null && !isNaN(n); }
 // one step from the totals: risers typed in, or estimated at about 7 1/2 a rise.
-// Total rise = ground to landing (all the risers); total run = bottom tread nose to landing nose (one run fewer than the risers).
+// Total rise and total run are both bottom tread nose to landing nose, so they span risers - 1 steps; the step up from the ground is Bottom tread height.
 function stairStep(){
-  var R = sNum('rise'), U = sNum('run'), k = sNum('risers'), n = k > 0 ? Math.round(k) : (R > 0 ? Math.max(1, Math.round(R / 7.5)) : null);
-  return { n: n, guess: !(k > 0), rise: R > 0 && n ? R / n : null, run: U > 0 && n ? U / Math.max(1, n - 1) : null };
+  var R = sNum('rise'), U = sNum('run'), k = sNum('risers'), n = k > 0 ? Math.round(k) : (R > 0 ? Math.max(1, Math.round(R / 7.5)) + 1 : null), sp = n ? Math.max(1, n - 1) : null;
+  return { n: n, guess: !(k > 0), rise: R > 0 && sp ? R / sp : null, run: U > 0 && sp ? U / sp : null };
 }
 function stairCalc(){
   var st = stairStep(), rise = st.rise, out = { posts: [], st: st };
@@ -3852,8 +3852,9 @@ function renderStairs(){
       '<div class="g2" data-fracslot>' + stairField('standoff', 'Standoff', 'e.g. 2 1/2', true) + '<div></div></div>' +
     '</div>' +
     '<div class="card"><h3>Steps</h3>' +
-      '<div class="g2" data-fracslot>' + stairField('rise', 'Total rise (ground to landing)', 'e.g. 43 1/2', true) + stairField('run', 'Total run (bottom tread nose to landing nose)', 'e.g. 55', true) + '</div>' +
-      '<div class="g2" data-fracslot>' + stairField('risers', 'Number of risers', 'e.g. 6', true) + stairField('bth', 'Bottom tread height', 'ground to top of 1st tread', true) + '</div>' +
+      '<div class="g2" data-fracslot>' + stairField('rise', 'Total rise (nose to nose)', 'e.g. 36 1/4', true) + stairField('run', 'Total run (nose to nose)', 'e.g. 55', true) + '</div>' +
+      '<div class="stephint">Measure rise and run between the same two points: <b>bottom tread nose to landing nose</b>. The step up from the ground goes in Bottom tread height.</div>' +
+      '<div class="g2" data-fracslot>' + stairField('risers', 'Number of risers', 'all of them, ground to landing', true) + stairField('bth', 'Bottom tread height', 'ground to top of 1st tread', true) + '</div>' +
       '<div class="g2" data-fracslot>' + stairField('stringer', 'Tread to underside of stringer', 'how long the posts can be', true) + '<div></div></div>' +
     '</div>' +
     '<div class="card"><h3>Along the nosings · from the bottom nose</h3>' +
