@@ -438,6 +438,8 @@ input.lzok{border-color:#2f8f5b !important;background:#e3f4e8 !important;color:#
 .fdone{width:100%;background:var(--accent);color:#fff;border-color:var(--accent)}
 #stairBody{display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
 .calctab{width:100%;border-collapse:collapse;font-size:17px}.calctab th{text-align:left;color:var(--muted);font-weight:800;padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap}.calctab td{font-weight:900;color:var(--deep);padding:6px 0}
+.stairerr{margin-top:14px;padding:12px 14px;border:2px solid #b3261e;border-radius:14px;background:#fdecea;color:#7a1a14;font-size:15px}.stairerr b{display:block;font-size:16px;margin-bottom:4px}.stairerr ul{margin:0;padding-left:20px}.stairerr li{margin:3px 0}
+@media (prefers-color-scheme:dark){.stairerr{background:#3a1512;color:#ffb4ab;border-color:#ff8a80}}
 .stairbtns{display:grid;grid-template-columns:3fr 1fr;gap:10px;margin-top:14px}.stairmsg{margin-top:10px;font-weight:800}.stairmsg.ok{color:#2f8f5b}.stairmsg.err{color:#b3261e}
 #stairs textarea{width:100%;font:inherit;font-size:17px;border:2px solid var(--line);border-radius:12px;padding:10px;background:var(--field)}
 </style>
@@ -609,7 +611,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-cbf2d6';
+var APP_VERSION = '2026.11.13-e5a83d';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3914,6 +3916,21 @@ function stairSvg(c){
   o.push(tx(g.slope, -fs * 0.8, -g.bth - fs * 1.3, 'lb rd', 'start'));
   return '<div class="stairsk"><svg viewBox="0 0 ' + (g.maxX - g.minX).toFixed(2) + ' ' + (g.maxY - g.minY).toFixed(2) + '" style="--fs:' + fs.toFixed(2) + 'px" role="img" aria-label="Sketch of the stair">' + o.join('') + '</svg></div>';
 }
+// every problem with what's been entered, listed in one red bubble at the bottom (missing boxes only once Save has been tapped)
+var stairTried = false;
+function stairErrors(c){
+  var out = [];
+  if (stairTried) ['rise', 'run', 'plast'].forEach(function(k){ if (!(sNum(k) > 0) && !isNaN(sNum(k))) out.push({ rise: 'RISE total', run: 'RUN total', plast: 'Bottom nose to last tread nose' }[k] + ' is empty.'); });
+  STAIR_NUM.forEach(function(k){ if (isNaN(sNum(k))) out.push(stairName(k) + ' isn’t a number.'); });
+  if (c.bad) out.push('Each point should be further from the bottom nose than the one before (Mid Point 1 < 2 < 3 < last tread nose).');
+  (c.offNose || []).forEach(function(p){ out.push((p.name === 'LAST' ? 'Last tread nose' : p.name) + ' ' + fmtFrac(p.d) + ' doesn’t land on a tread nose with this rise and run (each step is ' + fmtFrac(c.diag) + ' along the nosings). Check the rise, run and risers, or the tape.'); });
+  return out;
+}
+function stairName(k){ return { rise: 'RISE total', run: 'RUN total', risers: 'Number of risers', bth: 'Bottom tread height', postAdd: 'Post add', lastLevel: 'Last level', stringer: 'Tread to underside of stringer', plast: 'Bottom nose to last tread nose', height: 'Height', standoff: 'Standoff' }[k] || (/^mp\d$/.test(k) ? 'Mid Point ' + k.slice(2) : k); }
+function stairErrHtml(c){
+  var e = stairErrors(c); if (!e.length) return '';
+  return '<div class="stairerr" role="alert"><b>' + (e.length === 1 ? '1 thing to fix' : e.length + ' things to fix') + '</b><ul>' + e.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+}
 function renderStairRes(){
   var c = stairCalc(), r = el('stairRes'), rows = [];
   if (c.deg != null) rows.push(['Stair angle', c.deg.toFixed(1) + '°']);
@@ -3923,8 +3940,7 @@ function renderStairRes(){
   if (sNum('lastLevel') > 0) rows.push(['Top tread length', fmtFrac(sNum('lastLevel'))]);
   if (sNum('stringer') > 0) rows.push(['Tread to underside of stringer', fmtFrac(sNum('stringer')) + ' (most a post can drop below the tread)']);
   r.innerHTML = stairSvg(c) + (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the RISE total, RUN total and the nosing measurements, to see the angle and spacing.</div>') +
-    (c.offNose && c.offNose.length ? '<div class="warn">' + c.offNose.map(function(p){ return esc((p.name === 'LAST' ? 'Last tread nose' : p.name) + ' ' + fmtFrac(p.d)); }).join(', ') + ' doesn’t land on a tread nose with this rise and run (each step is ' + esc(fmtFrac(c.diag)) + ' along the nosings). Check the rise, run and risers, or the tape.</div>' : '') +
-    (c.bad ? '<div class="warn">Each point should be further from the bottom nose than the one before (Mid Point 1 &lt; 2 &lt; 3 &lt; last tread nose). Check the numbers.</div>' : '') +
+    stairErrHtml(c) +
     '<div class="stairbtns"><button type="button" class="btn big pri" id="stairPdf">Save</button><button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
     '<div class="stairmsg" id="stairMsg"></div>';
 }
@@ -3943,16 +3959,16 @@ el('stairs').addEventListener('click', function(e){
   if (e.target.closest('#stairClear')){
     var b = e.target.closest('#stairClear');
     if (b.getAttribute('data-sure') !== '1'){ b.setAttribute('data-sure', '1'); b.textContent = 'Sure? Tap again'; setTimeout(function(){ if (b.isConnected){ b.removeAttribute('data-sure'); b.textContent = 'Clear'; } }, 3000); return; }
-    stair = { project: '' }; stairSave(); renderStairs(); return;
+    stair = { project: '' }; stairTried = false; stairSave(); renderStairs(); return;
   }
   if (e.target.closest('#stairPdf')) stairSavePdf();
 });
 function stairFileName(){ var n = String(stair.project || '').trim() || 'Stairs'; n = n.replace(/[\\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); return n + (stair.location ? ' ' + String(stair.location).replace(/[\\\/:*?"<>|]+/g, ' ').trim() : '') + ' Stairs.pdf'; }
 function stairSavePdf(){
-  var m = el('stairMsg'), bad = [];
-  ['rise', 'run', 'plast'].forEach(function(k){ if (!(sNum(k) > 0)) bad.push({ rise: 'RISE total', run: 'RUN total', plast: 'Bottom nose to last tread nose' }[k]); });
-  STAIR_NUM.forEach(function(k){ if (isNaN(sNum(k))) bad.push((k === 'bth' ? 'Bottom tread height' : k === 'postAdd' ? 'Post add' : k === 'lastLevel' ? 'Last level' : k === 'stringer' ? 'Tread to underside of stringer' : k === 'risers' ? 'Number of risers' : /^mp\d$/.test(k) ? 'Mid Point ' + k.slice(2) : k.toUpperCase()) + ' is not a number'); });
-  if (bad.length){ m.textContent = 'Fill in: ' + bad.join(', ') + '.'; m.className = 'stairmsg err'; return; }
+  stairTried = true;
+  var bad = ['rise', 'run', 'plast'].some(function(k){ return !(sNum(k) > 0); }) || STAIR_NUM.some(function(k){ return isNaN(sNum(k)); });
+  if (bad){ renderStairRes(); var b = document.querySelector('#stairRes .stairerr'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+  var m = el('stairMsg');
   m.textContent = 'Saving…'; m.className = 'stairmsg';
   var name = stairFileName();
   stairPdf().then(function(bytes){
