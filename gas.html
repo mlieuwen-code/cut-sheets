@@ -606,7 +606,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-e6ea33';
+var APP_VERSION = '2026.11.13-bd519a';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3958,40 +3958,43 @@ el('stairs').addEventListener('click', function(e){
     stair = { project: '' }; stairTried = false; stairSaved = false; stairSave(); renderStairs(); return;
   }
   if (e.target.closest('#stairNext')){
-    var nb = e.target.closest('#stairNext');
-    if (!stairSaved && stairHasData() && nb.getAttribute('data-sure') !== '1'){ nb.setAttribute('data-sure', '1'); nb.textContent = 'Not saved · tap again'; setTimeout(function(){ if (nb.isConnected){ nb.removeAttribute('data-sure'); nb.textContent = 'Next stair'; } }, 3000); return; }
-    stairNext(); return;
+    // saves this stair first (if it isn't saved yet), then starts the next one; stays put if the save doesn't go through
+    if (stairSaved || !stairHasData()){ stairNext(); return; }
+    stairSavePdf().then(function(ok){ if (ok) stairNext(true); });
+    return;
   }
   if (e.target.closest('#stairPdf')) stairSavePdf();
 });
 // Next stair: keep the job (project, mount, rail height, post add, standoff, tread style), start the measurements fresh
 var stairSaved = false, STAIR_KEEP = ['project', 'mount', 'height', 'postAdd', 'standoff', 'tread'];
 function stairHasData(){ return STAIR_NUM.some(function(k){ return String(stair[k] == null ? '' : stair[k]).trim() !== ''; }) || !!(stair.location || stair.notes || stair.alt1 || stair.alt2 || stair.alt3); }
-function stairNext(){
+function stairNext(justSaved){
+  var msg = justSaved && el('stairMsg') ? el('stairMsg').textContent : '';
   var keep = {}; STAIR_KEEP.forEach(function(k){ if (stair[k] != null && stair[k] !== '') keep[k] = stair[k]; });
   stair = keep; stairTried = false; stairSaved = false; stairSave(); renderStairs();
+  if (msg){ el('stairMsg').textContent = msg + ' · Started the next stair.'; el('stairMsg').className = 'stairmsg ok'; }
   window.scrollTo(0, 0); var f = el('st_location'); if (f) f.focus();
 }
 function stairFileName(){ var n = String(stair.project || '').trim() || 'Stairs'; n = n.replace(/[\\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); return n + (stair.location ? ' ' + String(stair.location).replace(/[\\\/:*?"<>|]+/g, ' ').trim() : '') + ' Stairs.pdf'; }
 function stairSavePdf(){
   stairTried = true;
   var bad = ['rise', 'run', 'plast'].some(function(k){ return !(sNum(k) > 0); }) || STAIR_NUM.some(function(k){ return isNaN(sNum(k)); });
-  if (bad){ renderStairRes(); var b = document.querySelector('#stairRes .stairerr'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+  if (bad){ renderStairRes(); var b = document.querySelector('#stairRes .stairerr'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); return Promise.resolve(false); }
   var m = el('stairMsg');
   m.textContent = 'Saving…'; m.className = 'stairmsg';
   var name = stairFileName();
-  stairPdf().then(function(bytes){
+  return stairPdf().then(function(bytes){
     var blob = new Blob([bytes], { type: 'application/pdf' });
     return upload(blob, name).then(function(){
       logSent(name, name + ' (stair sheet)', false);
-      stairSaved = true; m.textContent = (typeof savedDownload !== 'undefined' && savedDownload) ? 'Downloaded to this computer: ' + name : 'Saved to the Cut Sheets folder in Drive: ' + name; m.className = 'stairmsg ok';
+      stairSaved = true; m.textContent = (typeof savedDownload !== 'undefined' && savedDownload) ? 'Downloaded to this computer: ' + name : 'Saved to the Cut Sheets folder in Drive: ' + name; m.className = 'stairmsg ok'; return true;
     }, function(e){
-      if (e && e.code === 'declined'){ m.textContent = 'Not saved (you chose not to).'; m.className = 'stairmsg err'; return; }
+      if (e && e.code === 'declined'){ m.textContent = 'Not saved (you chose not to).'; m.className = 'stairmsg err'; return false; }
       return saveToTablet(blob, name).then(function(ok){
-        stairSaved = !!ok; m.textContent = ok ? 'Saved to this tablet as ' + name + ' (Drive only takes cut sheets for now).' : 'Couldn’t save the PDF. ' + driveError(e); m.className = 'stairmsg ' + (ok ? 'ok' : 'err');
+        stairSaved = !!ok; m.textContent = ok ? 'Saved to this tablet as ' + name + ' (Drive only takes cut sheets for now).' : 'Couldn’t save the PDF. ' + driveError(e); m.className = 'stairmsg ' + (ok ? 'ok' : 'err'); return !!ok;
       });
     });
-  }).catch(function(e){ m.textContent = 'Couldn’t make the PDF (' + (e && e.message ? e.message : e) + ').'; m.className = 'stairmsg err'; });
+  }).catch(function(e){ m.textContent = 'Couldn’t make the PDF (' + (e && e.message ? e.message : e) + ').'; m.className = 'stairmsg err'; return false; });
 }
 // ---------- the PDF ----------
 function stairPdf(){
