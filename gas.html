@@ -601,7 +601,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-c3554d';
+var APP_VERSION = '2026.11.13-2f25d7';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3852,7 +3852,7 @@ function renderStairs(){
       '<div class="g2" data-fracslot>' + stairField('standoff', 'Standoff', 'e.g. 2 1/2', true) + '<div></div></div>' +
     '</div>' +
     '<div class="card"><h3>Steps</h3>' +
-      '<div class="g2" data-fracslot>' + stairField('rise', 'Total rise (nose to nose)', 'e.g. 36 1/4', true) + stairField('run', 'Total run (nose to nose)', 'e.g. 55', true) + '</div>' +
+      '<div class="g2" data-fracslot>' + stairField('rise', 'RISE total (nose to nose)', 'e.g. 36 1/4', true) + stairField('run', 'RUN total (nose to nose)', 'e.g. 55', true) + '</div>' +
       '<div class="stephint">Measure rise and run between the same two points: <b>bottom tread nose to landing nose</b>. The step up from the ground goes in Bottom tread height.</div>' +
       '<div class="g2" data-fracslot>' + stairField('risers', 'Number of risers', 'all of them, ground to landing', true) + stairField('bth', 'Bottom tread height', 'ground to top of 1st tread', true) + '</div>' +
       '<div class="g2" data-fracslot>' + stairField('stringer', 'Tread to underside of stringer', 'how long the posts can be', true) + '<div></div></div>' +
@@ -3886,7 +3886,7 @@ function stairGeom(c){
 function stairPtLabel(p){ return p.name === 'Bottom' ? 'Bottom nose' : (p.name === 'LAST' ? 'Last tread nose' : p.name) + ' · ' + fmtFrac(p.d); }
 // a live sketch of the stair from what's been entered: steps at the rise / run, every point on its tread nose
 function stairSvg(c){
-  var g = stairGeom(c); if (!g) return '<div class="stairsk empty">Enter the total rise and run and bottom nose to last tread nose to see the stair.</div>';
+  var g = stairGeom(c); if (!g) return '<div class="stairsk empty">Enter the RISE total, RUN total and bottom nose to last tread nose to see the stair.</div>';
   var X = function(x){ return (g.maxX - x).toFixed(2); }, Y = function(y){ return (g.maxY - y).toFixed(2); };   // mirrored: climbs to the left, as on the sheet
   var ln = function(a, b, cls){ return '<line class="' + cls + '" x1="' + X(a[0]) + '" y1="' + Y(a[1]) + '" x2="' + X(b[0]) + '" y2="' + Y(b[1]) + '"/>'; };
   var tx = function(t, x, y, cls, anchor){ return '<text class="' + cls + '" x="' + X(x) + '" y="' + Y(y) + '" text-anchor="' + (anchor || 'middle') + '">' + esc(t) + '</text>'; };
@@ -3914,7 +3914,7 @@ function renderStairRes(){
   if (c.vert != null) rows.push(['Bottom nose to last tread nose', 'rises ' + fmtFrac(c.vert) + ', runs ' + fmtFrac(c.horiz) + ' (about ' + c.steps + ' step' + (c.steps === 1 ? '' : 's') + ')']);
   if (sNum('lastLevel') > 0) rows.push(['Top tread length', fmtFrac(sNum('lastLevel'))]);
   if (sNum('stringer') > 0) rows.push(['Tread to underside of stringer', fmtFrac(sNum('stringer')) + ' (most a post can drop below the tread)']);
-  r.innerHTML = stairSvg(c) + (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the total rise and run, and the nosing measurements, to see the angle and spacing.</div>') +
+  r.innerHTML = stairSvg(c) + (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the RISE total, RUN total and the nosing measurements, to see the angle and spacing.</div>') +
     (c.offNose && c.offNose.length ? '<div class="warn">' + c.offNose.map(function(p){ return esc((p.name === 'LAST' ? 'Last tread nose' : p.name) + ' ' + fmtFrac(p.d)); }).join(', ') + ' doesn’t land on a tread nose with this rise and run (each step is ' + esc(fmtFrac(c.diag)) + ' along the nosings). Check the rise, run and risers, or the tape.</div>' : '') +
     (c.bad ? '<div class="warn">Each point should be further from the bottom nose than the one before (Mid Point 1 &lt; 2 &lt; 3 &lt; last tread nose). Check the numbers.</div>' : '') +
     '<div class="stairbtns"><button type="button" class="btn big pri" id="stairPdf">Save</button><button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
@@ -3942,7 +3942,7 @@ el('stairs').addEventListener('click', function(e){
 function stairFileName(){ var n = String(stair.project || '').trim() || 'Stairs'; n = n.replace(/[\\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); return n + (stair.location ? ' ' + String(stair.location).replace(/[\\\/:*?"<>|]+/g, ' ').trim() : '') + ' Stairs.pdf'; }
 function stairSavePdf(){
   var m = el('stairMsg'), bad = [];
-  ['rise', 'run', 'plast'].forEach(function(k){ if (!(sNum(k) > 0)) bad.push({ rise: 'Total rise', run: 'Total run', plast: 'Bottom nose to last tread nose' }[k]); });
+  ['rise', 'run', 'plast'].forEach(function(k){ if (!(sNum(k) > 0)) bad.push({ rise: 'RISE total', run: 'RUN total', plast: 'Bottom nose to last tread nose' }[k]); });
   STAIR_NUM.forEach(function(k){ if (isNaN(sNum(k))) bad.push((k === 'bth' ? 'Bottom tread height' : k === 'postAdd' ? 'Post add' : k === 'lastLevel' ? 'Last level' : k === 'stringer' ? 'Tread to underside of stringer' : k === 'risers' ? 'Number of risers' : /^mp\d$/.test(k) ? 'Mid Point ' + k.slice(2) : k.toUpperCase()) + ' is not a number'); });
   if (bad.length){ m.textContent = 'Fill in: ' + bad.join(', ') + '.'; m.className = 'stairmsg err'; return; }
   m.textContent = 'Saving…'; m.className = 'stairmsg';
