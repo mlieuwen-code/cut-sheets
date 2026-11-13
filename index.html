@@ -59,6 +59,10 @@ h1,h2{text-wrap:balance}
 .calcout.bad{color:var(--bad)}
 .calcuse{display:flex;gap:10px;flex-wrap:wrap}
 .jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
+.boardrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 8px}.boardrow .btn{border:2px solid var(--line)}
+.boardhint{font-size:16px;font-weight:800}.bh-on{color:#2F7D4F}.bh-off{color:#A12D22}
+.bprow{flex-direction:row}.bprow b{font-size:19px;font-weight:900}.bprow .bpb{font-size:14px;font-weight:800;color:var(--muted)}.bprow small.bprs{color:var(--accent);font-weight:800}
+.bprow small{display:block;font-size:15px;font-weight:700;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  @media (max-width:560px){.apphead{flex-wrap:wrap!important;row-gap:8px}.apphead .ttl{order:3;flex:1 1 100%!important}.apphead #draftPill{margin-left:auto}}
 .btn.backbtn{flex-shrink:0;min-height:56px;padding:0 18px 0 12px;gap:4px;background:var(--card);border:2px solid var(--line);font-size:17px;font-weight:900;white-space:nowrap}
 .swipewrap{position:relative;margin-top:12px;border-radius:24px;overflow:hidden}
@@ -614,7 +618,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-9e5093';
+var APP_VERSION = '2026.11.13-8a652b';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1030,6 +1034,7 @@ function renderHeader(){
     '<div class="card"><div class="jobrow' + (header._kind ? '' : ' solo') + '"><div class="fld job"><label for="h_B4">' + (header._kind ? 'Building name' : 'Building or job name') + '</label><input id="h_B4" data-jn="name" type="text" autocomplete="off" placeholder="e.g. Woodbine" value="' + esc(header._name) + '">' +
         '<div class="kinds"><label class="chk" for="h_kapt"><input type="checkbox" id="h_kapt" data-kind="apt"' + (header._kind === 'apt' ? ' checked' : '') + '>Apartment</label><label class="chk" for="h_kth"><input type="checkbox" id="h_kth" data-kind="th"' + (header._kind === 'th' ? ' checked' : '') + '>Townhouse</label><label class="chk" for="h_fence"><input type="checkbox" id="h_fence" data-fence="1"' + (header.fence ? ' checked' : '') + '>Fencing</label></div></div>' +
       (header._kind ? '<div class="fld job"><label for="h_floor">' + (header._kind === 'th' ? 'Building #' : 'Floor') + '</label><input id="h_floor" data-jn="floor" type="text" inputmode="' + (/^\d*$/.test(floorBox()) ? 'numeric' : 'text') + '" autocomplete="off" placeholder="' + (header._kind === 'th' ? 'e.g. 12' : 'e.g. 4') + '" value="' + esc(floorBox()) + '"></div>' : '') + '</div>' +
+      '<div class="boardrow"><button type="button" class="btn ghost" id="boardPick">Pick job from the Crew Board</button><span class="boardhint" id="boardHint">' + boardHint() + '</span></div>' +
       '<div class="jobhelp" id="jobFileName">' + jobFileHint() + '</div><div class="jobwarn" id="jobWarn" hidden></div>' +
       '<div class="g2">' + selField('h_measBy', 'Measured by', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
     (isFence() ? fenceSetupHtml(colourOpts, col, isOther) : '<div class="card"><h3>Rail setup</h3>' +
@@ -1072,7 +1077,7 @@ el('tab-job').addEventListener('input', function(e){
   var t = e.target;
   if (t.id === 'h_B6o'){ header.B6 = t.value; return changed(); }
   var jn = t.getAttribute('data-jn');
-  if (jn){ if (jn === 'name') header._name = t.value; else header._floor = fmtFloor(header._kind, t.value); header.B4 = joinJob(header); var fh = el('jobFileName'); if (fh) fh.innerHTML = jobFileHint(); updJobWarn(); changed(); if (floors) renderFloors(); return; }
+  if (jn){ if (jn === 'name'){ header._name = t.value; var bh = el('boardHint'); if (bh) bh.innerHTML = boardHint(); } else header._floor = fmtFloor(header._kind, t.value); header.B4 = joinJob(header); var fh = el('jobFileName'); if (fh) fh.innerHTML = jobFileHint(); updJobWarn(); changed(); if (floors) renderFloors(); return; }
   var c = t.getAttribute('data-cell'); if (!c) return;
   header[c] = t.value;
   if (t.hasAttribute('data-frac')) showHint(t);
@@ -4144,6 +4149,76 @@ function offerDraft(){
   m.innerHTML = 'You have unsaved entries for this file from ' + esc(new Date(d.t).toLocaleString()) + '. <button class="btn" type="button" id="restore">Restore them</button>';
   el('restore').onclick = function(){ header = Object.assign(header, d.header); if (d.header && d.header._name == null){ delete header._name; delete header._floor; } units = d.units || groupUnits(d.runs); units.forEach(function(u){ if (u.custom == null){ u.custom = false; u.post = ''; u.block = ''; } }); renderHeader(); renderRuns(); applyMount(); msg('Restored your unsaved entries.', true); };
 }
+
+// ---------- Crew Board link: job names come from the Crew Job Board's jobsite list ----------
+var BOARD_API = 'https://script.google.com/macros/s/AKfycbydlE5l182hcs9PaOOMDPzRwoBIiyzwkDopbVJihlxNc3EHLLZeaEkeKofZ7PnaWnXH/exec';
+function boardCached(){ try { var c = JSON.parse(localStorage.getItem('ridgeway-board-jobs') || 'null'); return c && c.jobs ? c : null; } catch (e) { return null; } }
+function boardJobs(){
+  var c = boardCached();
+  if (navigator.onLine === false) return Promise.resolve(c);
+  return fetch(BOARD_API + '?action=board', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(j){
+    var jobs = ((j && j.state && j.state.jobs) || []).filter(function(x){ return x && x.name; }).map(function(x){ return { id: x.id, name: String(x.name).trim(), builder: x.builder || '', address: x.address || '', railType: x.railType || '', colour: x.colour || '', chan: x.chan || '', chanH: x.chanH || '' }; });
+    jobs.sort(function(a, b){ return a.name.localeCompare(b.name); });
+    var out = { at: Date.now(), jobs: jobs }; try { localStorage.setItem('ridgeway-board-jobs', JSON.stringify(out)); } catch (e) {}
+    return out;
+  }).catch(function(){ return c; });
+}
+function boardMatch(name){ var c = boardCached(), n = String(name || '').trim().toLowerCase(); if (!c || !n) return null; for (var i = 0; i < c.jobs.length; i++) if (c.jobs[i].name.toLowerCase() === n) return c.jobs[i]; return false; }
+function boardHint(){
+  var m = boardMatch(header && header._name);
+  if (m === null) return '';
+  if (m === false) return '<span class="bh-off">Not on the Crew Board. Check the spelling, or pick it from the list.</span>';
+  return '<span class="bh-on">✓ Matches the Crew Board' + (m.builder ? ' · ' + esc(m.builder) : '') + '</span>';
+}
+function setBoardJob(j){
+  header._name = j.name; header.B4 = joinJob(header); header._board = j.id || '';
+  var got = [];   // the job's rail type / colour from the Crew Board fill empty boxes only, never overwrite what the crew picked
+  if (!isFence() && j.railType && !String(header.B8 || '') && lists.railTypes.indexOf(j.railType) >= 0){ header.B8 = j.railType; got.push('rail type ' + railLabel(j.railType)); }
+  if (j.colour && !String(header.B6 || '')){ header.B6 = j.colour; got.push('colour ' + colourLabel(j.colour)); }
+  if (!isFence() && j.chan && !String(header.D7 || '') && !String(header.D8 || '') && !String(header.D9 || '') && lists.channels.indexOf(j.chan) >= 0){ header.D7 = j.chan; if (j.chanH !== '' && j.chanH != null) header.E7 = String(j.chanH); got.push('extra channel ' + j.chan + (j.chanH !== '' && j.chanH != null ? ' at ' + j.chanH + '"' : '')); }
+  j._got = got;
+  renderHeader(); changed();
+  var f = el('jobFileName'); if (f) f.innerHTML = jobFileHint(); if (typeof updJobWarn === 'function') updJobWarn();
+}
+function showBoardPicker(){
+  var wrap = document.createElement('div'); wrap.className = 'modal';
+  wrap.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="bpT" style="max-width:560px;max-height:85vh;overflow:hidden">' +
+    '<p id="bpT" style="font-size:20px;font-weight:900">Pick the job</p>' +
+    '<div class="fld"><input id="bpQ" type="search" placeholder="Search jobs, builders or addresses" aria-label="Search jobs" autocomplete="off"></div>' +
+    '<div id="bpL" class="stack" style="overflow-y:auto;max-height:52vh;gap:8px"><div class="hint">Loading jobs from the Crew Board…</div></div>' +
+    '<div class="row"><button type="button" class="btn" id="bpX">Cancel</button></div></div>';
+  document.body.appendChild(wrap);
+  var all = [], close = function(){ wrap.remove(); };
+  el('bpX').onclick = close;
+  function draw(note){
+    var q = el('bpQ').value.trim().toLowerCase(), L = el('bpL');
+    var rows = all.filter(function(j){ return !q || (j.name + ' ' + j.builder + ' ' + j.address).toLowerCase().indexOf(q) >= 0; });
+    L.innerHTML = (note ? '<div class="hint">' + note + '</div>' : '') + (rows.length ? rows.map(function(j){ return '<button type="button" class="secrow bprow" data-k="' + all.indexOf(j) + '"><span style="flex:1;min-width:0"><b>' + esc(j.name) + '</b>' + (j.builder ? ' <span class="bpb">' + esc(j.builder) + '</span>' : '') + (j.address ? '<small>' + esc(j.address) + '</small>' : '') + (j.railType || j.colour || j.chan ? '<small class="bprs">' + esc([j.railType ? railLabel(j.railType) : '', j.colour ? colourLabel(j.colour) : '', j.chan ? '+ ' + j.chan + (j.chanH ? ' at ' + j.chanH + '"' : '') : ''].filter(Boolean).join(' · ')) + '</small>' : '') + '</span></button>'; }).join('') : '<div class="hint">No jobs match.</div>');
+  }
+  el('bpQ').oninput = function(){ draw(); };
+  el('bpL').onclick = function(e){ var b = e.target.closest('[data-k]'); if (!b) return; var j = all[+b.getAttribute('data-k')]; close(); setBoardJob(j); msg('Job set to ' + j.name + ' from the Crew Board' + (j._got.length ? ', with ' + j._got.join(' and ') : '') + '.', true); };
+  var c = boardCached(); if (c){ all = c.jobs; draw(); }
+  boardJobs().then(function(r){
+    if (!r){ el('bpL').innerHTML = '<div class="hint bad">Couldn’t reach the Crew Board. Check your signal, or type the job name.</div>'; return; }
+    all = r.jobs; draw(navigator.onLine === false ? 'No signal: showing the list from ' + new Date(r.at).toLocaleDateString() + '.' : '');
+  });
+  setTimeout(function(){ var f = el('bpQ'); if (f) f.focus(); }, 200);
+}
+document.addEventListener('click', function(e){ if (e.target.closest && e.target.closest('#boardPick')){ e.preventDefault(); showBoardPicker(); } });
+boardJobs().then(function(){ var bh = el('boardHint'); if (bh && header) bh.innerHTML = boardHint(); });   // refresh the cached list when the app opens
+
+// "Start measuring" from a Measure card on the Crew Board opens this app with #job=<name>&builder=…&addr=…&id=…
+(function(){
+  var h = location.hash.replace(/^#/, ''); if (h.indexOf('job=') < 0) return;
+  var p = {}; h.split('&').forEach(function(kv){ var i = kv.indexOf('='); if (i > 0) try { p[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); } catch (e) {} });
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  var name = String(p.job || '').trim(); if (!name) return;
+  var go = function(){ startNew({ header: { _name: name, _floor: '', _kind: '', B4: name, _board: p.id || '' }, quiet: true, tab: 'job' }); setTimeout(function(){ msg('New cut sheet for ' + name + (p.builder ? ' (' + p.builder + ')' : '') + ' from the Crew Board. Pick Apartment / Townhouse and the floor, then measure.', true); }, 700); };
+  setTimeout(function(){
+    if (readDraft('new-job')) ask('Start a new cut sheet for ' + name + '? This replaces the unsaved draft on this tablet.', 'Start ' + name, function(){ try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {} go(); }, 'Not now');
+    else go();
+  }, 400);
+})();
 window.__test = { parseLen: parseLen, fmtFrac: fmtFrac, writeCell: writeCell, readCell: readCell, CARRY: CARRY };
 
 // Installed copy: works with no signal; talks to the Google script only to save and to open saved sheets.
