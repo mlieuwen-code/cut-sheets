@@ -27,6 +27,9 @@ body[data-mount="Inside"]{--accent:#8A3A34;--tint:#F8EDEB;--tint2:#F2E2DF;--deep
 body[data-mount="Top"]{--accent:#2D5577;--tint:#EDF2F7;--tint2:#E1E9F2;--deep:#1F3B54;--aline:#CBD9E7}
 .unit[data-mount="Fascia"]{--accent:#2F5D50;--tint:#EEF4F1;--tint2:#E4EDE9;--deep:#21443A;--aline:#CFE0D8}
 .unit[data-mount="Inside"]{--accent:#8A3A34;--tint:#F8EDEB;--tint2:#F2E2DF;--deep:#5E2924;--aline:#E6CCC8}
+#stairs{--accent:#2F5D50;--tint:#EEF4F1;--tint2:#E4EDE9;--deep:#21443A;--aline:#CFE0D8}
+#stairs[data-mount="Inside"]{--accent:#8A3A34;--tint:#F8EDEB;--tint2:#F2E2DF;--deep:#5E2924;--aline:#E6CCC8}
+#stairs[data-mount="Top"]{--accent:#2D5577;--tint:#EDF2F7;--tint2:#E1E9F2;--deep:#1F3B54;--aline:#CBD9E7}
 .unit[data-mount="Top"]{--accent:#2D5577;--tint:#EDF2F7;--tint2:#E1E9F2;--deep:#1F3B54;--aline:#CBD9E7}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -440,7 +443,7 @@ input.lzok{border-color:#2f8f5b !important;background:#e3f4e8 !important;color:#
 .calctab{width:100%;border-collapse:collapse;font-size:17px}.calctab th{text-align:left;color:var(--muted);font-weight:800;padding:6px 10px 6px 0;vertical-align:top;white-space:nowrap}.calctab td{font-weight:900;color:var(--deep);padding:6px 0}
 .stairerr{margin-top:14px;padding:12px 14px;border:2px solid #b3261e;border-radius:14px;background:#fdecea;color:#7a1a14;font-size:15px}.stairerr b{display:block;font-size:16px;margin-bottom:4px}.stairerr ul{margin:0;padding-left:20px}.stairerr li{margin:3px 0}
 @media (prefers-color-scheme:dark){.stairerr{background:#3a1512;color:#ffb4ab;border-color:#ff8a80}}
-.stairbtns{display:grid;grid-template-columns:3fr 1fr;gap:10px;margin-top:14px}.stairmsg{margin-top:10px;font-weight:800}.stairmsg.ok{color:#2f8f5b}.stairmsg.err{color:#b3261e}
+.stairbtns{display:grid;grid-template-columns:2fr 1.3fr 1fr;gap:10px;margin-top:14px}.stairmsg{margin-top:10px;font-weight:800}.stairmsg.ok{color:#2f8f5b}.stairmsg.err{color:#b3261e}
 #stairs textarea{width:100%;font:inherit;font-size:17px;border:2px solid var(--line);border-radius:12px;padding:10px;background:var(--field)}
 </style>
 </head><body>
@@ -527,7 +530,7 @@ input.lzok{border-color:#2f8f5b !important;background:#e3f4e8 !important;color:#
   <section id="stairs" hidden>
     <div class="calctop"><button type="button" class="btn" id="stairsBack">‹ Start page</button></div>
     <h1 class="calch">Measure a Stair</h1>
-    <p class="calcsub">The Ridgeway stair sheet. Rise and run are one step; the posts are measured up the rake from the bottom post. Save makes a PDF: the sheet filled in, and the stair drawn to scale for fab.</p>
+    <p class="calcsub">The Ridgeway stair sheet. Measure rise, run and mid points nose to nose. Save makes the filled-in sheet for the office to draw the stair from.</p>
     <div id="stairBody"></div>
     <div class="card calcres" id="stairRes"></div>
   </section>
@@ -611,7 +614,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-e5a83d';
+var APP_VERSION = '2026.11.13-e6ea33';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3850,6 +3853,7 @@ function stairChips(k, label, opts){
   return '<div class="fld"><div class="lbl">' + label + '</div><div class="stepdir">' + opts.map(function(o){ var on = stair[k] === o[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-schip="' + k + '" data-v="' + esc(o[0]) + '">' + esc(o[1]) + '</button>'; }).join('') + '</div></div>';
 }
 function renderStairs(){
+  [el('stairs'), document.body].forEach(function(n){ if (MOUNTS.indexOf(stair.mount) >= 0) n.setAttribute('data-mount', stair.mount); else n.removeAttribute('data-mount'); });
   parkFrac();
   if (stair.project == null) stair.project = String((typeof header !== 'undefined' && header && header.B4) || '');
   el('stairBody').innerHTML =
@@ -3857,7 +3861,7 @@ function renderStairs(){
       '<div class="g2">' + stairField('project', 'Project', 'Job name') + stairField('location', 'Location/Unit Number', 'e.g. Unit 204 or Bldg 3 front') + '</div>' +
       stairChips('hand', 'Hand up', [['LH', 'LH'], ['RH', 'RH'], ['Both', 'LH + RH matching']]) +
       stairChips('tread', 'Tread style', [['Open', 'Open'], ['Hidden', 'Hidden']]) +
-      '<div class="fld"><div class="lbl">Mount</div><div class="stepdir">' + MOUNTS.map(function(m){ var on = stair.mount === m; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-schip="mount" data-v="' + esc(m) + '">' + esc(m) + '</button>'; }).join('') + '</div></div>' +
+      '<div class="fld"><div class="lbl">Mount</div><div class="chips" style="--n:' + MOUNTS.length + '">' + MOUNTS.map(function(m){ return '<button type="button" class="chip" aria-pressed="' + (stair.mount === m) + '" data-schip="mount" data-v="' + esc(m) + '"><span class="mdot" style="background:' + MOUNT_COLOR[m] + '"></span>' + esc(m) + '</button>'; }).join('') + '</div></div>' +
       '<div class="g2" data-fracslot>' + stairField('height', 'Height (rail, plumb above nosing)', 'e.g. 36', true) + stairField('postAdd', 'Post add', 'e.g. 4', true) + '</div>' +
       '<div class="g2" data-fracslot>' + stairField('standoff', 'Standoff', 'e.g. 2 1/2', true) + '<div></div></div>' +
     '</div>' +
@@ -3941,28 +3945,41 @@ function renderStairRes(){
   if (sNum('stringer') > 0) rows.push(['Tread to underside of stringer', fmtFrac(sNum('stringer')) + ' (most a post can drop below the tread)']);
   r.innerHTML = stairSvg(c) + (rows.length ? '<table class="calctab">' + rows.map(function(x){ return '<tr><th>' + esc(x[0]) + '</th><td>' + esc(x[1]) + '</td></tr>'; }).join('') + '</table>' : '<div class="stephint">Enter the RISE total, RUN total and the nosing measurements, to see the angle and spacing.</div>') +
     stairErrHtml(c) +
-    '<div class="stairbtns"><button type="button" class="btn big pri" id="stairPdf">Save</button><button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
+    '<div class="stairbtns"><button type="button" class="btn big pri" id="stairPdf">Save</button><button type="button" class="btn" id="stairNext">Next stair</button><button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
     '<div class="stairmsg" id="stairMsg"></div>';
 }
 function openStairs(){ el('start').hidden = true; el('stairs').hidden = false; window.scrollTo(0, 0); renderStairs(); }
-function closeStairs(){ parkFrac(); el('stairs').hidden = true; el('start').hidden = false; }
+function closeStairs(){ parkFrac(); el('stairs').hidden = true; el('start').hidden = false; try { applyMount(); } catch (e){} }
 el('stairsOpen').onclick = openStairs;
 el('stairsBack').onclick = closeStairs;
 el('stairs').addEventListener('input', function(e){
   var t = e.target, k = t.getAttribute('data-sk'); if (!k) return;
-  stair[k] = t.value; stairSave(); if (t.hasAttribute('data-frac')) showHint(t);
+  stair[k] = t.value; stairSaved = false; stairSave(); if (t.hasAttribute('data-frac')) showHint(t);
   if (STAIR_NUM.indexOf(k) >= 0){ var m = el('stairMsg') && el('stairMsg').textContent; renderStairRes(); if (m) el('stairMsg').textContent = m; }
 });
 el('stairs').addEventListener('click', function(e){
   var c = e.target.closest('[data-schip]');
-  if (c){ var k = c.getAttribute('data-schip'), v = c.getAttribute('data-v'); stair[k] = stair[k] === v ? '' : v; stairSave(); renderStairs(); return; }
+  if (c){ var k = c.getAttribute('data-schip'), v = c.getAttribute('data-v'); stair[k] = stair[k] === v ? '' : v; stairSaved = false; stairSave(); renderStairs(); return; }
   if (e.target.closest('#stairClear')){
     var b = e.target.closest('#stairClear');
     if (b.getAttribute('data-sure') !== '1'){ b.setAttribute('data-sure', '1'); b.textContent = 'Sure? Tap again'; setTimeout(function(){ if (b.isConnected){ b.removeAttribute('data-sure'); b.textContent = 'Clear'; } }, 3000); return; }
-    stair = { project: '' }; stairTried = false; stairSave(); renderStairs(); return;
+    stair = { project: '' }; stairTried = false; stairSaved = false; stairSave(); renderStairs(); return;
+  }
+  if (e.target.closest('#stairNext')){
+    var nb = e.target.closest('#stairNext');
+    if (!stairSaved && stairHasData() && nb.getAttribute('data-sure') !== '1'){ nb.setAttribute('data-sure', '1'); nb.textContent = 'Not saved · tap again'; setTimeout(function(){ if (nb.isConnected){ nb.removeAttribute('data-sure'); nb.textContent = 'Next stair'; } }, 3000); return; }
+    stairNext(); return;
   }
   if (e.target.closest('#stairPdf')) stairSavePdf();
 });
+// Next stair: keep the job (project, mount, rail height, post add, standoff, tread style), start the measurements fresh
+var stairSaved = false, STAIR_KEEP = ['project', 'mount', 'height', 'postAdd', 'standoff', 'tread'];
+function stairHasData(){ return STAIR_NUM.some(function(k){ return String(stair[k] == null ? '' : stair[k]).trim() !== ''; }) || !!(stair.location || stair.notes || stair.alt1 || stair.alt2 || stair.alt3); }
+function stairNext(){
+  var keep = {}; STAIR_KEEP.forEach(function(k){ if (stair[k] != null && stair[k] !== '') keep[k] = stair[k]; });
+  stair = keep; stairTried = false; stairSaved = false; stairSave(); renderStairs();
+  window.scrollTo(0, 0); var f = el('st_location'); if (f) f.focus();
+}
 function stairFileName(){ var n = String(stair.project || '').trim() || 'Stairs'; n = n.replace(/[\\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); return n + (stair.location ? ' ' + String(stair.location).replace(/[\\\/:*?"<>|]+/g, ' ').trim() : '') + ' Stairs.pdf'; }
 function stairSavePdf(){
   stairTried = true;
@@ -3975,11 +3992,11 @@ function stairSavePdf(){
     var blob = new Blob([bytes], { type: 'application/pdf' });
     return upload(blob, name).then(function(){
       logSent(name, name + ' (stair sheet)', false);
-      m.textContent = (typeof savedDownload !== 'undefined' && savedDownload) ? 'Downloaded to this computer: ' + name : 'Saved to the Cut Sheets folder in Drive: ' + name; m.className = 'stairmsg ok';
+      stairSaved = true; m.textContent = (typeof savedDownload !== 'undefined' && savedDownload) ? 'Downloaded to this computer: ' + name : 'Saved to the Cut Sheets folder in Drive: ' + name; m.className = 'stairmsg ok';
     }, function(e){
       if (e && e.code === 'declined'){ m.textContent = 'Not saved (you chose not to).'; m.className = 'stairmsg err'; return; }
       return saveToTablet(blob, name).then(function(ok){
-        m.textContent = ok ? 'Saved to this tablet as ' + name + ' (Drive only takes cut sheets for now).' : 'Couldn’t save the PDF. ' + driveError(e); m.className = 'stairmsg ' + (ok ? 'ok' : 'err');
+        stairSaved = !!ok; m.textContent = ok ? 'Saved to this tablet as ' + name + ' (Drive only takes cut sheets for now).' : 'Couldn’t save the PDF. ' + driveError(e); m.className = 'stairmsg ' + (ok ? 'ok' : 'err');
       });
     });
   }).catch(function(e){ m.textContent = 'Couldn’t make the PDF (' + (e && e.message ? e.message : e) + ').'; m.className = 'stairmsg err'; });
