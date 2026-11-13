@@ -606,7 +606,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-b73883';
+var APP_VERSION = '2026.11.13-009a80';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2918,7 +2918,7 @@ function updOutbox(){
   outboxList().then(function(items){
     var b = el('outbox'); if (!b) return;
     b.hidden = !items.length;
-    if (items.length) el('outboxText').textContent = items.length + ' cut sheet' + (items.length === 1 ? '' : 's') + ' in the outbox, waiting for signal. ' + (items.length === 1 ? 'It sends' : 'They send') + ' to Drive by itself once you’re online.';
+    if (items.length) el('outboxText').textContent = items.length + ' sheet' + (items.length === 1 ? '' : 's') + ' in the outbox, waiting for signal. ' + (items.length === 1 ? 'It sends' : 'They send') + ' to Drive by itself once you’re online.';
     var oc = el('obName'); if (oc){
       oc.textContent = items.length ? items.length + ' waiting to send' : 'Nothing waiting';
       el('obInfo').textContent = items.length ? items.map(function(x){ return x.name.replace(/\.xlsx$/i, ''); }).join(' · ') : 'Everything you’ve saved is in Drive.';
@@ -3985,14 +3985,20 @@ function stairSavePdf(){
   var name = stairFileName();
   return stairPdf().then(function(bytes){
     var blob = new Blob([bytes], { type: 'application/pdf' });
-    return upload(blob, name).then(function(){
+    return outboxIdle().then(function(){ return outboxDrop(name); }).then(function(){ return upload(blob, name); }).then(function(){
       logSent(name, name + ' (stair sheet)', false);
       stairSaved = true; m.textContent = (typeof savedDownload !== 'undefined' && savedDownload) ? 'Downloaded to this computer: ' + name : 'Saved to Measured Stair Sheets For Jordan in Drive: ' + name; m.className = 'stairmsg ok'; return true;
     }, function(e){
       if (e && e.code === 'declined'){ m.textContent = 'Not saved (you chose not to).'; m.className = 'stairmsg err'; return false; }
-      return saveToTablet(blob, name).then(function(ok){
+      // no signal: into the outbox like a cut sheet, sent to Drive by itself once the tablet's online
+      var fallback = function(){ return saveToTablet(blob, name).then(function(ok){
         stairSaved = !!ok; m.textContent = ok ? 'Couldn’t reach Drive, so it’s saved on this tablet as ' + name + '. Send it to the office.' : 'Couldn’t save the PDF. ' + driveError(e); m.className = 'stairmsg ' + (ok ? 'ok' : 'err'); return !!ok;
-      });
+      }); };
+      if (!shouldQueue(e)) return fallback();
+      return outboxAdd(blob, name, name + ' (stair sheet)').then(function(){
+        stairSaved = true; updOutbox();
+        m.textContent = 'No signal. ' + name + ' is in the outbox and goes to Measured Stair Sheets For Jordan by itself once you’re online.'; m.className = 'stairmsg ok'; return true;
+      }, fallback);
     });
   }).catch(function(e){ m.textContent = 'Couldn’t make the PDF (' + (e && e.message ? e.message : e) + ').'; m.className = 'stairmsg err'; return false; });
 }
