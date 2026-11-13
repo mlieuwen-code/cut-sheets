@@ -601,7 +601,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-194512';
+var APP_VERSION = '2026.11.13-c3554d';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3845,7 +3845,7 @@ function renderStairs(){
   el('stairBody').innerHTML =
     '<div class="card"><h3>Job</h3>' +
       '<div class="g2">' + stairField('project', 'Project', 'Job name') + stairField('location', 'Location', 'Unit / area') + '</div>' +
-      stairChips('hand', 'Hand up', [['LH', 'LH'], ['RH', 'RH']]) +
+      stairChips('hand', 'Hand up', [['LH', 'LH'], ['RH', 'RH'], ['Both', 'LH + RH matching']]) +
       stairChips('tread', 'Tread style', [['Open', 'Open'], ['Hidden', 'Hidden']]) +
       '<div class="fld"><div class="lbl">Mount</div><div class="stepdir">' + MOUNTS.map(function(m){ var on = stair.mount === m; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-schip="mount" data-v="' + esc(m) + '">' + esc(m) + '</button>'; }).join('') + '</div></div>' +
       '<div class="g2" data-fracslot>' + stairField('height', 'Height (rail, plumb above nosing)', 'e.g. 36', true) + stairField('postAdd', 'Post add', 'e.g. 4', true) + '</div>' +
@@ -3980,7 +3980,8 @@ function stairPdf(){
       put(new Date().toLocaleDateString(), 306, 531, 8, R);
       put(fv('height'), 446, 514, 10); put(fv('rise'), 432, 529, 10); put(fv('run'), 430, 543, 10); put(fv('postAdd'), 461, 558, 10);
       put(stair.mount, 446, 572, 10); put(stair.standoff, 464, 587, 10);
-      if (stair.hand === 'LH') ring(477, 598, 13); else if (stair.hand === 'RH') ring(522, 598, 13);
+      if (stair.hand === 'LH' || stair.hand === 'Both') ring(477, 598, 13); if (stair.hand === 'RH' || stair.hand === 'Both') ring(522, 598, 13);
+      if (stair.hand === 'Both') put('BOTH SIDES · MATCHING', 548, 601, 8, B);
       if (stair.tread === 'Open') ring(664, 497, 21); else if (stair.tread === 'Hidden') ring(716, 497, 27);
       var c = stairCalc(); if (c.deg != null) put('Angle ' + c.deg.toFixed(1) + '°', 18, 395, 10);
       // notes: wrapped into the NOTES box
