@@ -166,7 +166,8 @@ details.fold{border:2px dashed var(--dash);border-radius:20px}
 details.fold>summary{list-style:none;min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 20px;font-size:18px;font-weight:800;cursor:pointer}
 details.fold>summary::-webkit-details-marker{display:none}
 details.fold>summary span{color:var(--muted);font-weight:700}
-details.fold[open]>summary span{transform:rotate(90deg)}
+details.fold>summary .fsum{font-style:normal;color:var(--muted);font-weight:700;white-space:nowrap}details.fold>summary .fsum b{font-weight:700}
+details.fold>summary span:last-child{display:inline-block;transition:transform .15s}details.fold[open]>summary span:last-child{transform:rotate(90deg)}
 details.fold .in{padding:0 20px 20px;display:flex;flex-direction:column;gap:14px}
 
 /* units */
@@ -618,7 +619,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-8a652b';
+var APP_VERSION = '2026.11.13-76530e';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1057,7 +1058,7 @@ function renderHeader(){
     '<div class="card">' + chips('B17', 'Substrate', ['Wood','Concrete']) + '</div>' +
     '<details class="fold"><summary>Post wall <em id="pwSum" style="font-style:normal;color:var(--muted);font-weight:700;margin-left:auto">' + esc(String(header.B10 || POST_WALLS[0]).replace('2x2 - ', '')) + '</em></summary><div class="in">' +
       chips('B10', 'Post wall', POST_WALLS, ['2x2 · .095', '2x2 · .125']) + '</div></details>' +
-    '<details class="fold"' + (nChan ? ' open' : '') + '><summary>Extra channels <span>' + (nChan ? nChan + ' added' : 'None') + ' ›</span></summary><div class="in">' + chan + '</div></details>' +
+    '<details class="fold"' + (nChan ? ' open' : '') + '><summary>Extra channels <em class="fsum"><b id="chanSum">' + (nChan ? nChan + ' added' : 'None') + '</b> <span>›</span></em></summary><div class="in">' + chan + '</div></details>' +
     '<details class="fold"' + (units.some(function(u){ return u.screen; }) ? ' open' : '') + '><summary>Privacy Screen Height</summary><div class="in">' +
       '<div class="g2" data-fracslot>' + numField('h_scrH', 'Screen height (in)', header.scrH, { need: true, ph: 'e.g. 78', attrs: ' data-cell="scrH"' }) +
         numField('h_scrD', 'DBL channel down (in)', header.scrD, { ph: 'e.g. 34', attrs: ' data-cell="scrD"' }) + '</div>' +
@@ -1107,7 +1108,7 @@ el('tab-job').addEventListener('change', function(e){
     else { o.hidden = true; header.B6 = t.value; }
     return changed();
   }
-  var c = t.getAttribute('data-cell'); if (c && t.tagName === 'SELECT'){ header[c] = t.value; changed(); if ((c === 'fMeas' || c === 'fGateMeas') && el('fPostHint')){ el('fPostHint').textContent = fPostHintTxt(); var gd6 = el('h_fH6'); if (gd6) gd6.placeholder = fStdDef('fH6'); } if (c === 'B8' && el('glassCard')) el('glassCard').hidden = !isGlassRail(t.value); if (/^D[789]$/.test(c) && el('glassBot')) el('glassBot').hidden = ![7,8,9].some(function(r){ return String(header['D' + r] || '') !== ''; }); }
+  var c = t.getAttribute('data-cell'); if (c && t.tagName === 'SELECT'){ header[c] = t.value; changed(); if ((c === 'fMeas' || c === 'fGateMeas') && el('fPostHint')){ el('fPostHint').textContent = fPostHintTxt(); var gd6 = el('h_fH6'); if (gd6) gd6.placeholder = fStdDef('fH6'); } if (c === 'B8' && el('glassCard')) el('glassCard').hidden = !isGlassRail(t.value); if (/^D[789]$/.test(c) && el('chanSum')){ var nc = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length; el('chanSum').textContent = nc ? nc + ' added' : 'None'; } if (/^D[789]$/.test(c) && el('glassBot')) el('glassBot').hidden = ![7,8,9].some(function(r){ return String(header['D' + r] || '') !== ''; }); }
 });
 el('tab-job').addEventListener('click', function(e){
   if (e.target.closest('[data-act="std"]')){
