@@ -609,7 +609,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.12-baba66';
+var APP_VERSION = '2026.11.13-b0ccc6';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3869,9 +3869,10 @@ function renderStairs(){
       '<div class="g2" data-fracslot>' + stairField('lastLevel', 'Last level (top tread length)', 'e.g. 11', true) + '<div></div></div>' +
       '<div class="stephint">Hook the tape on the bottom nose and read along the nosings. Leave a mid point blank if you don\'t need it.</div>' +
     '</div>' +
-    '<div class="card"><h3>Alternative mid points · notes</h3>' +
+    '<div class="card"><h3>Notes</h3>' +
+      '<details class="more" id="stairAlt"' + (stair.alt1 || stair.alt2 || stair.alt3 ? ' open' : '') + '><summary>Alternative mid points ›</summary>' +
       '<div class="g2">' + stairField('alt1', 'MP1', '') + stairField('alt2', 'MP2', '') + '</div>' +
-      '<div class="g2">' + stairField('alt3', 'MP3', '') + '<div></div></div>' +
+      '<div class="g2">' + stairField('alt3', 'MP3', '') + '<div></div></div></details>' +
       '<div class="fld"><label for="st_notes">Notes</label><textarea id="st_notes" data-sk="notes" rows="3">' + esc(stair.notes || '') + '</textarea></div>' +
     '</div>';
   renderStairRes();
