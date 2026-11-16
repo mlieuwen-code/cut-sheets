@@ -617,7 +617,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-f9ef65';
+var APP_VERSION = '2026.11.16-0dead0';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1147,11 +1147,14 @@ function blankUnit(num){ return { unit: num, custom: false, post: '', block: '',
 function groupUnits(flat){
   var out = [], map = {};
   flat.forEach(function(r){
-    var t = String(r.tag == null ? '' : r.tag).trim(), m = t.match(/^(.+)\.(\d+)$/), u = m ? m[1] : t;
+    var t = String(r.tag == null ? '' : r.tag).trim(), m = t.match(/^(.+)\.(\d+)$/), u = m ? m[1] : t, gm = t.match(/^(.+?) Gate(?: \d+)?$/);
+    if (gm) u = gm[1];
     if (!(u in map)){ map[u] = out.length; out.push({ unit: u, custom: false, post: '', block: '', secs: [] }); }
+    if (gm){ var gu = out[map[u]], gv = parseLen(String(r.len)); gu.gate = true; (gu.gates = gu.gates || []).push({ size: gv === null || isNaN(gv) ? '' : fmtFrac(gv + GATE_CLEAR).replace(/"$/, ''), where: '', posts: false, _done: true }); return; }
     if (String(r.len).trim() !== '') r.lenOk = true;
     out[map[u]].secs.push(r);
   });
+  out.forEach(function(x){ if (!x.secs.length) x.secs.push(blankRun()); });   // a unit with only a gate
   return out;
 }
 function fmtFtIn(v){
@@ -2180,7 +2183,7 @@ function gatePostHt(u){ var ph = parseLen(String(unitSetup(u).post == null ? '' 
 function gateBox(u, i){
   var list = u.gates || [];
   var gph = gatePostHt(u);
-  return '<div class="custbox scrbox gatebox"><div class="lbl">Gate' + (list.length > 1 ? 's' : '') + ' <em style="font-style:normal;color:var(--muted)">· saved on the job’s gates sheet</em></div>' +
+  return '<div class="custbox scrbox gatebox"><div class="lbl">Gate' + (list.length > 1 ? 's' : '') + ' <em style="font-style:normal;color:var(--muted)">· goes on the cut sheet as “' + esc((String(u.unit).trim() || '?') + ' Gate') + '”, E to E, non-substrate</em></div>' +
     list.map(function(g, k){
       var id = 'u' + i + 'g' + k + '_', ov = parseLen(g.size), ok = !(ov === null || isNaN(ov) || ov <= GATE_CLEAR);
       var nm = 'Gate ' + (String(u.unit).trim() || '?') + (list.length > 1 ? ' #' + (k + 1) : '');
@@ -2197,24 +2200,26 @@ function gateBox(u, i){
     }).join('') +
     '<button type="button" class="addsec" data-act="gateadd">+ Add another gate for this unit</button></div>';
 }
-// a small workbook listing every gate, for the shop
-function buildGatesBlob(list){
-  var z = new JSZip(), xe = function(t){ return xmlEsc(String(t)).replace(/"/g, '&quot;'); };
-  var cell = function(ref, v, st){ var s = st ? ' s="' + st + '"' : ''; if (typeof v === 'number') return '<c r="' + ref + '"' + s + '><v>' + v + '</v></c>'; return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + xe(v) + '</t></is></c>'; };
-  var rows = [
-    '<row r="1">' + cell('A1', 'Job', 1) + cell('B1', String(header.B4 || '').trim(), 1) + '</row>',
-    '<row r="2">' + cell('A2', 'Rail type', 1) + cell('B2', String(header.B8 || '')) + cell('D2', 'Colour', 1) + cell('E2', String(header.B6 || '')) + '</row>',
-    '<row r="3">' + cell('A3', 'Gates · opening measured inside of post to inside of post · gate = opening − 1 1/4 · standalone gate posts are post height + 2 1/2', 0) + '</row>',
-    '<row r="5">' + cell('A5', 'Unit', 1) + cell('B5', 'Gate', 1) + cell('C5', 'Where', 1) + cell('D5', 'Opening', 1) + cell('E5', 'Gate size', 1) + cell('F5', 'Gate posts', 1) + cell('G5', 'Gate post height', 1) + '</row>'
-  ];
-  list.forEach(function(g, k){ var r = 6 + k; rows.push('<row r="' + r + '">' + cell('A' + r, /^\d+$/.test(g.unit) ? +g.unit : g.unit, 2) + cell('B' + r, g.no, 2) + cell('C' + r, g.where, 2) + cell('D' + r, fmtFrac(g.open), 2) + cell('E' + r, fmtFrac(g.gate), 2) + cell('F' + r, g.posts ? '2 standalone' : 'On rail posts', 2) + cell('G' + r, g.posts && g.postHt !== null ? fmtFrac(g.postHt) : '', 2) + '</row>'); });
-  z.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');
-  z.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
-  z.file('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Gates" sheetId="1" r:id="rId1"/></sheets></workbook>');
-  z.file('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
-  z.file('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="12"/><name val="Calibri"/></font><font><b/><sz val="12"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf/><xf fontId="1" applyFont="1"/><xf applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs></styleSheet>');
-  z.file('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="2" width="10" customWidth="1"/><col min="3" max="3" width="30" customWidth="1"/><col min="4" max="7" width="16" customWidth="1"/></cols><sheetData>' + rows.join('') + '</sheetData><pageSetup orientation="landscape"/></worksheet>');
-  return z.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: XLSX_TYPE });
+// each gate goes on the cut sheet as its own row, "101 Gate": E to E at the gate size (opening − 1 1/4), Non-Sub = Yes
+function gateTag(u, k){ var n = (u.gates || []).filter(function(g){ return String(g.size == null ? '' : g.size).trim() !== ''; }).length; return (String(u.unit).trim() || '?') + ' Gate' + (n > 1 ? ' ' + (k + 1) : ''); }
+function gateRows(u, ui, errs){
+  if (!u.gate || unitSetup(u).mount !== 'Top') return [];
+  var out = [], list = u.gates || [], k = 0;
+  list.forEach(function(g){
+    if (String(g.size == null ? '' : g.size).trim() === '') return;
+    var tag = gateTag(u, k++), ov = parseLen(String(g.size));
+    if (ov === null || isNaN(ov)) return errs.push(tag + ': the opening is not a number');
+    if (ov <= GATE_CLEAR) return errs.push(tag + ': the opening is too small');
+    var r = blankRun(); r.tag = tag; r.l = 'E'; r.r = 'E'; r.len = String(Math.round((ov - GATE_CLEAR) * 1e6) / 1e6); r.ns = 'Yes'; r.lenOk = true; r._gate = true; r._u = ui;
+    out.push(r);
+  });
+  return out;
+}
+// standalone gate posts aren't rows on the cut sheet: they go on the job's notes file
+function gatePostNote(u){
+  if (!u.gate || unitSetup(u).mount !== 'Top') return '';
+  var ph = gatePostHt(u), k = 0;
+  return (u.gates || []).map(function(g){ if (String(g.size == null ? '' : g.size).trim() === '') return ''; var tag = gateTag(u, k++); return g.posts ? tag + ': 2 standalone gate posts at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates' + (String(g.where || '').trim() ? ' · ' + String(g.where).trim() : '') : ''; }).filter(Boolean).join('\n');
 }
 function updBadge(){
   var n = 0; units.forEach(function(u){ u.secs.forEach(function(s){ if (needsConf(s)) n++; }); });
@@ -2798,7 +2803,8 @@ function saveNow(){
   else if (header._prev && String(header.B4).trim().toLowerCase() === String(header._prev).trim().toLowerCase()) errs.push('Change the job name for this floor. “' + header._prev + '” was the last floor, and the same name would replace it in Drive');
   (isFence() ? [] : units).forEach(function(u, ui){
     var filled = u.secs.filter(function(r){ return RUN_COLS.some(function(c){ return c.key !== 'tag' && String(r[c.key] == null ? '' : r[c.key]).trim() !== ''; }); });
-    if (!filled.length) return;
+    var gRows = gateRows(u, ui, errs);
+    if (!filled.length && !gRows.length) return;
     var un = String(u.unit).trim();
     if (!un) errs.push('Unit ' + (ui + 1) + ' on the list needs a unit number');
     else if (seenU[un]) errs.push('Unit ' + un + ' is entered twice');
@@ -2809,6 +2815,7 @@ function saveNow(){
     u.secs.forEach(function(r, j){ if (filled.indexOf(r) >= 0){ var c = JSON.parse(JSON.stringify(r)); c.tag = secLabel(u, j); c._u = ui; c._j = j;
       if (lzr){ var rp = railPosts(r, 'Top', ''); c._lv = []; for (var t = 1; rp && t <= rp.n; t++) c._lv.push(lzr.ht[lvKey(r, rp, t)]); c.ph = ''; c.bh = ''; }
       rows.push(c); if (needsConf(r)) errs.push('Confirm ' + c.tag); } });
+    rows = rows.concat(gRows);
     var s = unitSetup(u), who = 'Unit ' + (un || '?');
     if (u.mountDiff && MOUNTS.indexOf(u.mount) < 0) errs.push(who + ': pick its mount');
     if (u.custom){ if (!isNum(u.post) || !isNum(u.block)) errs.push(who + ' needs its own post and block height'); }
@@ -2849,21 +2856,7 @@ function saveNow(){
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
-  var gates = [];
-  (isFence() ? [] : units).forEach(function(u, ui){
-    if (!u.gate || unitSetup(u).mount !== 'Top') return;
-    var un = String(u.unit).trim(), list = u.gates || [];
-    list.forEach(function(g, k){
-      if (String(g.size == null ? '' : g.size).trim() === '') return;
-      var tag = 'Unit ' + (un || (ui + 1)) + ' gate' + (list.length > 1 ? ' #' + (k + 1) : ''), ov = parseLen(String(g.size));
-      if (!un) errs.push('Unit ' + (ui + 1) + ' on the list needs a unit number');
-      if (ov === null || isNaN(ov)) return errs.push(tag + ': opening is not a number');
-      if (ov <= GATE_CLEAR) return errs.push(tag + ': opening is too small');
-      gates.push({ unit: un, no: list.length > 1 ? '#' + (k + 1) : '', where: String(g.where || '').trim(), open: ov, gate: ov - GATE_CLEAR, posts: !!g.posts, postHt: gatePostHt(u) });
-    });
-  });
-  if (gates.length) sheets.push({ name: jobFile() + ' - Gates.xlsx', rows: [], units: gates.length, info: jobFile() + ' - Gates.xlsx (' + gates.length + ' gate' + (gates.length === 1 ? '' : 's') + ')', make: function(){ return buildGatesBlob(gates); } });
-  var notes = (isFence() ? [] : units).filter(function(u){ return u.hasNotes && String(u.notes || '').trim(); }).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: String(u.notes).trim() }; });
+  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
   if (!sheets.length) errs.push('Add at least one measurement');
   var who = [header.measBy ? 'measured by ' + header.measBy : '', header.inputBy ? 'input by ' + header.inputBy : ''].filter(Boolean).join(', ');
   if (notes.length || who) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + [notes.length ? notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ' with notes' : '', who].filter(Boolean).join(' · ') + ')', make: function(){ return buildNotesBlob(notes); } });
