@@ -619,7 +619,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-b38a25';
+var APP_VERSION = '2026.11.16-8f7b96';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1828,8 +1828,17 @@ function layoutSvg(u){
     if (segs.length > 1){ var far = 0; xs.forEach(function(px, k){ var dd = (px - big.x1) * dnx + (ys[k] - big.y1) * dny; if (dd > far) far = dd; }); if (far > 0) depth = Math.min(depth, far * 0.5); }
     var fx = (big.x1 + big.x2) / 2 + dnx * Math.max(depth, span * 0.2), fy = (big.y1 + big.y2) / 2 + dny * Math.max(depth, span * 0.2);
     if (u._feetXY && isFinite(u._feetXY.x) && isFinite(u._feetXY.y)){ fx = u._feetXY.x; fy = u._feetXY.y; }   // moved by hand (Move feet)
-    var ang = ((u._feet || 0) + (u._rot || 0)) % 360, f = span * 0.034;   // default: facing up (north); turned with its own button
-    boxes.push({ x0: fx - f * 2.8, x1: fx + f * 2.8, y0: fy - f * 2.8, y1: fy + f * 2.8 });
+    var ang = ((u._feet || 0) + (u._rot || 0)) % 360, f = span * 0.024;   // default: facing up (north); turned with its own button
+    // snap: never on top of a rail or a post; step outward from where they were put until there's a clear spot
+    var fbox = function(x, y){ return { x0: x - f * 2.8, x1: x + f * 2.8, y0: y - f * 2.8, y1: y + f * 2.8 }; };
+    if (hits(fbox(fx, fy)) || crossesRail(fbox(fx, fy))){
+      var found = false;
+      for (var rr = 1; rr <= 12 && !found; rr++) for (var aa = 0; aa < 16 && !found; aa++){
+        var cx2 = fx + Math.cos(aa * Math.PI / 8) * f * 1.4 * rr, cy2 = fy + Math.sin(aa * Math.PI / 8) * f * 1.4 * rr;
+        if (!hits(fbox(cx2, cy2)) && !crossesRail(fbox(cx2, cy2))){ fx = cx2; fy = cy2; found = true; }
+      }
+    }
+    boxes.push(fbox(fx, fy));
     var cap = 'Standing on the deck, looking out', cp = place([{ x: fx, y: fy + f * 3.8, a: 'middle' }, { x: fx, y: fy - f * 3.8, a: 'middle' }, { x: fx + f * 3.2, y: fy, a: 'start' }, { x: fx - f * 3.2, y: fy, a: 'end' }, { x: fx, y: fy + f * 5.2, a: 'middle' }], cap, fs * 0.8);
     feet = '<g transform="translate(' + fx + ' ' + fy + ') rotate(' + ang + ')" fill="var(--muted)" aria-hidden="true">' +
       '<ellipse cx="' + (-f * 0.9) + '" cy="' + (-f * 0.5) + '" rx="' + f * 0.55 + '" ry="' + f * 1.05 + '"/><ellipse cx="' + (-f * 0.9) + '" cy="' + f * 1.05 + '" rx="' + f * 0.42 + '" ry="' + f * 0.45 + '"/>' +
