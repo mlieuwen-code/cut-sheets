@@ -619,7 +619,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-e01f53';
+var APP_VERSION = '2026.11.16-d34180';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1818,6 +1818,7 @@ function layoutSvg(u){
     var depth = span * 0.3;
     if (segs.length > 1){ var far = 0; xs.forEach(function(px, k){ var dd = (px - big.x1) * dnx + (ys[k] - big.y1) * dny; if (dd > far) far = dd; }); if (far > 0) depth = Math.min(depth, far * 0.5); }
     var fx = (big.x1 + big.x2) / 2 + dnx * Math.max(depth, span * 0.2), fy = (big.y1 + big.y2) / 2 + dny * Math.max(depth, span * 0.2);
+    if (u._feetXY && isFinite(u._feetXY.x) && isFinite(u._feetXY.y)){ fx = u._feetXY.x; fy = u._feetXY.y; }   // moved by hand (Move feet)
     var ang = ((u._feet || 0) + (u._rot || 0)) % 360, f = span * 0.034;   // default: facing up (north); turned with its own button
     boxes.push({ x0: fx - f * 2.8, x1: fx + f * 2.8, y0: fy - f * 2.8, y1: fy + f * 2.8 });
     var cap = 'Standing on the deck, looking out', cp = place([{ x: fx, y: fy + f * 3.8, a: 'middle' }, { x: fx, y: fy - f * 3.8, a: 'middle' }, { x: fx + f * 3.2, y: fy, a: 'start' }, { x: fx - f * 3.2, y: fy, a: 'end' }, { x: fx, y: fy + f * 5.2, a: 'middle' }], cap, fs * 0.8);
@@ -1902,7 +1903,7 @@ function layoutSvg(u){
     (u._full ? '<button type="button" class="layx" data-act="layfull" aria-label="Close full screen">×</button>' : '<button type="button" class="btn" data-act="layfull" aria-label="Full screen">⤢ Full screen</button>') + '</div>';
   var nWrong = u.secs.slice(0, -1).filter(function(run){ return wrongTurn(run, mnt); }).length;
   var turnBtn = u.secs.length > 1 ? '<button type="button" class="turntog" data-act="turnsshow" aria-expanded="' + !!u._showTurns + '">' + (u._showTurns ? 'Hide turns ▴' : 'Show turns ▾') + (nWrong && !u._showTurns ? ' <b>· ' + nWrong + ' to check</b>' : '') + '</button>' : '';
-  return head + out + '<div class="laybar"><span class="lbl">' + turnBtn + '</span>' + (u._drawn ? '<button type="button" class="btn" data-act="drawedit">Edit drawing</button>' : '') + '<button type="button" class="btn" data-act="rot">Rotate drawing</button><button type="button" class="btn" data-act="feet">Turn feet · facing ' + ['N', 'E', 'S', 'W'][Math.round(((u._feet || 0) + (u._rot || 0)) % 360 / 90) % 4] + '</button>' + (u.secs.some(function(r){ return r._turn; }) ? '<button type="button" class="btn ghost" data-act="turnreset">Reset turns</button>' : '') + '</div>' + (u._showTurns ? turns : '') +
+  return head + out + '<div class="laybar"><span class="lbl">' + turnBtn + '</span>' + (u._drawn ? '<button type="button" class="btn" data-act="drawedit">Edit drawing</button>' : '') + '<button type="button" class="btn" data-act="rot">Rotate drawing</button><button type="button" class="btn" data-act="feetmove" aria-pressed="' + !!u._feetMove + '">' + (u._feetMove ? 'Tap where you stand' : 'Move feet') + '</button><button type="button" class="btn" data-act="feet">Turn feet · facing ' + ['N', 'E', 'S', 'W'][Math.round(((u._feet || 0) + (u._rot || 0)) % 360 / 90) % 4] + '</button>' + (u.secs.some(function(r){ return r._turn; }) ? '<button type="button" class="btn ghost" data-act="turnreset">Reset turns</button>' : '') + '</div>' + (u._showTurns ? turns : '') +
     '<div class="laykey"><span><i class="k-end"></i>End post</span><span><i class="k-cor"></i>Corner</span><span><i class="k-jt"></i>Joint</span>' + (anyFloat ? '<span><i class="k-fl"></i>Floating / float</span><span><i class="k-fp"></i>Float post</span>' : '') + (lpz.posts.some(function(p){ return p.kind === 'mid'; }) ? '<span><i class="k-mid"></i>Mid post</span>' : '') + (numbered ? '<span><i class="k-num">1</i>Laser post number (matches the list)</span>' : '') + '<span>Dashed = no measurement yet</span></div>';
 }
 // tap a post code on the layout: pick a new code (a corner changes both sides together)
@@ -2378,6 +2379,10 @@ function confirmDel(b, key){
   b.style.minWidth = b.offsetWidth + 'px'; b.classList.add('arm'); b.textContent = 'Sure?'; return false;
 }
 el('units').addEventListener('click', function(e){
+  var lsv = e.target.closest && e.target.closest('svg.laysvg');
+  if (lsv){ var pf = at(lsv); if (pf && pf.u._feetMove){
+    var pt = lsv.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; var q = pt.matrixTransform(lsv.getScreenCTM().inverse());
+    pf.u._feetXY = { x: q.x, y: q.y }; pf.u._feetMove = false; updLayout(pf.i); changed(); return; } }
   var lsg = e.target.closest('[data-lvsign]');
   if (lsg){ var li = lsg.parentNode.querySelector('input[data-lv]'); if (li){ var v = li.value.trim(); li.value = v.charAt(0) === '-' ? v.slice(1) : (v && v !== '0' ? '-' + v : '-'); li.dispatchEvent(new Event('input', { bubbles: true })); li.focus(); } return; }
   var qe = e.target.closest('[data-qend]');
@@ -2428,7 +2433,8 @@ el('units').addEventListener('click', function(e){
   else if (act === 'gpm'){ u.secs[j].gpm = b.getAttribute('data-v'); renderRuns(); changed(); if (u.secs[j].gpm === 'Side'){ var gsf = el('u' + p.i + 's' + j + '_gso'); if (gsf) gsf.focus(); } return; }
   else if (act === 'stepdir'){ u.secs[j].sd = b.getAttribute('data-v'); u.secs[j].ph = ''; u.secs[j].bh = ''; renderRuns(); changed(); return; }
   else if (act === 'turn'){ var tj = +b.getAttribute('data-j'), tv = b.getAttribute('data-t'), sec = u.secs[tj]; sec._turn = autoTurnName(sec, unitSetup(u).mount) === { L:'Left', S:'Straight', R:'Right' }[tv] ? '' : tv; updLayout(p.i); changed(); return; }
-  else if (act === 'rot'){ u._rot = ((u._rot || 0) + 90) % 360; updLayout(p.i); changed(); return; }
+  else if (act === 'rot'){ u._rot = ((u._rot || 0) + 90) % 360; if (u._feetXY) u._feetXY = { x: -u._feetXY.y, y: u._feetXY.x }; updLayout(p.i); changed(); return; }   // moved feet turn with the drawing
+  else if (act === 'feetmove'){ u._feetMove = !u._feetMove; updLayout(p.i); return; }
   else if (act === 'feet'){ u._feet = ((u._feet || 0) + 90) % 360; updLayout(p.i); changed(); return; }
   else if (act === 'turnreset'){ u.secs.forEach(function(r){ r._turn = ''; }); updLayout(p.i); changed(); return; }
   else if (act === 'del'){ if (!confirmDel(b, 'del' + p.i + '.' + j)) return; u.secs.splice(j, 1); if (!u.secs.length) u.secs.push(blankRun()); }
