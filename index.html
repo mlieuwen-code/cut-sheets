@@ -60,6 +60,7 @@ h1,h2{text-wrap:balance}
 .calcuse{display:flex;gap:10px;flex-wrap:wrap}
 .jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
 .fld.job{position:relative}
+.gatecalc{font-size:15px;color:var(--sub);margin:4px 0 10px}.gatebox .chk{margin:4px 0 6px}
 .boardac{position:absolute;left:0;right:0;top:100%;z-index:30;margin-top:4px;background:var(--card,#fff);border:1.5px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;max-height:min(60vh,420px);overflow-y:auto}
 .boardacrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;text-align:left;padding:12px 14px;min-height:52px;border:0;border-bottom:1px solid var(--line,#e5e5e5);background:none;font:inherit;color:inherit;cursor:pointer}
 .boardacrow:last-child{border-bottom:0}.boardacrow:active,.boardacrow:hover{background:var(--tint)}
@@ -624,7 +625,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-85fbc1';
+var APP_VERSION = '2026.11.16-f9ef65';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1694,13 +1695,14 @@ function unitHtml(u, i){
       '<label class="chk" for="u' + i + '_md"><input type="checkbox" id="u' + i + '_md" data-ufield="mountdiff"' + (u.mountDiff ? ' checked' : '') + '>Different mount</label>' +
       '<label class="chk" for="u' + i + '_scr"><input type="checkbox" id="u' + i + '_scr" data-ufield="screen"' + (u.screen ? ' checked' : '') + '>Privacy screen</label>' +
       '<label class="chk" for="u' + i + '_nt"><input type="checkbox" id="u' + i + '_nt" data-ufield="hasnotes"' + (u.hasNotes ? ' checked' : '') + '>Notes</label>' +
+      (unitSetup(u).mount === 'Top' ? '<label class="chk" for="u' + i + '_gt"><input type="checkbox" id="u' + i + '_gt" data-ufield="gate"' + (u.gate ? ' checked' : '') + '>Gate</label>' : '') +
       (unitSetup(u).mount === 'Top' ? '<label class="chk" for="u' + i + '_lz"><input type="checkbox" id="u' + i + '_lz" data-ufield="laser"' + (u.laser ? ' checked' : '') + '>Laser post heights</label>' : '') + '</div>' +
     (u.hasNotes ? '<div class="custbox"><div class="fld"><label for="u' + i + '_notes">Notes <em style="font-style:normal;color:var(--muted)">· saved to the job’s notes file for review before fabrication</em></label>' +
       '<textarea id="u' + i + '_notes" class="notes" data-ufield="notetext" rows="3" placeholder="Anything to check before fabrication">' + esc(u.notes || '') + '</textarea></div></div>' : '') +
     (u.custom ? '<div class="custbox"><div class="g2" data-fracslot>' +
       numField('u' + i + '_post', 'Post height (in)', u.post, { need: true, ph: 'This unit only', attrs: ' data-ufield="post"' }) +
       numField('u' + i + '_block', 'Block height (in)', u.block, { need: true, ph: 'This unit only', attrs: ' data-ufield="block"' }) + '</div></div>' : '') +
-    mountBox + note + (u.screen ? screenBox(u, i) : '') +
+    mountBox + note + (u.screen ? screenBox(u, i) : '') + (u.gate && unitSetup(u).mount === 'Top' ? gateBox(u, i) : '') +
     (u._dr ? drawHtml(u, i) : '') +
     (u._layout ? '<div class="layout' + (u._full ? ' full' : '') + '" id="u' + i + '_lay">' + layoutSvg(u) + '</div>' : '') +
     u.secs.map(function(run, j){ return secHtml(u, i, run, j); }).join('') +
@@ -2180,6 +2182,48 @@ function screenBox(u, i){
     }).join('') +
     '<button type="button" class="addsec" data-act="scradd">+ Add another screen for this unit</button></div>';
 }
+// ---------- gates (top mount): opening measured inside of post to inside of post; gate = opening − 1 1/4; saved on the job's gates sheet ----------
+var GATE_CLEAR = 1.25, GATE_POST_ADD = 2.5;   // gate clearance; a standalone gate post is 2 1/2" taller than a rail post (post + top rail)
+function gatePostHt(u){ var ph = parseLen(String(unitSetup(u).post == null ? '' : unitSetup(u).post)); return ph === null || isNaN(ph) ? null : ph + GATE_POST_ADD; }
+function gateBox(u, i){
+  var list = u.gates || [];
+  var gph = gatePostHt(u);
+  return '<div class="custbox scrbox gatebox"><div class="lbl">Gate' + (list.length > 1 ? 's' : '') + ' <em style="font-style:normal;color:var(--muted)">· saved on the job’s gates sheet</em></div>' +
+    list.map(function(g, k){
+      var id = 'u' + i + 'g' + k + '_', ov = parseLen(g.size), ok = !(ov === null || isNaN(ov) || ov <= GATE_CLEAR);
+      var nm = 'Gate ' + (String(u.unit).trim() || '?') + (list.length > 1 ? ' #' + (k + 1) : '');
+      if (g._done && ok) return '<button type="button" class="secrow" data-act="gateopen" data-k="' + k + '" aria-label="Edit ' + esc(nm) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
+        '<span class="lab">' + esc(nm) + '</span><span class="ends">' + esc([String(g.where || '').trim(), g.posts ? '2 gate posts' : ''].filter(Boolean).join(' · ') || 'Between rail posts') + '</span><span class="len">gate ' + esc(fmtFrac(ov - GATE_CLEAR)) + '</span></button>';
+      return '<div class="scr" data-k="' + k + '"><div class="top"><b>' + esc(nm) + '</b>' +
+        '<span>' + (ok ? '<button type="button" class="btn ghost" data-act="gatedone" data-k="' + k + '">Done</button> ' : '') + (list.length > 1 ? '<button type="button" class="btn danger" data-act="gatedel" data-k="' + k + '">Delete</button>' : '') + '</span></div>' +
+        '<div class="g2" data-fracslot>' + numField(id + 'size', 'Opening (inside of post to inside of post)', g.size, { need: true, cls: 'meas', ph: 'e.g. 42', attrs: ' data-gate="' + k + '" data-gf="size"' }) +
+          '<div class="fld"><label for="' + id + 'where">Where</label><input id="' + id + 'where" type="text" autocomplete="off" placeholder="e.g. between ' + esc((String(u.unit).trim() || '?') + '.2 and ' + (String(u.unit).trim() || '?') + '.3') + '" value="' + esc(g.where || '') + '" data-gate="' + k + '" data-gf="where"></div></div>' +
+        '<div class="gatecalc">' + (ok ? 'Gate = ' + esc(fmtFrac(ov)) + ' − 1 1/4 = <b>' + esc(fmtFrac(ov - GATE_CLEAR)) + '</b>' : 'Gate = opening − 1 1/4 for clearance') + '</div>' +
+        '<label class="chk" for="' + id + 'posts"><input type="checkbox" id="' + id + 'posts" data-gatepost="' + k + '"' + (g.posts ? ' checked' : '') + '>Add gate posts (standalone, not on the railing)</label>' +
+        (g.posts ? '<div class="gatecalc">2 gate posts at ' + (gph === null ? 'post height + 2 1/2' : '<b>' + esc(fmtFrac(gph)) + '</b> (post height + 2 1/2, to the top of the rail)') + ', with baseplates. Measure the opening between them.</div>' : '') +
+        '</div>';
+    }).join('') +
+    '<button type="button" class="addsec" data-act="gateadd">+ Add another gate for this unit</button></div>';
+}
+// a small workbook listing every gate, for the shop
+function buildGatesBlob(list){
+  var z = new JSZip(), xe = function(t){ return xmlEsc(String(t)).replace(/"/g, '&quot;'); };
+  var cell = function(ref, v, st){ var s = st ? ' s="' + st + '"' : ''; if (typeof v === 'number') return '<c r="' + ref + '"' + s + '><v>' + v + '</v></c>'; return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + xe(v) + '</t></is></c>'; };
+  var rows = [
+    '<row r="1">' + cell('A1', 'Job', 1) + cell('B1', String(header.B4 || '').trim(), 1) + '</row>',
+    '<row r="2">' + cell('A2', 'Rail type', 1) + cell('B2', String(header.B8 || '')) + cell('D2', 'Colour', 1) + cell('E2', String(header.B6 || '')) + '</row>',
+    '<row r="3">' + cell('A3', 'Gates · opening measured inside of post to inside of post · gate = opening − 1 1/4 · standalone gate posts are post height + 2 1/2', 0) + '</row>',
+    '<row r="5">' + cell('A5', 'Unit', 1) + cell('B5', 'Gate', 1) + cell('C5', 'Where', 1) + cell('D5', 'Opening', 1) + cell('E5', 'Gate size', 1) + cell('F5', 'Gate posts', 1) + cell('G5', 'Gate post height', 1) + '</row>'
+  ];
+  list.forEach(function(g, k){ var r = 6 + k; rows.push('<row r="' + r + '">' + cell('A' + r, /^\d+$/.test(g.unit) ? +g.unit : g.unit, 2) + cell('B' + r, g.no, 2) + cell('C' + r, g.where, 2) + cell('D' + r, fmtFrac(g.open), 2) + cell('E' + r, fmtFrac(g.gate), 2) + cell('F' + r, g.posts ? '2 standalone' : 'On rail posts', 2) + cell('G' + r, g.posts && g.postHt !== null ? fmtFrac(g.postHt) : '', 2) + '</row>'); });
+  z.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');
+  z.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+  z.file('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Gates" sheetId="1" r:id="rId1"/></sheets></workbook>');
+  z.file('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+  z.file('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="12"/><name val="Calibri"/></font><font><b/><sz val="12"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="3"><xf/><xf fontId="1" applyFont="1"/><xf applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs></styleSheet>');
+  z.file('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="2" width="10" customWidth="1"/><col min="3" max="3" width="30" customWidth="1"/><col min="4" max="7" width="16" customWidth="1"/></cols><sheetData>' + rows.join('') + '</sheetData><pageSetup orientation="landscape"/></worksheet>');
+  return z.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: XLSX_TYPE });
+}
 function updBadge(){
   var n = 0; units.forEach(function(u){ u.secs.forEach(function(s){ if (needsConf(s)) n++; }); });
   var b = el('checkBadge'); b.hidden = !n; b.textContent = n + ' to check';
@@ -2196,6 +2240,7 @@ el('units').addEventListener('input', function(e){
     p.box.querySelector('[data-act="addsec"]').textContent = '+ Add section ' + secLabel(p.u, p.u.secs.length);
     updDups();
   } else if (t.hasAttribute('data-scr')){ p.u.screens[+t.getAttribute('data-scr')][t.getAttribute('data-sf')] = t.value; showHint(t); }
+  else if (t.hasAttribute('data-gate')){ var gk = +t.getAttribute('data-gate'); p.u.gates[gk][t.getAttribute('data-gf')] = t.value; if (t.getAttribute('data-gf') === 'size'){ showHint(t); var gc = t.closest('.scr').querySelector('.gatecalc'), gv = parseLen(t.value); if (gc) gc.innerHTML = gv !== null && !isNaN(gv) && gv > GATE_CLEAR ? 'Gate = ' + esc(fmtFrac(gv)) + ' − 1 1/4 = <b>' + esc(fmtFrac(gv - GATE_CLEAR)) + '</b>' : 'Gate = opening − 1 1/4 for clearance'; } }
   else if (uf === 'notetext'){ p.u.notes = t.value; }
   else if (uf === 'post' || uf === 'block' || uf === 'standoff'){ p.u[uf] = t.value; showHint(t); updNote(p.i); }
   else if (t.hasAttribute('data-calc')){ if (t.hasAttribute('data-frac')) showHint(t); if (p.sec) updCalc(p.sec); return; }
@@ -2259,6 +2304,14 @@ el('units').addEventListener('change', function(e){
     if (t.checked){ var f = el('u' + p.i + '_post'); if (f) f.focus(); }
     return;
   }
+  if (t.getAttribute('data-ufield') === 'gate'){
+    p.u.gate = t.checked;
+    if (t.checked && !(p.u.gates && p.u.gates.length)) p.u.gates = [{ size: '', where: '', posts: false }];
+    renderRuns(); changed();
+    if (t.checked){ var gf = el('u' + p.i + 'g0_size'); if (gf) gf.focus(); }
+    return;
+  }
+  if (t.hasAttribute('data-gatepost')){ p.u.gates[+t.getAttribute('data-gatepost')].posts = t.checked; renderRuns(); changed(); return; }
   if (t.getAttribute('data-ufield') === 'screen'){
     p.u.screen = t.checked;
     if (t.checked && !(p.u.screens && p.u.screens.length)) p.u.screens = [{ l: 'R', r: 'W', size: '', so: '' }];
@@ -2368,6 +2421,10 @@ el('units').addEventListener('click', function(e){
   else if (act === 'drawmore'){ var dr = u._dr; if (!recognize(dr.pts)) return; dr.done.push({ pts: dr.pts, s: dr.s, e: dr.e, ov: dr.ov || {} }); dr.pts = []; dr.s = 'E'; dr.e = 'E'; dr.ov = {}; drawResult(u, p.i); return; }
   else if (act === 'drawend'){ var sd = b.getAttribute('data-side'); u._dr[sd] = u._dr[sd] === 'E' ? 'W' : 'E'; drawResult(u, p.i); return; }
   else if (act === 'drawuse'){ return applyDrawing(u, p.i); }
+  else if (act === 'gateadd'){ (u.gates = u.gates || []).forEach(function(g){ g._done = true; }); u.gates.push({ size: '', where: '', posts: false }); focus = 'u' + p.i + 'g' + (u.gates.length - 1) + '_size'; }
+  else if (act === 'gatedone'){ var gd = +b.getAttribute('data-k'), gdv = parseLen(u.gates[gd].size); if (gdv === null || isNaN(gdv) || gdv <= GATE_CLEAR){ var gf2 = el('u' + p.i + 'g' + gd + '_size'); if (gf2) gf2.focus(); return msg('Enter the gate opening first.'); } u.gates[gd]._done = true; }
+  else if (act === 'gateopen'){ var go2 = +b.getAttribute('data-k'); u.gates[go2]._done = false; focus = 'u' + p.i + 'g' + go2 + '_size'; }
+  else if (act === 'gatedel'){ if (!confirmDel(b, 'gate' + p.i + '.' + b.getAttribute('data-k'))) return; u.gates.splice(+b.getAttribute('data-k'), 1); if (!u.gates.length){ u.gate = false; } }
   else if (act === 'scradd'){ (u.screens = u.screens || []).forEach(function(sc){ sc._done = true; }); u.screens.push({ l: 'R', r: 'W', size: '', so: '' }); focus = 'u' + p.i + 'k' + (u.screens.length - 1) + '_size'; }
   else if (act === 'scrdone'){ var dk = +b.getAttribute('data-k'), dv = parseLen(u.screens[dk].size); if (dv === null || isNaN(dv) || dv <= 0){ var sf2 = el('u' + p.i + 'k' + dk + '_size'); if (sf2) sf2.focus(); return msg('Enter the screen size first.'); } u.screens[dk]._done = true; }
   else if (act === 'scropen'){ var ok = +b.getAttribute('data-k'); u.screens[ok]._done = false; focus = 'u' + p.i + 'k' + ok + '_size'; }
@@ -2428,6 +2485,7 @@ el('units').addEventListener('click', function(e){
     var cu = JSON.parse(JSON.stringify(u)); cu.unit = nextUnitNum(); cu._full = false; cu._dr = null;
     cu.secs = u.secs.map(function(r){ var n = blankRun(); n.l = r.l; n.r = r.r; if (r._turn) n._turn = r._turn; if (r._carried) n._carried = true; n._open = true; return n; });
     cu.screens = (u.screens || []).map(function(sc){ return { l: sc.l, r: sc.r, size: '', so: '' }; });
+    cu.gates = (u.gates || []).map(function(g){ return { size: '', where: '', posts: !!g.posts }; });
     cu.hasNotes = false; cu.notes = ''; cu.lv = {};
     units.forEach(function(x){ x.secs.forEach(function(r){ r._open = false; }); (x.screens || []).forEach(function(sc){ if (String(sc.size || '').trim()) sc._done = true; }); });
     units.push(cu); sortUnits(); focus = 'u' + units.indexOf(cu) + 's0_len';
@@ -2439,7 +2497,7 @@ el('units').addEventListener('click', function(e){
 });
 el('addUnit').onclick = function(){
   if (totalSecs() >= MAX_RUNS) return msg('The cut sheet holds ' + MAX_RUNS + ' sections in total.');
-  units.forEach(function(u){ u.secs.forEach(function(s){ s._open = false; }); (u.screens || []).forEach(function(sc){ sc._done = true; }); });
+  units.forEach(function(u){ u.secs.forEach(function(s){ s._open = false; }); (u.screens || []).forEach(function(sc){ sc._done = true; }); (u.gates || []).forEach(function(g){ if (String(g.size || '').trim()) g._done = true; }); });
   var nu = blankUnit(nextUnitNum()); units.push(nu); sortUnits(); renderRuns(); changed();
   var f = el('u' + units.indexOf(nu) + '_num'); if (f){ f.scrollIntoView({ block: 'center' }); setTimeout(function(){ f.focus(); f.select(); }, 250); }
 };
@@ -2799,6 +2857,20 @@ function saveNow(){
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
+  var gates = [];
+  (isFence() ? [] : units).forEach(function(u, ui){
+    if (!u.gate || unitSetup(u).mount !== 'Top') return;
+    var un = String(u.unit).trim(), list = u.gates || [];
+    list.forEach(function(g, k){
+      if (String(g.size == null ? '' : g.size).trim() === '') return;
+      var tag = 'Unit ' + (un || (ui + 1)) + ' gate' + (list.length > 1 ? ' #' + (k + 1) : ''), ov = parseLen(String(g.size));
+      if (!un) errs.push('Unit ' + (ui + 1) + ' on the list needs a unit number');
+      if (ov === null || isNaN(ov)) return errs.push(tag + ': opening is not a number');
+      if (ov <= GATE_CLEAR) return errs.push(tag + ': opening is too small');
+      gates.push({ unit: un, no: list.length > 1 ? '#' + (k + 1) : '', where: String(g.where || '').trim(), open: ov, gate: ov - GATE_CLEAR, posts: !!g.posts, postHt: gatePostHt(u) });
+    });
+  });
+  if (gates.length) sheets.push({ name: jobFile() + ' - Gates.xlsx', rows: [], units: gates.length, info: jobFile() + ' - Gates.xlsx (' + gates.length + ' gate' + (gates.length === 1 ? '' : 's') + ')', make: function(){ return buildGatesBlob(gates); } });
   var notes = (isFence() ? [] : units).filter(function(u){ return u.hasNotes && String(u.notes || '').trim(); }).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: String(u.notes).trim() }; });
   if (!sheets.length) errs.push('Add at least one measurement');
   var who = [header.measBy ? 'measured by ' + header.measBy : '', header.inputBy ? 'input by ' + header.inputBy : ''].filter(Boolean).join(', ');
