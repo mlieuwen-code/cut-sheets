@@ -52,6 +52,7 @@ h1,h2{text-wrap:balance}
 .calcuse{display:flex;gap:10px;flex-wrap:wrap}
 .jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
 .fld.job{position:relative}
+.chkrow{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:center}
 .gatecalc{font-size:15px;color:var(--sub);margin:4px 0 10px}.gatebox .chk{margin:4px 0 6px}
 .boardac{position:absolute;left:0;right:0;top:100%;z-index:30;margin-top:4px;background:var(--card,#fff);border:1.5px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;max-height:min(60vh,420px);overflow-y:auto}
 .boardacrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;text-align:left;padding:12px 14px;min-height:52px;border:0;border-bottom:1px solid var(--line,#e5e5e5);background:none;font:inherit;color:inherit;cursor:pointer}
@@ -617,7 +618,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-1af778';
+var APP_VERSION = '2026.11.16-53402c';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1649,7 +1650,6 @@ function secHtml(u, i, run, j){
       (run.lenOk ? '<button type="button" class="btn ghost" data-act="close">Done</button> ' : '') +
       (!run._sp && !isGateSec(u, run) && parseLen(String(run.len)) > 0 ? '<button type="button" class="btn" data-act="split">Split</button> ' : '') +
       (j === 2 && u.secs[0] && u.secs.length <= 3 ? '<button type="button" class="btn" data-act="same1">Same as .1, flipped</button> ' : '')   /* U decks only: gone once a 4th section is added */ + '<button type="button" class="btn danger" data-act="del">Delete</button></span></div>' +
-    (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') +
     (isGateSec(u, run) ? '' : '<div class="g2 endpair"><div class="fld"><label for="' + id + 'l">Left end' + carried + '</label><select id="' + id + 'l" data-key="l">' + optList(lists.ends, run.l, endLabelU) + '</select>' + quickEnds('Left', run.l, run.ns === 'Yes' ? 'Top' : unitSetup(u).mount) + '</div>' +
       '<div class="fld"><label for="' + id + 'r">Right end</label><select id="' + id + 'r" data-key="r">' + optList(lists.ends, run.r, endLabelU) + '</select>' + quickEnds('Right', run.r, run.ns === 'Yes' ? 'Top' : unitSetup(u).mount) + '</div></div>') +
     // angled corner posts (FA, I6A, 6EPA…): ask for the angle right here instead of under More options
@@ -1660,9 +1660,10 @@ function secHtml(u, i, run, j){
       (run._calc ? calcHtml(id, angL, angR) : '') + '</div>' : '') +
     (isFloatCombo(run) ? '<label class="chk floatrail" for="' + id + 'floatrail"><input type="checkbox" id="' + id + 'floatrail" data-sfield="floatrail"' + (run.ns === 'Yes' ? ' checked' : '') + '>Rail is floating <span style="font-weight:700;color:var(--muted)">(marks Non-Sub = Yes)</span></label>' : '') +
     '<div data-fracslot>' + numField(id + 'len', isGateSec(u, run) ? 'Gate opening (inside of post to inside of post)' : 'Measurement (in)', run.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-key="len"', hint: lenReadback(run), hintCls: 'lenrb' }) + '</div>' +
-    '<div class="conf">' + confHtml(run) + '</div>' + (isGateSec(u, run) ? gateSecHtml(u, j, id) : '') +
+    '<div class="conf">' + confHtml(run) + '</div>' +
+    (isGateSec(u, run) ? '<div class="chkrow">' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') + '</div>' + gateSecHtml(u, j, id) : '') +
     (isGateSec(u, run) ? '' : (   // a gate needs no floats, steps or more options
-    '<label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' +
+    '<div class="chkrow"><label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') + '</div>' +
     (showFloats ? '<div class="g2" data-fracslot>' + numField(id + 'fl', 'Float L', run.fl, { attrs: ' data-key="fl"' }) + numField(id + 'fr', 'Float R', run.fr, { attrs: ' data-key="fr"' }) + '</div>' +
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
     // a section that sits higher or lower than the one before (e.g. an Allan block wall that jumps a block): its own post / block height,
