@@ -627,7 +627,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-8f7b96';
+var APP_VERSION = '2026.11.16-645a8b';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2913,12 +2913,12 @@ function saveNow(){
       if (list === null){
         var unknown = sheets.map(function(x){ return x.name; }).filter(function(n){ return mine.indexOf(n.toLowerCase()) < 0; });
         if (!unknown.length) return go();
-        return ask('Couldn’t reach Drive to check the file name' + (unknown.length === 1 ? '' : 's') + '. If “' + unknown.join('”, “') + '” ' + (unknown.length === 1 ? 'is' : 'are') + ' already in the Cut Sheets folder, saving will replace ' + (unknown.length === 1 ? 'it' : 'them') + '. Make sure the job name is new for this floor or job.', 'Save anyway', go);
+        return ask('Couldn’t reach Drive to check the file name' + (unknown.length === 1 ? '' : 's') + '. If “' + unknown.join('”, “') + '” ' + (unknown.length === 1 ? 'is' : 'are') + ' already in the Rail Measure Sheets folder, saving will replace ' + (unknown.length === 1 ? 'it' : 'them') + '. Make sure the job name is new for this floor or job.', 'Save anyway', go);
       }
       var lower = (list === 'na' ? [] : list).map(function(n){ return String(n).toLowerCase(); });
       var clash = sheets.map(function(x){ return x.name; }).filter(function(n){ return lower.indexOf(n.toLowerCase()) >= 0 && mine.indexOf(n.toLowerCase()) < 0; });
       if (!clash.length) return go();
-      ask('“' + clash.join('”, “') + '” ' + (clash.length === 1 ? 'is' : 'are') + ' already in the Cut Sheets folder in Drive. Saving will replace ' + (clash.length === 1 ? 'it' : 'them') + '. If this is a different floor or job, go back and change the job name.', 'Replace it', go);
+      ask('“' + clash.join('”, “') + '” ' + (clash.length === 1 ? 'is' : 'are') + ' already in the Rail Measure Sheets folder in Drive. Saving will replace ' + (clash.length === 1 ? 'it' : 'them') + '. If this is a different floor or job, go back and change the job name.', 'Replace it', go);
     });
   }
   saveOk = false;
@@ -2946,7 +2946,7 @@ function saveNow(){
       el('draftPill').hidden = true;
       saveLast();
       if (!queued.length && savedDownload) msg('Downloaded to this computer: ' + done.join(' · ') + '. (The preview saves here instead of Drive; the tablets still save to Drive.)', true);
-      else if (!queued.length) msgLinks('Saved to the Cut Sheets folder in Drive: ' + done.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
+      else if (!queued.length) msgLinks('Saved to the Rail Measure Sheets folder in Drive: ' + done.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
       else msg((done.length ? 'Saved to Drive: ' + done.join(' · ') + '. ' : '') + 'No signal right now, so ' + queued.join(' · ') + (queued.length === 1 ? ' is' : ' are') + ' saved on this tablet and will go to Drive by itself once you’re on a hotspot or Wi-Fi. Keep the app open, or open it again when you have signal.', true);
       var nf = document.createElement('div'); nf.style.marginTop = '10px';
       nf.innerHTML = '<button type="button" class="btn pri" id="nextFloorGo">Start next ' + nextWord() + ' · same setup ›</button>';
@@ -3019,7 +3019,7 @@ function flushOutbox(){
     }, Promise.resolve(false));
   }).then(function(){
     flushing = false; updOutbox(); refreshObModal();
-    if (sent.length) msgLinks('Back online. Sent to the Cut Sheets folder in Drive: ' + sent.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
+    if (sent.length) msgLinks('Back online. Sent to the Rail Measure Sheets folder in Drive: ' + sent.join(' · ') + '.', [['Open folder', CUT_FOLDER_URL]], true);
   }, function(){ flushing = false; updOutbox(); refreshObModal(); });
 }
 var outboxTimer = null;
@@ -4374,7 +4374,7 @@ function askPin(why){
   var wrap = document.createElement('div'); wrap.className = 'modal'; wrap.id = 'pinBox';
   wrap.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="pinT" style="max-width:460px">' +
     '<p id="pinT" style="font-size:20px;font-weight:900">Crew PIN</p>' +
-    '<p style="margin:0;color:var(--muted)">' + esc(why || 'Enter the crew PIN once on this tablet so cut sheets can go to the Cut Sheets folder in Drive.') + '</p>' +
+    '<p style="margin:0;color:var(--muted)">' + esc(why || 'Enter the crew PIN once on this tablet so cut sheets can go to the Rail Measure Sheets folder in Drive.') + '</p>' +
     '<div class="fld"><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" aria-label="Crew PIN" placeholder="PIN"></div>' +
     '<div class="row"><button type="button" class="btn" id="pinLater">Later</button><button type="button" class="btn pri" id="pinOk">Save PIN</button></div></div>';
   document.body.appendChild(wrap);
@@ -4392,7 +4392,7 @@ function showDrivePicker(){
   wrap.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="dpT" style="max-width:560px;max-height:85vh;overflow:hidden">' +
     '<p id="dpT" style="font-size:20px;font-weight:900">Open a saved cut sheet</p>' +
     '<div class="fld"><input id="dpQ" type="search" placeholder="Search by job name" aria-label="Search by job name" autocomplete="off"></div>' +
-    '<div id="dpL" class="stack" style="overflow-y:auto;max-height:50vh;gap:8px"><div class="hint">Loading your Cut Sheets folder…</div></div>' +
+    '<div id="dpL" class="stack" style="overflow-y:auto;max-height:50vh;gap:8px"><div class="hint">Loading your Rail Measure Sheets folder…</div></div>' +
     '<div class="row"><button type="button" class="btn ghost" id="dpTab">From this tablet</button><button type="button" class="btn" id="dpX">Cancel</button></div></div>';
   document.body.appendChild(wrap);
   var all = [], close = function(){ wrap.remove(); };
@@ -4414,7 +4414,7 @@ function showDrivePicker(){
     function(err){ el('dpL').innerHTML = '<div class="hint bad">Couldn’t reach Drive (' + esc(err && err.message ? err.message : err) + '). You can still open a sheet saved on this tablet.</div>'; });
 }
 document.querySelector('label[for="file"]').addEventListener('click', function(e){ if (e.target.id === 'file') return; e.preventDefault(); showDrivePicker(); }, true);
-(function(){ var s = document.querySelector('label[for="file"] .s'); if (s) s.textContent = 'From the Cut Sheets folder in Drive.'; })();
+(function(){ var s = document.querySelector('label[for="file"] .s'); if (s) s.textContent = 'From the Rail Measure Sheets folder in Drive.'; })();
 // "Check for updates" on the start page
 function checkUpdates(){
   if (navigator.onLine === false) return verSay('No signal right now. Try again when you’re back online.', 'bad');
