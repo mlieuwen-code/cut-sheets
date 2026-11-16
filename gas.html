@@ -617,7 +617,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-77da05';
+var APP_VERSION = '2026.11.16-6cc23c';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2178,7 +2178,7 @@ function screenBox(u, i){
     '<button type="button" class="addsec" data-act="scradd">+ Add another screen for this unit</button></div>';
 }
 // ---------- gates (top mount): opening measured inside of post to inside of post; gate = opening − 1 1/4; saved on the job's gates sheet ----------
-var GATE_CLEAR = 1.25, GATE_POST_ADD = 2.5;   // gate clearance; a standalone gate post is 2 1/2" taller than a rail post (post + top rail)
+var GATE_CLEAR = 1.25, GATE_POST_ADD = 2.5, GATE_SIDE_POST = 42;   // side mount gate posts are cut 42" and raised to height at install   // gate clearance; a standalone gate post is 2 1/2" taller than a rail post (post + top rail)
 function gatePostHt(u){ var ph = parseLen(String(unitSetup(u).post == null ? '' : unitSetup(u).post)); return ph === null || isNaN(ph) ? null : ph + GATE_POST_ADD; }
 function gateBox(u, i){
   var list = u.gates || [];
@@ -2197,7 +2197,7 @@ function gateBox(u, i){
         '<label class="chk" for="' + id + 'posts"><input type="checkbox" id="' + id + 'posts" data-gatepost="' + k + '"' + (g.posts ? ' checked' : '') + '>Add gate posts (standalone, not on the railing)</label>' +
         (g.posts ? '<div class="fld"><div class="lbl">Gate posts mount</div><div class="chips" style="--n:2">' + [['Top', 'Top mount (baseplate)'], ['Side', 'Side mount']].map(function(o){ return '<button type="button" class="chip" data-gatepm="' + k + '" data-val="' + o[0] + '" aria-pressed="' + ((g.pm || 'Top') === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>' +
           ((g.pm || 'Top') === 'Side'
-            ? '<div class="g2" data-fracslot>' + numField(id + 'plen', 'Gate post length (in)', g.plen, { need: true, ph: 'Side mount: full length', attrs: ' data-gate="' + k + '" data-gf="plen"' }) + '<div></div></div><div class="gatecalc">Side mount: measure the full post length, from the bottom of the post to ' + (gph === null ? '2 1/2" above the rail posts' : esc(fmtFrac(gph)) + ' above the deck') + ' (top of the rail). Measure the opening between them.</div>'
+            ? '<div class="gatecalc">2 gate posts, side mount, cut <b>42"</b>. Raise them to height at install (top of the rail' + (gph === null ? '' : ', ' + esc(fmtFrac(gph)) + ' above the deck') + '). Measure the opening between them.</div>'
             : '<div class="gatecalc">2 gate posts at ' + (gph === null ? 'post height + 2 1/2' : '<b>' + esc(fmtFrac(gph)) + '</b> (post height + 2 1/2, to the top of the rail)') + ', with baseplates. Measure the opening between them.</div>') : '') +
         '</div>';
     }).join('') +
@@ -2213,7 +2213,6 @@ function gateRows(u, ui, errs){
     var tag = gateTag(u, k++), ov = parseLen(String(g.size));
     if (ov === null || isNaN(ov)) return errs.push(tag + ': the opening is not a number');
     if (ov <= GATE_CLEAR) return errs.push(tag + ': the opening is too small');
-    if (g.posts && g.pm === 'Side'){ var pl = parseLen(String(g.plen == null ? '' : g.plen)); if (pl === null || isNaN(pl) || pl <= 0) errs.push(tag + ': enter the side mount gate post length'); }
     var r = blankRun(); r.tag = tag; r.l = 'E'; r.r = 'E'; r.len = String(Math.round((ov - GATE_CLEAR) * 1e6) / 1e6); r.ns = 'Yes'; r.lenOk = true; r._gate = true; r._u = ui;
     out.push(r);
   });
@@ -2224,8 +2223,8 @@ function gatePostNote(u){
   if (!u.gate || unitSetup(u).mount !== 'Top') return '';
   var ph = gatePostHt(u), k = 0;
   return (u.gates || []).map(function(g){ if (String(g.size == null ? '' : g.size).trim() === '') return ''; var tag = gateTag(u, k++); if (!g.posts) return '';
-    var side = g.pm === 'Side', pl = parseLen(String(g.plen == null ? '' : g.plen));
-    return tag + ': 2 standalone gate posts, ' + (side ? 'SIDE MOUNT, ' + (pl === null || isNaN(pl) ? 'length not measured' : fmtFrac(pl) + ' long') + ' (top ' + (ph === null ? '2 1/2 above the rail posts' : fmtFrac(ph) + ' above the deck') + ')' : 'top mount at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates') + (String(g.where || '').trim() ? ' · ' + String(g.where).trim() : ''); }).filter(Boolean).join('\n');
+    var side = g.pm === 'Side';
+    return tag + ': 2 standalone gate posts, ' + (side ? 'SIDE MOUNT, cut ' + fmtFrac(GATE_SIDE_POST) + ', raise to height at install (top ' + (ph === null ? 'level with the top of the rail' : fmtFrac(ph) + ' above the deck') + ')' : 'top mount at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates') + (String(g.where || '').trim() ? ' · ' + String(g.where).trim() : ''); }).filter(Boolean).join('\n');
 }
 function updBadge(){
   var n = 0; units.forEach(function(u){ u.secs.forEach(function(s){ if (needsConf(s)) n++; }); });
@@ -2387,7 +2386,7 @@ el('units').addEventListener('click', function(e){
   if (qe){ var qs = qe.closest('.fld').querySelector('select'); if (qs){ qs.value = qe.getAttribute('data-qend'); qs.dispatchEvent(new Event('change', { bubbles: true })); var again = document.getElementById(qs.id); if (again) syncQuick(again); } return; }
   var se = e.target.closest('[data-scrend]');
   var gpm = e.target.closest && e.target.closest('[data-gatepm]');
-  if (gpm){ var pg = at(gpm); if (!pg) return; pg.u.gates[+gpm.getAttribute('data-gatepm')].pm = gpm.getAttribute('data-val'); renderRuns(); changed(); if (gpm.getAttribute('data-val') === 'Side'){ var pf = el('u' + pg.i + 'g' + gpm.getAttribute('data-gatepm') + '_plen'); if (pf) pf.focus(); } return; }
+  if (gpm){ var pg = at(gpm); if (!pg) return; pg.u.gates[+gpm.getAttribute('data-gatepm')].pm = gpm.getAttribute('data-val'); renderRuns(); changed(); return; }
   if (se){ var ps = at(se); if (!ps) return; var kk = se.getAttribute('data-scrend').split('|'); ps.u.screens[+kk[0]][kk[1]] = se.getAttribute('data-val'); renderRuns(); changed(); return; }
   var mb = e.target.closest('[data-umount]');
   if (mb){ var pm = at(mb); if (!pm) return; var v = mb.getAttribute('data-umount'); pm.u.mount = pm.u.mount === v ? '' : v; renderRuns(); changed(); return; }
