@@ -625,7 +625,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-0dead0';
+var APP_VERSION = '2026.11.16-77da05';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -2196,14 +2196,17 @@ function gateBox(u, i){
       var id = 'u' + i + 'g' + k + '_', ov = parseLen(g.size), ok = !(ov === null || isNaN(ov) || ov <= GATE_CLEAR);
       var nm = 'Gate ' + (String(u.unit).trim() || '?') + (list.length > 1 ? ' #' + (k + 1) : '');
       if (g._done && ok) return '<button type="button" class="secrow" data-act="gateopen" data-k="' + k + '" aria-label="Edit ' + esc(nm) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
-        '<span class="lab">' + esc(nm) + '</span><span class="ends">' + esc([String(g.where || '').trim(), g.posts ? '2 gate posts' : ''].filter(Boolean).join(' · ') || 'Between rail posts') + '</span><span class="len">gate ' + esc(fmtFrac(ov - GATE_CLEAR)) + '</span></button>';
+        '<span class="lab">' + esc(nm) + '</span><span class="ends">' + esc([String(g.where || '').trim(), g.posts ? '2 gate posts' + (g.pm === 'Side' ? ' (side mount)' : '') : ''].filter(Boolean).join(' · ') || 'Between rail posts') + '</span><span class="len">gate ' + esc(fmtFrac(ov - GATE_CLEAR)) + '</span></button>';
       return '<div class="scr" data-k="' + k + '"><div class="top"><b>' + esc(nm) + '</b>' +
         '<span>' + (ok ? '<button type="button" class="btn ghost" data-act="gatedone" data-k="' + k + '">Done</button> ' : '') + (list.length > 1 ? '<button type="button" class="btn danger" data-act="gatedel" data-k="' + k + '">Delete</button>' : '') + '</span></div>' +
         '<div class="g2" data-fracslot>' + numField(id + 'size', 'Opening (inside of post to inside of post)', g.size, { need: true, cls: 'meas', ph: 'e.g. 42', attrs: ' data-gate="' + k + '" data-gf="size"' }) +
           '<div class="fld"><label for="' + id + 'where">Where</label><input id="' + id + 'where" type="text" autocomplete="off" placeholder="e.g. between ' + esc((String(u.unit).trim() || '?') + '.2 and ' + (String(u.unit).trim() || '?') + '.3') + '" value="' + esc(g.where || '') + '" data-gate="' + k + '" data-gf="where"></div></div>' +
         '<div class="gatecalc">' + (ok ? 'Gate = ' + esc(fmtFrac(ov)) + ' − 1 1/4 = <b>' + esc(fmtFrac(ov - GATE_CLEAR)) + '</b>' : 'Gate = opening − 1 1/4 for clearance') + '</div>' +
         '<label class="chk" for="' + id + 'posts"><input type="checkbox" id="' + id + 'posts" data-gatepost="' + k + '"' + (g.posts ? ' checked' : '') + '>Add gate posts (standalone, not on the railing)</label>' +
-        (g.posts ? '<div class="gatecalc">2 gate posts at ' + (gph === null ? 'post height + 2 1/2' : '<b>' + esc(fmtFrac(gph)) + '</b> (post height + 2 1/2, to the top of the rail)') + ', with baseplates. Measure the opening between them.</div>' : '') +
+        (g.posts ? '<div class="fld"><div class="lbl">Gate posts mount</div><div class="chips" style="--n:2">' + [['Top', 'Top mount (baseplate)'], ['Side', 'Side mount']].map(function(o){ return '<button type="button" class="chip" data-gatepm="' + k + '" data-val="' + o[0] + '" aria-pressed="' + ((g.pm || 'Top') === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>' +
+          ((g.pm || 'Top') === 'Side'
+            ? '<div class="g2" data-fracslot>' + numField(id + 'plen', 'Gate post length (in)', g.plen, { need: true, ph: 'Side mount: full length', attrs: ' data-gate="' + k + '" data-gf="plen"' }) + '<div></div></div><div class="gatecalc">Side mount: measure the full post length, from the bottom of the post to ' + (gph === null ? '2 1/2" above the rail posts' : esc(fmtFrac(gph)) + ' above the deck') + ' (top of the rail). Measure the opening between them.</div>'
+            : '<div class="gatecalc">2 gate posts at ' + (gph === null ? 'post height + 2 1/2' : '<b>' + esc(fmtFrac(gph)) + '</b> (post height + 2 1/2, to the top of the rail)') + ', with baseplates. Measure the opening between them.</div>') : '') +
         '</div>';
     }).join('') +
     '<button type="button" class="addsec" data-act="gateadd">+ Add another gate for this unit</button></div>';
@@ -2218,6 +2221,7 @@ function gateRows(u, ui, errs){
     var tag = gateTag(u, k++), ov = parseLen(String(g.size));
     if (ov === null || isNaN(ov)) return errs.push(tag + ': the opening is not a number');
     if (ov <= GATE_CLEAR) return errs.push(tag + ': the opening is too small');
+    if (g.posts && g.pm === 'Side'){ var pl = parseLen(String(g.plen == null ? '' : g.plen)); if (pl === null || isNaN(pl) || pl <= 0) errs.push(tag + ': enter the side mount gate post length'); }
     var r = blankRun(); r.tag = tag; r.l = 'E'; r.r = 'E'; r.len = String(Math.round((ov - GATE_CLEAR) * 1e6) / 1e6); r.ns = 'Yes'; r.lenOk = true; r._gate = true; r._u = ui;
     out.push(r);
   });
@@ -2227,7 +2231,9 @@ function gateRows(u, ui, errs){
 function gatePostNote(u){
   if (!u.gate || unitSetup(u).mount !== 'Top') return '';
   var ph = gatePostHt(u), k = 0;
-  return (u.gates || []).map(function(g){ if (String(g.size == null ? '' : g.size).trim() === '') return ''; var tag = gateTag(u, k++); return g.posts ? tag + ': 2 standalone gate posts at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates' + (String(g.where || '').trim() ? ' · ' + String(g.where).trim() : '') : ''; }).filter(Boolean).join('\n');
+  return (u.gates || []).map(function(g){ if (String(g.size == null ? '' : g.size).trim() === '') return ''; var tag = gateTag(u, k++); if (!g.posts) return '';
+    var side = g.pm === 'Side', pl = parseLen(String(g.plen == null ? '' : g.plen));
+    return tag + ': 2 standalone gate posts, ' + (side ? 'SIDE MOUNT, ' + (pl === null || isNaN(pl) ? 'length not measured' : fmtFrac(pl) + ' long') + ' (top ' + (ph === null ? '2 1/2 above the rail posts' : fmtFrac(ph) + ' above the deck') + ')' : 'top mount at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates') + (String(g.where || '').trim() ? ' · ' + String(g.where).trim() : ''); }).filter(Boolean).join('\n');
 }
 function updBadge(){
   var n = 0; units.forEach(function(u){ u.secs.forEach(function(s){ if (needsConf(s)) n++; }); });
@@ -2245,7 +2251,7 @@ el('units').addEventListener('input', function(e){
     p.box.querySelector('[data-act="addsec"]').textContent = '+ Add section ' + secLabel(p.u, p.u.secs.length);
     updDups();
   } else if (t.hasAttribute('data-scr')){ p.u.screens[+t.getAttribute('data-scr')][t.getAttribute('data-sf')] = t.value; showHint(t); }
-  else if (t.hasAttribute('data-gate')){ var gk = +t.getAttribute('data-gate'); p.u.gates[gk][t.getAttribute('data-gf')] = t.value; if (t.getAttribute('data-gf') === 'size'){ showHint(t); var gc = t.closest('.scr').querySelector('.gatecalc'), gv = parseLen(t.value); if (gc) gc.innerHTML = gv !== null && !isNaN(gv) && gv > GATE_CLEAR ? 'Gate = ' + esc(fmtFrac(gv)) + ' − 1 1/4 = <b>' + esc(fmtFrac(gv - GATE_CLEAR)) + '</b>' : 'Gate = opening − 1 1/4 for clearance'; } }
+  else if (t.hasAttribute('data-gate')){ var gk = +t.getAttribute('data-gate'); p.u.gates[gk][t.getAttribute('data-gf')] = t.value; if (t.getAttribute('data-gf') === 'plen') showHint(t); if (t.getAttribute('data-gf') === 'size'){ showHint(t); var gc = t.closest('.scr').querySelector('.gatecalc'), gv = parseLen(t.value); if (gc) gc.innerHTML = gv !== null && !isNaN(gv) && gv > GATE_CLEAR ? 'Gate = ' + esc(fmtFrac(gv)) + ' − 1 1/4 = <b>' + esc(fmtFrac(gv - GATE_CLEAR)) + '</b>' : 'Gate = opening − 1 1/4 for clearance'; } }
   else if (uf === 'notetext'){ p.u.notes = t.value; }
   else if (uf === 'post' || uf === 'block' || uf === 'standoff'){ p.u[uf] = t.value; showHint(t); updNote(p.i); }
   else if (t.hasAttribute('data-calc')){ if (t.hasAttribute('data-frac')) showHint(t); if (p.sec) updCalc(p.sec); return; }
@@ -2388,6 +2394,8 @@ el('units').addEventListener('click', function(e){
   var qe = e.target.closest('[data-qend]');
   if (qe){ var qs = qe.closest('.fld').querySelector('select'); if (qs){ qs.value = qe.getAttribute('data-qend'); qs.dispatchEvent(new Event('change', { bubbles: true })); var again = document.getElementById(qs.id); if (again) syncQuick(again); } return; }
   var se = e.target.closest('[data-scrend]');
+  var gpm = e.target.closest && e.target.closest('[data-gatepm]');
+  if (gpm){ var pg = at(gpm); if (!pg) return; pg.u.gates[+gpm.getAttribute('data-gatepm')].pm = gpm.getAttribute('data-val'); renderRuns(); changed(); if (gpm.getAttribute('data-val') === 'Side'){ var pf = el('u' + pg.i + 'g' + gpm.getAttribute('data-gatepm') + '_plen'); if (pf) pf.focus(); } return; }
   if (se){ var ps = at(se); if (!ps) return; var kk = se.getAttribute('data-scrend').split('|'); ps.u.screens[+kk[0]][kk[1]] = se.getAttribute('data-val'); renderRuns(); changed(); return; }
   var mb = e.target.closest('[data-umount]');
   if (mb){ var pm = at(mb); if (!pm) return; var v = mb.getAttribute('data-umount'); pm.u.mount = pm.u.mount === v ? '' : v; renderRuns(); changed(); return; }
@@ -2490,7 +2498,7 @@ el('units').addEventListener('click', function(e){
     var cu = JSON.parse(JSON.stringify(u)); cu.unit = nextUnitNum(); cu._full = false; cu._dr = null;
     cu.secs = u.secs.map(function(r){ var n = blankRun(); n.l = r.l; n.r = r.r; if (r._turn) n._turn = r._turn; if (r._carried) n._carried = true; n._open = true; return n; });
     cu.screens = (u.screens || []).map(function(sc){ return { l: sc.l, r: sc.r, size: '', so: '' }; });
-    cu.gates = (u.gates || []).map(function(g){ return { size: '', where: '', posts: !!g.posts }; });
+    cu.gates = (u.gates || []).map(function(g){ return { size: '', where: '', posts: !!g.posts, pm: g.pm || 'Top', plen: '' }; });
     cu.hasNotes = false; cu.notes = ''; cu.lv = {};
     units.forEach(function(x){ x.secs.forEach(function(r){ r._open = false; }); (x.screens || []).forEach(function(sc){ if (String(sc.size || '').trim()) sc._done = true; }); });
     units.push(cu); sortUnits(); focus = 'u' + units.indexOf(cu) + 's0_len';
