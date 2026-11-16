@@ -230,6 +230,7 @@ body.layfull{overflow:hidden}body.layfull .bottombar{display:none}
 .laykey i.k-fl{width:18px;height:6px;border-radius:3px;background:var(--float)}.laykey i.k-fp{background:var(--card);border:2px solid var(--ink)}
 .laykey i.k-cor{border-radius:50%;background:var(--card);border:2px solid var(--ink)}
 .laykey i.k-jt{border-radius:50%;width:8px;height:8px}
+.laykey i.k-mid{border-radius:50%;width:9px;height:9px;background:var(--card);border:2px solid var(--ink)}.laykey i.k-num{border-radius:50%;width:18px;height:18px;background:var(--accent);color:#fff;font-style:normal;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center}
 .secrow{border:0;text-align:left;border-radius:18px;background:var(--tint);padding:14px 18px;display:flex;align-items:center;gap:14px;color:var(--ink);font-variant-numeric:tabular-nums;width:100%}
 .secrow .ck{width:36px;height:36px;border-radius:18px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .secrow .lab{font-size:19px;font-weight:900;min-width:64px}
@@ -351,7 +352,7 @@ body.hasfloors .wrap{padding-bottom:170px}
 .lvhead span{font-size:14px;color:var(--muted);line-height:1.35}
 .lvrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .lvlbl{display:flex;flex-direction:column;min-width:0}
-.lvlbl b{font-size:16px}
+.lvlbl b{font-size:16px}.lvn{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;margin-right:8px;border-radius:12px;background:var(--accent);color:#fff;font-size:13px;font-weight:900;vertical-align:1px}
 .lvlbl small{font-size:13px;color:var(--muted)}
 .lvin{display:flex;gap:6px;align-items:center}
 .lvin input{min-width:0;flex:1;min-height:48px;font-size:18px;font-weight:800;text-align:center;border:2px solid var(--line);border-radius:12px;background:var(--field)}
@@ -618,7 +619,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-415f0a';
+var APP_VERSION = '2026.11.16-a35b48';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1337,6 +1338,7 @@ function laserPosts(u){
       var run = u.secs[+m[1]], rp = run && railPosts(run, st.mount, st.standoff); if (rp && +m[2] <= rp.n) u.lv[lvKey(run, rp, +m[2])] = old[k]; });
   }
   u.secs.forEach(function(run, j){
+    if (isGateSec(u, run)) return;   // gate posts float: no laser reading
     var rp = railPosts(run, st.mount, st.standoff); if (!rp){ missing.push(secLabel(u, j)); return; }
     var L = parseLen(String(run.len == null ? '' : run.len)), fl = parseLen(String(run.fl == null ? '' : run.fl)), fr = parseLen(String(run.fr == null ? '' : run.fr));
     var mids = rp.n - (rp.lo ? 1 : 0) - (rp.ro ? 1 : 0), nf = (fl > 0 ? 1 : 0) + (fr > 0 ? 1 : 0);
@@ -1346,16 +1348,17 @@ function laserPosts(u){
     var dl = fl > 0 ? -fl - 2 : chDed(run.l, m, g, run.al), ch = chanInfo(L + pieceAdj(run, st.mount, st.standoff).v, run), s0 = dl === null ? null : -dl;
     var at = function(x){ return fmtFrac(Math.round(x * 16) / 16).replace(/^≈ /, '') + ' from left end of ' + secLabel(u, j) + ' (post centre)'; };
     for (var t = 1; t <= rp.n; t++){
-      var lab, hint = '';
-      if (t === 1 && rp.lo){ lab = 'Left end'; hint = String(run.l || ''); }
-      else if (t === rp.n && rp.ro){ lab = 'Right end'; hint = String(run.r || ''); }
+      var lab, hint = '', pos = null, kind = 'mid';
+      if (t === 1 && rp.lo){ lab = 'Left end'; hint = String(run.l || ''); pos = 0; kind = 'end'; }
+      else if (t === rp.n && rp.ro){ lab = 'Right end'; hint = String(run.r || ''); pos = L; kind = 'end'; }
       else {
         var mi = t - (rp.lo ? 1 : 0); lab = 'Mid ' + mi;
-        if (fl > 0 && mi === 1) hint = 'float post · ' + at(fl + 1);
-        else if (fr > 0 && mi === mids) hint = 'float post · ' + at(L - fr - 1);
-        else if (s0 !== null && L > 0){ var k = mi - (fl > 0 ? 1 : 0); hint = at(s0 + k * ch.each + (k - 1) * 2 + 1); }
+        if (fl > 0 && mi === 1){ pos = fl + 1; hint = 'float post · ' + at(pos); }
+        else if (fr > 0 && mi === mids){ pos = L - fr - 1; hint = 'float post · ' + at(pos); }
+        else if (s0 !== null && L > 0){ var k = mi - (fl > 0 ? 1 : 0); pos = s0 + k * ch.each + (k - 1) * 2 + 1; hint = at(pos); }
+        else if (L > 0) pos = L * mi / (mids + 1);
       }
-      out.push({ key: lvKey(run, rp, t), j: j, t: t, label: secLabel(u, j) + ' · ' + lab, hint: hint });
+      out.push({ key: lvKey(run, rp, t), j: j, t: t, label: secLabel(u, j) + ' · ' + lab, hint: hint, pos: pos, kind: kind, n: out.length + 1 });
     }
   });
   return { posts: out, missing: missing };
@@ -1371,10 +1374,10 @@ function laserHeights(u, lp){
   return { ht: ht, max: min, base: base, missing: missing, bad: bad, rd: rd };
 }
 function laserBox(u, i){
-  var lp = laserPosts(u), lh = laserHeights(u, lp), base = lh.base > 0 ? fmtFrac(lh.base) : 'the standard';
+  var lp = laserPosts(u), lh = laserHeights(u, lp), base = lh.base > 0 ? fmtFrac(lh.base) : 'standard';
   var rows = lp.posts.map(function(p, k){
     var h = lh.ht[p.key], hi = lh.max !== null && lh.rd[p.key] === lh.max && lh.missing.length === 0;
-    return '<div class="lvrow"><div class="lvlbl"><b>' + esc(p.label) + '</b>' + (p.hint ? '<small>' + esc(p.hint) + '</small>' : '') + '</div>' +
+    return '<div class="lvrow"><div class="lvlbl"><b><span class="lvn">' + p.n + '</span>' + esc(p.label) + '</b>' + (p.hint ? '<small>' + esc(p.hint) + '</small>' : '') + '</div>' +
       '<div class="lvin" data-fracslot>' +
       '<input id="u' + i + 'lv' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-lv="' + esc(p.key) + '" placeholder="Line to surface" value="' + esc((u.lv || {})[p.key] || '') + '" aria-label="Laser reading, ' + esc(p.label) + '"></div>' +
       '<div class="lvout' + (hi ? ' hi' : '') + '" data-lvout="' + esc(p.key) + '">' + (h != null ? fmtFrac(h) + (hi ? ' · highest' : '') : '') + '</div></div>';
@@ -1824,7 +1827,25 @@ function layoutSvg(u){
       '<path d="M0 ' + (-f * 2.6) + ' l' + (-f * 0.7) + ' ' + f * 0.9 + ' h' + f * 1.4 + 'z"/></g>' +
       '<text x="' + cp.x + '" y="' + cp.y + '" dominant-baseline="middle" font-size="' + fs * 0.8 + '" text-anchor="' + cp.a + '" fill="var(--muted)" font-weight="700">' + cap + '</text>';
   }
-  var posts = '';
+  var posts = '', lpz = laserPosts(u), numbered = !!u.laser && mnt === 'Top', marks = '';
+  // mid posts (same spacing as the cut sheet) as small open dots on the rail; with laser post heights on, every post gets its number from the list
+  lpz.posts.forEach(function(lp){
+    var sg = segs[lp.j]; if (!sg || lp.pos === null || !sg.known) return;
+    var f = Math.max(0, Math.min(1, lp.pos / sg.L)), px = sg.x1 + (sg.x2 - sg.x1) * f, py = sg.y1 + (sg.y2 - sg.y1) * f;
+    if (lp.kind === 'mid'){ marks += '<circle cx="' + px + '" cy="' + py + '" r="' + sw * 1.05 + '" fill="var(--card)" stroke="var(--ink)" stroke-width="' + sw * 0.5 + '"/>'; boxes.push({ x0: px - sw * 2, x1: px + sw * 2, y0: py - sw * 2, y1: py + sw * 2 }); }
+    if (numbered){ lp._x = px; lp._y = py; }
+  });
+  var badges = '';
+  // two posts at one spot (a corner where both rails own a post): nudge each a little into its own rail so both numbers show
+  if (numbered) lpz.posts.forEach(function(a, ia){ lpz.posts.forEach(function(b, ib){
+    if (ib <= ia || a._x == null || b._x == null || Math.abs(a._x - b._x) > fs * 0.9 || Math.abs(a._y - b._y) > fs * 0.9) return;
+    [a, b].forEach(function(q){ var sg = segs[q.j], dx = sg.x2 - sg.x1, dy = sg.y2 - sg.y1, d = Math.sqrt(dx * dx + dy * dy) || 1, dir = q.pos > sg.L / 2 ? -1 : 1; q._x += dir * dx / d * fs * 1.05; q._y += dir * dy / d * fs * 1.05; });
+  }); });
+  if (numbered) lpz.posts.forEach(function(lp){
+    if (lp._x == null) return; var br = fs * 0.62;
+    badges += '<circle cx="' + lp._x + '" cy="' + lp._y + '" r="' + br + '" fill="var(--accent)" stroke="var(--card)" stroke-width="' + sw * 0.5 + '"/><text x="' + lp._x + '" y="' + lp._y + '" font-size="' + fs * (lp.n > 9 ? 0.62 : 0.75) + '" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="900">' + lp.n + '</text>';
+    boxes.push({ x0: lp._x - br, x1: lp._x + br, y0: lp._y - br, y1: lp._y + br });
+  });
   pts.forEach(function(pt, k){
     var r = sw * 1.6, cs = (pt.kind === 'corner') ? 1 : (totalTurn < 0 ? -1 : 1), d1 = fs * 1.5, d2 = fs * 2.6, cands = [];
     [[pt.nx * cs, pt.ny * cs], [-pt.nx * cs, -pt.ny * cs], [0, -1], [0, 1], [1, 0], [-1, 0], [0.7, -0.7], [-0.7, -0.7], [0.7, 0.7], [-0.7, 0.7]].forEach(function(v){ cands.push({ x: pt.x + v[0] * d1, y: pt.y + v[1] * d1, nx: v[0] }); });
@@ -1852,15 +1873,16 @@ function layoutSvg(u){
   var labels = '';
   segs.forEach(function(sg){
     var mx = (sg.x1 + sg.x2) / 2, my = (sg.y1 + sg.y2) / 2, dx = sg.x2 - sg.x1, dy = sg.y2 - sg.y1, d = Math.sqrt(dx * dx + dy * dy) || 1, side = totalTurn < 0 ? -1 : 1, nx = side * dy / d, ny = -side * dx / d, off = fs * 1.2;
-    var lt = sg.tag + (sg.gate ? ' Gate' : '') + ' · ' + sg.len + (sg.ns && !sg.gate ? ' · floating' : '') + (sg.step ? ' · step' : ''), cands = [];
+    // short labels: ".1  120\"" (the unit number is on the card already)
+    var tg = '.' + sg.tag.split('.').pop(), extra = (sg.gate ? ' Gate' : '') + (sg.ns && !sg.gate ? ' · float' : '') + (sg.step ? ' · step' : ''), lt = tg + extra + '  ' + sg.len, cands = [];
     [1, 2, 3].forEach(function(m){ cands.push({ x: mx + nx * off * m, y: my + ny * off * m, nx: nx }); });
     [0.25, -0.25, 0.4, -0.4].forEach(function(t){ [1, 2].forEach(function(m){ cands.push({ x: mx + dx * t + nx * off * m, y: my + dy * t + ny * off * m, nx: nx }); }); });
     [1, 2, 3].forEach(function(m){ cands.push({ x: mx - nx * off * m, y: my - ny * off * m, nx: -nx }); });
     [4, 5, 6].forEach(function(m){ cands.push({ x: mx + nx * off * m, y: my + ny * off * m, nx: nx }); cands.push({ x: mx - nx * off * m, y: my - ny * off * m, nx: -nx }); });
     var lp = place(cands, lt, fs);
-    labels += '<text x="' + lp.x + '" y="' + lp.y + '" font-size="' + fs + '" text-anchor="' + lp.a + '" dominant-baseline="middle" fill="var(--ink)" font-weight="800">' + esc(lt) + '</text>';
+    labels += '<text x="' + lp.x + '" y="' + lp.y + '" font-size="' + fs + '" text-anchor="' + lp.a + '" dominant-baseline="middle" fill="var(--ink)" font-weight="800" xml:space="preserve"><tspan fill="var(--muted)" font-weight="700">' + esc(tg + extra) + '</tspan>  ' + esc(sg.len) + '</text>';
   });
-  out += feet + labels + posts;
+  out += feet + labels + marks + posts + badges;
   // grow the drawing area to fit every label, so long runs shrink to fit instead of cutting text off
   var bx0 = minX - pad * 0.5, by0 = minY - pad * 0.5, bx1 = maxX + pad * 0.5, by1 = maxY + pad * 0.5;
   boxes.forEach(function(b){ bx0 = Math.min(bx0, b.x0); bx1 = Math.max(bx1, b.x1); by0 = Math.min(by0, b.y0); by1 = Math.max(by1, b.y1); });
@@ -1881,7 +1903,7 @@ function layoutSvg(u){
   var nWrong = u.secs.slice(0, -1).filter(function(run){ return wrongTurn(run, mnt); }).length;
   var turnBtn = u.secs.length > 1 ? '<button type="button" class="turntog" data-act="turnsshow" aria-expanded="' + !!u._showTurns + '">' + (u._showTurns ? 'Hide turns ▴' : 'Show turns ▾') + (nWrong && !u._showTurns ? ' <b>· ' + nWrong + ' to check</b>' : '') + '</button>' : '';
   return head + out + '<div class="laybar"><span class="lbl">' + turnBtn + '</span>' + (u._drawn ? '<button type="button" class="btn" data-act="drawedit">Edit drawing</button>' : '') + '<button type="button" class="btn" data-act="rot">Rotate drawing</button><button type="button" class="btn" data-act="feet">Turn feet · facing ' + ['N', 'E', 'S', 'W'][Math.round(((u._feet || 0) + (u._rot || 0)) % 360 / 90) % 4] + '</button>' + (u.secs.some(function(r){ return r._turn; }) ? '<button type="button" class="btn ghost" data-act="turnreset">Reset turns</button>' : '') + '</div>' + (u._showTurns ? turns : '') +
-    '<div class="laykey"><span><i class="k-end"></i>End post</span><span><i class="k-cor"></i>Corner</span><span><i class="k-jt"></i>Joint</span>' + (anyFloat ? '<span><i class="k-fl"></i>Floating / float</span><span><i class="k-fp"></i>Float post</span>' : '') + '<span>Dashed = no measurement yet</span></div>';
+    '<div class="laykey"><span><i class="k-end"></i>End post</span><span><i class="k-cor"></i>Corner</span><span><i class="k-jt"></i>Joint</span>' + (anyFloat ? '<span><i class="k-fl"></i>Floating / float</span><span><i class="k-fp"></i>Float post</span>' : '') + (lpz.posts.some(function(p){ return p.kind === 'mid'; }) ? '<span><i class="k-mid"></i>Mid post</span>' : '') + (numbered ? '<span><i class="k-num">1</i>Laser post number (matches the list)</span>' : '') + '<span>Dashed = no measurement yet</span></div>';
 }
 // tap a post code on the layout: pick a new code (a corner changes both sides together)
 function openLayPicker(u, i, b){
