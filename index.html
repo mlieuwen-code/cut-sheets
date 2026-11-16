@@ -60,6 +60,7 @@ h1,h2{text-wrap:balance}
 .calcuse{display:flex;gap:10px;flex-wrap:wrap}
 .jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
 .fld.job{position:relative}
+.nprow{display:flex;align-items:center;gap:10px;margin:6px 0}.nprow input{flex:1;min-width:0}.npdash{font-size:22px;font-weight:800;color:var(--muted)}.npx{flex:none;min-width:44px}.npadd{margin:4px 0 6px}.npro{font-size:18px;font-weight:700;padding:6px 0}
 .chkrow{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:center}
 .gatecalc{font-size:15px;color:var(--sub);margin:4px 0 10px}.gatebox .chk{margin:4px 0 6px}
 .boardac{position:absolute;left:0;right:0;top:100%;z-index:30;margin-top:4px;background:var(--card,#fff);border:1.5px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;max-height:min(60vh,420px);overflow-y:auto}
@@ -627,7 +628,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-e5f8db';
+var APP_VERSION = '2026.11.16-b69a8b';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1301,7 +1302,7 @@ function resplitUnit(u){
     var st = unitSetup(u), ch = pcs.map(function(p, k){ return chanInfo(res.W != null ? res.W : res.lens[k] + pieceAdj(p, st.mount, st.standoff).v, p); }), match = ch.every(function(c){ return c.n === ch[0].n && c.each === ch[0].each; });
     var zsp = parseZones(pcs[0]._sp.np), at0 = 0;
     if (zsp.length) pcs.forEach(function(p, k){ var a0 = at0, a1 = at0 + res.lens[k]; at0 = a1;
-      p.np = fmtZones(zsp.filter(function(z){ return z.b > a0 && z.a < a1; }).map(function(z){ return { a: Math.round((Math.max(z.a, a0) - a0) * 16) / 16, b: Math.round((Math.min(z.b, a1) - a0) * 16) / 16 }; })); p._npSplit = true; });
+      delete p.npz; p.np = fmtZones(zsp.filter(function(z){ return z.b > a0 && z.a < a1; }).map(function(z){ return { a: Math.round((Math.max(z.a, a0) - a0) * 16) / 16, b: Math.round((Math.min(z.b, a1) - a0) * 16) / 16 }; })); p._npSplit = true; });
     pcs.forEach(function(p, k){ p.len = String(Math.round(res.lens[k] * 1e4) / 1e4); p.lenOk = true; p._spOff = Math.round(res.offs[k] * 1e4) / 1e4; p._spInfo = { guess: res.guess, ch: ch[0], chs: ch, match: match, longest: Math.max.apply(null, res.lens), custom: !!cj }; });
   });
 }
@@ -1542,7 +1543,7 @@ function unsplit(u, j){
   var js = groupAt(u, id), first = u.secs[js[0]], last = u.secs[js[js.length - 1]];
   ['r', 'fr', 'or', 'pr', 'ar'].forEach(function(k){ first[k] = last[k]; });
   first.len = String(first._sp.total); first.lenOk = true; first._open = true; first._noSplit = true;
-  if (first._sp.np != null) first.np = first._sp.np; delete first._npSplit;
+  if (first._sp.np != null){ first.np = first._sp.np; delete first.npz; } delete first._npSplit;
   delete first._sp; delete first._spInfo; delete first._spOff;
   u.secs.splice(js[0] + 1, js.length - 1);
   var j0 = js[0], n = js.length; renumNotes(u, function(k){ return k <= j0 ? null : k <= j0 + n ? '.' + (j0 + 1) : '.' + (k - n + 1); });
@@ -1723,9 +1724,7 @@ function secHtml(u, i, run, j){
     (isGateSec(u, run) ? '' : (   // a gate needs no floats, steps or more options
     '<div class="chkrow"><label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') +
       '<label class="chk" for="' + id + 'npz"><input type="checkbox" id="' + id + 'npz" data-sfield="npz"' + (run._np || String(run.np || '').trim() ? ' checked' : '') + '>No-post zone</label></div>' +
-    (run._np || String(run.np || '').trim() ? '<div class="fld"><label for="' + id + 'np">No posts between (inches from the left end)</label><input id="' + id + 'np" type="text" autocomplete="off" inputmode="text" placeholder="e.g. 191-202, 300-310" value="' + esc(run.np || '') + '" data-key="np"' + (run._npSplit ? ' readonly' : '') + '>' +
-      (run._npSplit ? '<div class="hint">From the rail before it split. Joints were kept out of it. Undo split to change it.</div>' : '<div class="hint">A drain, door or anything a post can’t go on. If this rail splits, the joint stays out of it. It goes on the job’s notes too.</div>') +
-      '<div data-npw>' + npWarnHtml(u, j) + '</div></div>' : '') +
+    (run._np || String(run.np || '').trim() ? npBox(u, j, id) : '') +
     (showFloats ? '<div class="g2" data-fracslot>' + numField(id + 'fl', 'Float L', run.fl, { attrs: ' data-key="fl"' }) + numField(id + 'fr', 'Float R', run.fr, { attrs: ' data-key="fr"' }) + '</div>' +
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
     // a section that sits higher or lower than the one before (e.g. an Allan block wall that jumps a block): its own post / block height,
@@ -2297,6 +2296,23 @@ function gatePostNote(u){
     return secLabel(u, j) + ' Gate: 2 standalone gate posts, ' + (side ? 'SIDE MOUNT, standoff ' + (so === null || isNaN(so) ? 'not entered' : fmtFrac(so)) + ', cut ' + fmtFrac(GATE_SIDE_POST) + ', raise to height at install (top ' + (ph === null ? 'level with the top of the rail' : fmtFrac(ph) + ' above the deck') + ')' : 'top mount at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates');
   }).filter(Boolean).join('\n');
 }
+// the zone boxes: From [   ] – To [   ], one row per zone; a split piece shows its part of the zone, read-only
+function npRows(run){ if (!run.npz) run.npz = parseZones(run.np).map(function(z){ return { a: numVal(z.a), b: numVal(z.b) }; }); if (!run.npz.length) run.npz.push({ a: '', b: '' }); return run.npz; }
+function npSync(run){ run.np = (run.npz || []).map(function(z){ return String(z.a || '').trim() + '-' + String(z.b || '').trim(); }).filter(function(t){ return parseZones(t).length; }).join(', '); }
+function npBox(u, j, id){
+  var run = u.secs[j];
+  if (run._npSplit) return '<div class="fld"><div class="lbl">No posts between (inches from the left end)</div><div class="npro">' + esc(run.np || 'none on this piece') + '</div><div class="hint">From the rail before it split. Joints were kept out of it. Undo split to change it.</div><div data-npw>' + npWarnHtml(u, j) + '</div></div>';
+  var rows = npRows(run);
+  return '<div class="fld"><div class="lbl">No posts between (inches from the left end)</div>' +
+    rows.map(function(z, k){
+      return '<div class="nprow" data-fracslot><input id="' + id + 'npa' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac placeholder="From" aria-label="No posts from" value="' + esc(z.a) + '" data-npz="' + k + '" data-npf="a">' +
+        '<span class="npdash">–</span><input id="' + id + 'npb' + k + '" type="text" inputmode="decimal" autocomplete="off" data-frac placeholder="To" aria-label="No posts to" value="' + esc(z.b) + '" data-npz="' + k + '" data-npf="b">' +
+        (rows.length > 1 ? '<button type="button" class="btn ghost npx" data-act="npdel" data-k="' + k + '" aria-label="Remove this zone">✕</button>' : '') + '</div>';
+    }).join('') +
+    '<button type="button" class="addsec npadd" data-act="npadd">+ Another zone</button>' +
+    '<div class="hint">A drain, door or anything a post can’t go on. If this rail splits, the joint stays out of it. It goes on the job’s notes too.</div>' +
+    '<div data-npw>' + npWarnHtml(u, j) + '</div></div>';
+}
 function npNote(u){ return u.secs.map(function(r, j){ var zs = parseZones(r.np); return zs.length ? secLabel(u, j) + ': no posts ' + fmtZones(zs) + ' from the left end' : ''; }).filter(Boolean).join('\n'); }
 function gateSecHtml(u, j, id){
   var run = u.secs[j], ov = parseLen(String(run.len == null ? '' : run.len)), ok = ov !== null && !isNaN(ov) && ov > GATE_CLEAR, gph = gatePostHt(u);
@@ -2317,6 +2333,12 @@ el('units').addEventListener('input', function(e){
   var t = e.target, p = at(t); if (!p) return;
   var lvk = t.getAttribute('data-lv');
   if (lvk){ p.u.lv = p.u.lv || {}; p.u.lv[lvk] = t.value.replace(/[−–]/g, '-'); updLaser(p.u, p.i); changed(); return; }
+  var npk = t.getAttribute('data-npz');
+  if (npk != null && p.j >= 0){
+    var nr2 = p.u.secs[p.j]; npRows(nr2)[+npk][t.getAttribute('data-npf')] = t.value; npSync(nr2); showHint(t); changed();
+    var nw2 = p.sec && p.sec.querySelector('[data-npw]'); if (nw2) nw2.innerHTML = npWarnHtml(p.u, p.j);
+    return;
+  }
   var uf = t.getAttribute('data-ufield'), key = t.getAttribute('data-key');
   if (uf === 'unit'){
     p.u.unit = t.value.trim();
@@ -2360,6 +2382,7 @@ el('units').addEventListener('toggle', function(e){
 el('units').addEventListener('change', function(e){
   var t = e.target, p = at(t); if (!p) return;
   if (t.getAttribute('data-lv')) return;
+  if (t.getAttribute('data-npz') != null) return;   // handled as you type
   var spj = t.getAttribute('data-spj');
   if (spj != null){   // a custom joint position on a split rail
     var f0 = p.u.secs[p.j], sp = f0 && f0._sp; if (!sp) return;
@@ -2409,7 +2432,7 @@ el('units').addEventListener('change', function(e){
     var gr = p.u.secs[p.j]; gr.gate = t.checked; if (t.checked){ gr.l = 'E'; gr.r = 'E'; gr.ns = 'Yes'; } else { gr.ns = ''; gr.gposts = false; }
     renderRuns(); changed(); var lf = el('u' + p.i + 's' + p.j + '_len'); if (lf && t.checked) lf.focus(); return;
   }
-  if (t.getAttribute('data-sfield') === 'npz' && p.j >= 0){ var nr = p.u.secs[p.j]; nr._np = t.checked; if (!t.checked && !nr._npSplit) nr.np = ''; renderRuns(); changed(); var nf = el('u' + p.i + 's' + p.j + '_np'); if (nf && t.checked) nf.focus(); return; }
+  if (t.getAttribute('data-sfield') === 'npz' && p.j >= 0){ var nr = p.u.secs[p.j]; nr._np = t.checked; if (!t.checked && !nr._npSplit){ nr.np = ''; delete nr.npz; } renderRuns(); changed(); var nf = el('u' + p.i + 's' + p.j + '_npa0'); if (nf && t.checked) nf.focus(); return; }
   if (t.getAttribute('data-sfield') === 'gposts' && p.j >= 0){ p.u.secs[p.j].gposts = t.checked; renderRuns(); changed(); return; }
   if (t.getAttribute('data-sfield') === 'step' && p.j >= 0){
     var stp = p.u.secs[p.j]; stp._step = t.checked;
@@ -2512,6 +2535,8 @@ el('units').addEventListener('click', function(e){
   else if (act === 'scrdone'){ var dk = +b.getAttribute('data-k'), dv = parseLen(u.screens[dk].size); if (dv === null || isNaN(dv) || dv <= 0){ var sf2 = el('u' + p.i + 'k' + dk + '_size'); if (sf2) sf2.focus(); return msg('Enter the screen size first.'); } u.screens[dk]._done = true; }
   else if (act === 'scropen'){ var ok = +b.getAttribute('data-k'); u.screens[ok]._done = false; focus = 'u' + p.i + 'k' + ok + '_size'; }
   else if (act === 'scrdel'){ if (!confirmDel(b, 'scr' + p.i + '.' + b.getAttribute('data-k'))) return; u.screens.splice(+b.getAttribute('data-k'), 1); if (!u.screens.length){ u.screen = false; } }
+  else if (act === 'npadd'){ npRows(u.secs[j]).push({ a: '', b: '' }); focus = 'u' + p.i + 's' + j + '_npa' + (u.secs[j].npz.length - 1); }
+  else if (act === 'npdel'){ npRows(u.secs[j]).splice(+b.getAttribute('data-k'), 1); npSync(u.secs[j]); }
   else if (act === 'gpm'){ u.secs[j].gpm = b.getAttribute('data-v'); renderRuns(); changed(); if (u.secs[j].gpm === 'Side'){ var gsf = el('u' + p.i + 's' + j + '_gso'); if (gsf) gsf.focus(); } return; }
   else if (act === 'stepdir'){ u.secs[j].sd = b.getAttribute('data-v'); u.secs[j].ph = ''; u.secs[j].bh = ''; renderRuns(); changed(); return; }
   else if (act === 'turn'){ var tj = +b.getAttribute('data-j'), tv = b.getAttribute('data-t'), sec = u.secs[tj]; sec._turn = autoTurnName(sec, unitSetup(u).mount) === { L:'Left', S:'Straight', R:'Right' }[tv] ? '' : tv; updLayout(p.i); changed(); return; }
