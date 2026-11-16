@@ -618,7 +618,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-51a30d';
+var APP_VERSION = '2026.11.16-5c4b43';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1758,12 +1758,12 @@ function layoutSvg(u){
     segs.push({ x1: x, y1: y, x2: x2, y2: y2, h: h, L: L, tag: secLabel(u, j), len: known ? fmtFrac(L) : '?', known: known, ns: run.ns === 'Yes', gate: isGateSec(u, run), step: hasStep(run),
       fl: flv > 0 && flv < L ? flv : 0, fr: frv > 0 && frv < L ? frv : 0 });
     var nX = -Math.sin(h * Math.PI / 180), nY = Math.cos(h * Math.PI / 180);
-    var gt = isGateSec(u, run);   // a gate's end posts float: drawn hollow, labelled Float
-    if (j === 0 || gt || !pts.length || pts[pts.length - 1].x !== x || pts[pts.length - 1].y !== y) pts.push({ x: x, y: y, code: gt ? 'Float' : (run.l || '?'), nx: nX, ny: nY, kind: gt ? 'gate' : 'end', j: j, side: 'l' });
+    var gt = isGateSec(u, run);   // a gate's end posts float: drawn hollow, labelled Gate
+    if (j === 0 || gt || !pts.length || pts[pts.length - 1].x !== x || pts[pts.length - 1].y !== y) pts.push({ x: x, y: y, code: gt ? 'Gate' : (run.l || '?'), nx: nX, ny: nY, kind: gt ? 'gate' : 'end', j: j, side: 'l' });
     var t = turnFor(run, j === last, mnt);
     var cnx = nX, cny = nY;
     if (t){ var hi = h * Math.PI / 180, ho = (h + t) * Math.PI / 180, ox = Math.cos(hi) - Math.cos(ho), oy = Math.sin(hi) - Math.sin(ho), ol = Math.sqrt(ox * ox + oy * oy) || 1; cnx = ox / ol; cny = oy / ol; }
-    pts.push({ x: x2, y: y2, code: gt ? 'Float' : (run.r || '?'), kind: gt ? 'gate' : (t === null ? 'end' : (t === 0 ? 'joint' : 'corner')), nx: cnx, ny: cny, bad: j < last && wrongTurn(run, mnt), j: j, side: 'r', pair: t !== null && j < last });
+    pts.push({ x: x2, y: y2, code: gt ? 'Gate' : (run.r || '?'), kind: gt ? 'gate' : (t === null ? 'end' : (t === 0 ? 'joint' : 'corner')), nx: cnx, ny: cny, bad: j < last && wrongTurn(run, mnt), j: j, side: 'r', pair: t !== null && j < last });
     x = x2; y = y2; xs.push(x); ys.push(y);
     if (t === null){ var gap = Math.max(12, L * 0.15); x += gap * Math.cos(h * Math.PI / 180); y += gap * Math.sin(h * Math.PI / 180); if (run._gapTurn && j < last) h += run._gapTurn; }
     else { h += t; totalTurn += t; }
