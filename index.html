@@ -59,6 +59,11 @@ h1,h2{text-wrap:balance}
 .calcout.bad{color:var(--bad)}
 .calcuse{display:flex;gap:10px;flex-wrap:wrap}
 .jobhelp{font-size:16px;font-weight:700;color:var(--muted);margin:-2px 0 8px}
+.fld.job{position:relative}
+.boardac{position:absolute;left:0;right:0;top:100%;z-index:30;margin-top:4px;background:var(--card,#fff);border:1.5px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden;max-height:min(60vh,420px);overflow-y:auto}
+.boardacrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;text-align:left;padding:12px 14px;min-height:52px;border:0;border-bottom:1px solid var(--line,#e5e5e5);background:none;font:inherit;color:inherit;cursor:pointer}
+.boardacrow:last-child{border-bottom:0}.boardacrow:active,.boardacrow:hover{background:var(--tint)}
+.boardacrow b{font-size:17px}.boardacrow span{font-size:13px;color:var(--muted);align-self:center}.boardacrow small{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .boardrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 8px}.boardrow .btn{border:2px solid var(--line)}
 .boardhint{font-size:16px;font-weight:800}.bh-on{color:#2F7D4F}.bh-off{color:#A12D22}
 .bprow{flex-direction:row}.bprow b{font-size:19px;font-weight:900}.bprow .bpb{font-size:14px;font-weight:800;color:var(--muted)}.bprow small.bprs{color:var(--accent);font-weight:800}
@@ -619,7 +624,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.13-76530e';
+var APP_VERSION = '2026.11.16-85fbc1';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -4207,6 +4212,38 @@ function showBoardPicker(){
 }
 document.addEventListener('click', function(e){ if (e.target.closest && e.target.closest('#boardPick')){ e.preventDefault(); showBoardPicker(); } });
 boardJobs().then(function(){ var bh = el('boardHint'); if (bh && header) bh.innerHTML = boardHint(); });   // refresh the cached list when the app opens
+
+// autofill: typing in the building / job name shows matching Crew Board jobs under the box; tap one to fill it like the picker does
+function boardAcMatches(q){
+  var c = boardCached(); q = String(q || '').trim().toLowerCase(); if (!c || !q) return [];
+  var starts = [], has = [];
+  c.jobs.forEach(function(j){
+    var n = j.name.toLowerCase();
+    if (n === q) return;   // already typed in full
+    if (n.indexOf(q) === 0 || n.split(/\s+/).some(function(w){ return w.indexOf(q) === 0; })) starts.push(j);
+    else if ((n + ' ' + j.builder + ' ' + j.address).toLowerCase().indexOf(q) >= 0) has.push(j);
+  });
+  return starts.concat(has).slice(0, 6);
+}
+function boardAcClose(){ var b = el('boardAc'); if (b) b.remove(); }
+function boardAcShow(inp){
+  var list = boardAcMatches(inp.value); boardAcClose(); if (!list.length) return;
+  var box = document.createElement('div'); box.id = 'boardAc'; box.className = 'boardac'; box.setAttribute('role', 'listbox');
+  box.innerHTML = list.map(function(j, i){ return '<button type="button" role="option" class="boardacrow" data-i="' + i + '"><b>' + esc(j.name) + '</b>' + (j.builder ? '<span>' + esc(j.builder) + '</span>' : '') + (j.address ? '<small>' + esc(j.address) + '</small>' : '') + '</button>'; }).join('');
+  box._list = list;
+  inp.parentNode.appendChild(box); box.style.top = (inp.offsetTop + inp.offsetHeight) + 'px';   // right under the box, over the Apartment / Townhouse row
+}
+document.addEventListener('input', function(e){ if (e.target && e.target.id === 'h_B4') boardAcShow(e.target); });
+document.addEventListener('focusin', function(e){ if (e.target && e.target.id === 'h_B4' && e.target.value) boardAcShow(e.target); });
+document.addEventListener('focusout', function(e){ if (e.target && e.target.id === 'h_B4') setTimeout(boardAcClose, 150); });
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && el('boardAc')) boardAcClose(); });
+document.addEventListener('pointerdown', function(e){ if (e.target.closest && e.target.closest('#boardAc')) e.preventDefault(); });   // keep the box open while tapping a job
+document.addEventListener('click', function(e){
+  var r = e.target.closest && e.target.closest('.boardacrow'); if (!r) return;
+  var j = el('boardAc')._list[+r.getAttribute('data-i')]; boardAcClose(); setBoardJob(j);
+  msg('Job set to ' + j.name + ' from the Crew Board' + (j._got.length ? ', with ' + j._got.join(' and ') : '') + '.', true);
+  var f = el('h_floor'); if (f && !f.value) f.focus();
+});
 
 // "Start measuring" from a Measure card on the Crew Board opens this app with #job=<name>&builder=…&addr=…&id=…
 (function(){
