@@ -627,7 +627,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-d34180';
+var APP_VERSION = '2026.11.16-b38a25';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1799,6 +1799,15 @@ function layoutSvg(u){
     }
     boxes.push(best.b); return best;
   }
+  // a label pushed away from what it names (a short gate, a crowded corner) gets a thin arrow pointing back to it
+  var leaders = '';
+  function leader(b, ax, ay, minGap){
+    var cx = Math.max(b.x0, Math.min(ax, b.x1)), cy = Math.max(b.y0, Math.min(ay, b.y1)), dx = ax - cx, dy = ay - cy, d = Math.sqrt(dx * dx + dy * dy);
+    if (d < minGap) return;
+    var ux = dx / d, uy = dy / d, ex = ax - ux * sw * 2.2, ey = ay - uy * sw * 2.2, sx = cx + ux * fs * 0.15, sy = cy + uy * fs * 0.15, ah = fs * 0.45;
+    leaders += '<line x1="' + sx + '" y1="' + sy + '" x2="' + ex + '" y2="' + ey + '" stroke="var(--muted)" stroke-width="' + sw * 0.35 + '"/>' +
+      '<path d="M' + ex + ' ' + ey + ' L' + (ex - ux * ah - uy * ah * 0.5) + ' ' + (ey - uy * ah + ux * ah * 0.5) + ' L' + (ex - ux * ah + uy * ah * 0.5) + ' ' + (ey - uy * ah - ux * ah * 0.5) + 'Z" fill="var(--muted)"/>';
+  }
   // posts are obstacles too
   pts.forEach(function(pt){ var r = sw * 2.2; boxes.push({ x0: pt.x - r, x1: pt.x + r, y0: pt.y - r, y1: pt.y + r }); });
   var out = '', floatPosts = '', anyFloat = false;
@@ -1860,6 +1869,7 @@ function layoutSvg(u){
     [[pt.nx * cs, pt.ny * cs], [-pt.nx * cs, -pt.ny * cs], [0, -1], [0, 1], [1, 0], [-1, 0], [0.7, -0.7], [-0.7, -0.7], [0.7, 0.7], [-0.7, 0.7]].forEach(function(v){ cands.push({ x: pt.x + v[0] * d1, y: pt.y + v[1] * d1, nx: v[0] }); });
     [[pt.nx * cs, pt.ny * cs], [0, -1], [0, 1], [1, 0], [-1, 0]].forEach(function(v){ cands.push({ x: pt.x + v[0] * d2, y: pt.y + v[1] * d2, nx: v[0] }); });
     var lp = pt.kind === 'gate' ? null : place(cands, pt.code, fs * 0.85);   // gate posts: no label, the gate rail itself says Gate
+    if (lp) leader(lp.b, pt.x, pt.y, fs * 1.4);
     var hitA = pt.kind === 'gate' ? '' : ' data-act="laypost" data-j="' + pt.j + '" data-side="' + pt.side + '" data-pair="' + (pt.pair ? 1 : 0) + '" style="cursor:pointer"';
     if (pt.kind === 'gate') posts += '<rect x="' + (pt.x - r) + '" y="' + (pt.y - r) + '" width="' + r * 2 + '" height="' + r * 2 + '" fill="var(--card)" stroke="var(--ink)" stroke-width="' + sw * 0.6 + '"/>';
     else if (pt.kind === 'end' || k === 0) posts += '<rect x="' + (pt.x - r) + '" y="' + (pt.y - r) + '" width="' + r * 2 + '" height="' + r * 2 + '" fill="var(--ink)"/>';
@@ -1889,9 +1899,10 @@ function layoutSvg(u){
     [1, 2, 3].forEach(function(m){ cands.push({ x: mx - nx * off * m, y: my - ny * off * m, nx: -nx }); });
     [4, 5, 6].forEach(function(m){ cands.push({ x: mx + nx * off * m, y: my + ny * off * m, nx: nx }); cands.push({ x: mx - nx * off * m, y: my - ny * off * m, nx: -nx }); });
     var lp = place(cands, lt, fs);
+    leader(lp.b, mx, my, fs * 2.2);
     labels += '<text x="' + lp.x + '" y="' + lp.y + '" font-size="' + fs + '" text-anchor="' + lp.a + '" dominant-baseline="middle" fill="var(--ink)" font-weight="800" xml:space="preserve"><tspan fill="var(--muted)" font-weight="700">' + esc(tg + extra) + '</tspan>  ' + esc(sg.len) + '</text>';
   });
-  out += feet + labels + marks + posts + badges;
+  out += feet + leaders + labels + marks + posts + badges;
   // grow the drawing area to fit every label, so long runs shrink to fit instead of cutting text off
   var bx0 = minX - pad * 0.15, by0 = minY - pad * 0.15, bx1 = maxX + pad * 0.15, by1 = maxY + pad * 0.15;   // tight to the drawing so it fills the box
   boxes.forEach(function(b){ bx0 = Math.min(bx0, b.x0); bx1 = Math.max(bx1, b.x1); by0 = Math.min(by0, b.y0); by1 = Math.max(by1, b.y1); });
