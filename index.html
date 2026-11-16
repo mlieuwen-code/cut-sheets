@@ -627,7 +627,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.16-645a8b';
+var APP_VERSION = '2026.11.16-e5f8db';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1235,6 +1235,33 @@ function piecesFor(run, N){
   }
   return out;
 }
+// ---------- no-post zones: "191-202, 300-310" inches from the left end of a section (e.g. a drain, a door, a scupper) ----------
+function parseZones(str){
+  return String(str == null ? '' : str).split(/[,;]+/).map(function(part){
+    var m = part.trim().split(/\s*(?:-|–|—|to)\s*(?=\d)/); if (m.length !== 2) return null;
+    var a = parseLen(m[0]), b = parseLen(m[1]); return a !== null && b !== null && !isNaN(a) && !isNaN(b) && b > a && a >= 0 ? { a: a, b: b } : null;
+  }).filter(Boolean);
+}
+function fmtZones(zs){ return zs.map(function(z){ return fmtFrac(z.a).replace(/"$/, '') + '–' + fmtFrac(z.b).replace(/"$/, ''); }).join(', '); }
+var NP_CLEAR = 1.5;   // keep a post (joint or mid) this far outside a no-post zone
+function inZone(zs, x){ for (var k = 0; k < zs.length; k++) if (x > zs[k].a - NP_CLEAR && x < zs[k].b + NP_CLEAR) return zs[k]; return null; }
+// mid posts / joints of a section that land in its no-post zones
+function npHits(u, j){
+  var run = u.secs[j], zs = parseZones(run.np); if (!zs.length) return [];
+  return laserPosts(u).posts.filter(function(p){ return p.j === j && p.kind === 'mid' && p.pos !== null && inZone(zs, p.pos); }).map(function(p){ return { pos: p.pos, z: inZone(zs, p.pos) }; });
+}
+function npWarnHtml(u, j){
+  var h = npHits(u, j); if (!h.length) return '';
+  return '<div class="lvmiss">' + h.map(function(x){ return 'A mid post at ' + esc(fmtFrac(x.pos)) + ' lands in the no-post zone ' + esc(fmtZones([x.z])); }).join('. ') + '. Shift the mids with Mid ± (More options), or move a joint.</div>';
+}
+// keep note references right when sections renumber: fn(old 1-based number) gives the new text, or null to leave it
+function renumNotes(u, fn){
+  if (!u.notes) return;
+  var un = String(u.unit).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // one pass: ".2" or "Rooftop.2" (not a decimal like 7.5, not a fraction)
+  var re = new RegExp('(^|[^0-9A-Za-z.])(' + (un ? un : '(?!)') + ')?\\.(\\d+)(?![\\d/])', 'g');
+  u.notes = String(u.notes).replace(re, function(m, pre, unit, n){ var r = fn(+n); return r == null ? m : pre + (unit || '') + r; }).replace(/\.(\d+)–\.\1(?!\d)/g, '.$1');
+}
 function splitRun(u, j){
   var run = u.secs[j], total = parseLen(String(run.len)); if (!(total > 0)) return false;
   var N = 2, pcs, res;
@@ -1242,7 +1269,22 @@ function splitRun(u, j){
   if (totalSecs() + N - 1 > MAX_RUNS){ msg('The cut sheet holds ' + MAX_RUNS + ' sections. No room to split ' + secLabel(u, j) + '.'); return false; }
   var id = 'sp' + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
   pcs.forEach(function(c, k){ c._sp = { id: id, n: N, k: k, total: total }; delete c._spLoad; });
+  // no-post zones: move any joint that would land in one to the nearer edge of the zone
+  var zs = parseZones(run.np);
+  if (zs.length){
+    pcs[0]._sp.np = String(run.np);
+    var eq = splitLens(pcs, total, u).lens, cum = 0, cj = [], moved = false;
+    for (var q = 0; q < N - 1; q++){ cum += eq[q]; cj.push(cum); }
+    cj = cj.map(function(x, q){
+      var z = inZone(zs, x); if (!z) return x; moved = true;
+      var lo = z.a - NP_CLEAR, hi = z.b + NP_CLEAR, prev = q ? cj[q - 1] : 0, next = q < cj.length - 1 ? cj[q + 1] : total;
+      var okLo = lo - prev <= MAX_RAIL && lo > prev + 6, okHi = next - hi <= MAX_RAIL && hi < next - 6;
+      return okLo && (!okHi || x - lo <= hi - x) ? lo : okHi ? hi : x;
+    });
+    if (moved) pcs[0]._sp.cj = cj.map(function(x){ return numVal(Math.round(x * 16) / 16); });
+  }
   Array.prototype.splice.apply(u.secs, [j, 1].concat(pcs));
+  renumNotes(u, function(n){ return n < j + 1 ? null : n === j + 1 ? '.' + (j + 1) + '–.' + (j + N) : '.' + (n + N - 1); });
   resplitUnit(u); return true;
 }
 function groupAt(u, id){ var out = []; u.secs.forEach(function(r, j){ if (r._sp && r._sp.id === id) out.push(j); }); return out; }
@@ -1257,6 +1299,9 @@ function resplitUnit(u){
     var pcs = js.map(function(j){ return u.secs[j]; }), res = splitLens(pcs, r._sp.total, u), cj = customJoints(pcs[0]._sp);
     if (cj){ var cut = [0].concat(cj, [r._sp.total]); res.lens = cut.slice(1).map(function(x, k){ return x - cut[k]; }); res.offs = res.lens.map(function(L){ return n * L - r._sp.total; }); res.W = null; }
     var st = unitSetup(u), ch = pcs.map(function(p, k){ return chanInfo(res.W != null ? res.W : res.lens[k] + pieceAdj(p, st.mount, st.standoff).v, p); }), match = ch.every(function(c){ return c.n === ch[0].n && c.each === ch[0].each; });
+    var zsp = parseZones(pcs[0]._sp.np), at0 = 0;
+    if (zsp.length) pcs.forEach(function(p, k){ var a0 = at0, a1 = at0 + res.lens[k]; at0 = a1;
+      p.np = fmtZones(zsp.filter(function(z){ return z.b > a0 && z.a < a1; }).map(function(z){ return { a: Math.round((Math.max(z.a, a0) - a0) * 16) / 16, b: Math.round((Math.min(z.b, a1) - a0) * 16) / 16 }; })); p._npSplit = true; });
     pcs.forEach(function(p, k){ p.len = String(Math.round(res.lens[k] * 1e4) / 1e4); p.lenOk = true; p._spOff = Math.round(res.offs[k] * 1e4) / 1e4; p._spInfo = { guess: res.guess, ch: ch[0], chs: ch, match: match, longest: Math.max.apply(null, res.lens), custom: !!cj }; });
   });
 }
@@ -1497,8 +1542,10 @@ function unsplit(u, j){
   var js = groupAt(u, id), first = u.secs[js[0]], last = u.secs[js[js.length - 1]];
   ['r', 'fr', 'or', 'pr', 'ar'].forEach(function(k){ first[k] = last[k]; });
   first.len = String(first._sp.total); first.lenOk = true; first._open = true; first._noSplit = true;
+  if (first._sp.np != null) first.np = first._sp.np; delete first._npSplit;
   delete first._sp; delete first._spInfo; delete first._spOff;
   u.secs.splice(js[0] + 1, js.length - 1);
+  var j0 = js[0], n = js.length; renumNotes(u, function(k){ return k <= j0 ? null : k <= j0 + n ? '.' + (j0 + 1) : '.' + (k - n + 1); });
 }
 // all of a unit's splits in one fold at the bottom of the unit; closed by default, remembers if you open it
 function splitBox(u){
@@ -1674,7 +1721,11 @@ function secHtml(u, i, run, j){
     '<div class="conf">' + confHtml(run) + '</div>' +
     (isGateSec(u, run) ? '<div class="chkrow">' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') + '</div>' + gateSecHtml(u, j, id) : '') +
     (isGateSec(u, run) ? '' : (   // a gate needs no floats, steps or more options
-    '<div class="chkrow"><label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') + '</div>' +
+    '<div class="chkrow"><label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') +
+      '<label class="chk" for="' + id + 'npz"><input type="checkbox" id="' + id + 'npz" data-sfield="npz"' + (run._np || String(run.np || '').trim() ? ' checked' : '') + '>No-post zone</label></div>' +
+    (run._np || String(run.np || '').trim() ? '<div class="fld"><label for="' + id + 'np">No posts between (inches from the left end)</label><input id="' + id + 'np" type="text" autocomplete="off" inputmode="text" placeholder="e.g. 191-202, 300-310" value="' + esc(run.np || '') + '" data-key="np"' + (run._npSplit ? ' readonly' : '') + '>' +
+      (run._npSplit ? '<div class="hint">From the rail before it split. Joints were kept out of it. Undo split to change it.</div>' : '<div class="hint">A drain, door or anything a post can’t go on. If this rail splits, the joint stays out of it. It goes on the job’s notes too.</div>') +
+      '<div data-npw>' + npWarnHtml(u, j) + '</div></div>' : '') +
     (showFloats ? '<div class="g2" data-fracslot>' + numField(id + 'fl', 'Float L', run.fl, { attrs: ' data-key="fl"' }) + numField(id + 'fr', 'Float R', run.fr, { attrs: ' data-key="fr"' }) + '</div>' +
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
     // a section that sits higher or lower than the one before (e.g. an Allan block wall that jumps a block): its own post / block height,
@@ -2246,6 +2297,7 @@ function gatePostNote(u){
     return secLabel(u, j) + ' Gate: 2 standalone gate posts, ' + (side ? 'SIDE MOUNT, standoff ' + (so === null || isNaN(so) ? 'not entered' : fmtFrac(so)) + ', cut ' + fmtFrac(GATE_SIDE_POST) + ', raise to height at install (top ' + (ph === null ? 'level with the top of the rail' : fmtFrac(ph) + ' above the deck') + ')' : 'top mount at ' + (ph === null ? 'post height + 2 1/2' : fmtFrac(ph)) + ' (post + 2 1/2), with baseplates');
   }).filter(Boolean).join('\n');
 }
+function npNote(u){ return u.secs.map(function(r, j){ var zs = parseZones(r.np); return zs.length ? secLabel(u, j) + ': no posts ' + fmtZones(zs) + ' from the left end' : ''; }).filter(Boolean).join('\n'); }
 function gateSecHtml(u, j, id){
   var run = u.secs[j], ov = parseLen(String(run.len == null ? '' : run.len)), ok = ov !== null && !isNaN(ov) && ov > GATE_CLEAR, gph = gatePostHt(u);
   return '<div class="gatecalc" data-gatecalc>' + (ok ? 'Gate = ' + esc(fmtFrac(ov)) + ' − 1 1/4 = <b>' + esc(fmtFrac(ov - GATE_CLEAR)) + '</b> · goes on the cut sheet as “' + esc(secLabel(u, j)) + ' Gate”, E to E, non-substrate' : 'Measure the opening, inside of post to inside of post. The gate is made 1 1/4 smaller.') + '</div>' +
@@ -2278,6 +2330,7 @@ el('units').addEventListener('input', function(e){
   else if (key && p.j >= 0 && t.tagName === 'INPUT'){
     var run = p.u.secs[p.j]; run[key] = t.value; if (t.hasAttribute('data-frac')) showHint(t); if (key === 'len') updLenHint(p.sec, run);
     if (key === 'len'){ if (run._sp){ unlinkSplit(p.u, run._sp.id); var sn = p.box.querySelector('.splitnote'); if (sn) sn.remove(); } run.lenOk = false; el('u' + p.i + '_sum').textContent = unitSum(p.u); updConf(p); updLayout(p.i); }
+    if ((key === 'np' || key === 'mid') && p.sec){ var nw = p.sec.querySelector('[data-npw]'); if (nw) nw.innerHTML = npWarnHtml(p.u, p.j); }
     if (key === 'len' && isGateSec(p.u, run)){ var gcb = p.sec && p.sec.querySelector('[data-gatecalc]'); if (gcb) gcb.outerHTML = gateSecHtml(p.u, p.j, 'u' + p.i + 's' + p.j + '_').split('</div>')[0] + '</div>'; }
     if (key === 'ar' || key === 'al') updLayout(p.i);
     if (key === 'st'){ run.ph = ''; run.bh = ''; var sl = p.sec && p.sec.querySelector('[data-stepline]'); if (sl){ sl.textContent = stepLine(p.u, p.j); sl.className = 'stepbox ' + ((stepDelta(p.u, p.j) || 1) > 0 ? 'up' : 'down'); } updLayout(p.i); }
@@ -2356,6 +2409,7 @@ el('units').addEventListener('change', function(e){
     var gr = p.u.secs[p.j]; gr.gate = t.checked; if (t.checked){ gr.l = 'E'; gr.r = 'E'; gr.ns = 'Yes'; } else { gr.ns = ''; gr.gposts = false; }
     renderRuns(); changed(); var lf = el('u' + p.i + 's' + p.j + '_len'); if (lf && t.checked) lf.focus(); return;
   }
+  if (t.getAttribute('data-sfield') === 'npz' && p.j >= 0){ var nr = p.u.secs[p.j]; nr._np = t.checked; if (!t.checked && !nr._npSplit) nr.np = ''; renderRuns(); changed(); var nf = el('u' + p.i + 's' + p.j + '_np'); if (nf && t.checked) nf.focus(); return; }
   if (t.getAttribute('data-sfield') === 'gposts' && p.j >= 0){ p.u.secs[p.j].gposts = t.checked; renderRuns(); changed(); return; }
   if (t.getAttribute('data-sfield') === 'step' && p.j >= 0){
     var stp = p.u.secs[p.j]; stp._step = t.checked;
@@ -2890,7 +2944,7 @@ function saveNow(){
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
-  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
+  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u), npNote(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
   if (!sheets.length) errs.push('Add at least one measurement');
   var who = [header.measBy ? 'measured by ' + header.measBy : '', header.inputBy ? 'input by ' + header.inputBy : ''].filter(Boolean).join(', ');
   if (notes.length || who) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + [notes.length ? notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ' with notes' : '', who].filter(Boolean).join(' · ') + ')', make: function(){ return buildNotesBlob(notes); } });
