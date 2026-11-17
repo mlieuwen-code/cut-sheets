@@ -419,7 +419,9 @@ body.hasfloors .wrap{padding-bottom:170px}
 /* fence card, streamlined */
 .fop.card{gap:12px}
 .frow1{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;align-items:end}
-.frow1 .fgatechk{margin:0 0 10px}
+.frow1 .fgatechk{margin:0}
+.frow1 .fchks{display:flex;flex-direction:column;gap:6px;margin:0 0 6px}
+.frun{margin:4px 0 6px;padding:10px 12px;border-radius:12px;background:var(--tint,#f3f6f9)}
 .fpcols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .fpcol .lbl{font-weight:900;margin-bottom:6px}
 .fpcols .fposts{grid-template-columns:repeat(3,1fr);gap:6px}
@@ -639,7 +641,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-94ac8b';
+var APP_VERSION = '2026.11.17-e30dcb';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3454,12 +3456,27 @@ function blankOpening(prev){
 function nextOpeningNum(u){ var s = String(u == null ? '' : u).trim().replace(/-G$/i, ''), m = s.match(/^(.*?)(\d+)$/); return m ? m[1] + (parseInt(m[2], 10) + 1) : ''; }
 function fenceOps(){ if (!header.fops) header.fops = []; return header.fops; }
 // the cut sheet's numbers for one opening (same formulas as the template's CUT SHEET)
+// Long run: one measurement end to end of a straight run (a curb, a wall) split into equal openings, every post the same height.
+// Run (measured as the job, e.g. O-O) = N channels + (N − 1) mid posts + what comes off the two ends, so
+// channel = (run − ends − (N − 1) × post) / N; post spacing C-C = (run − ends + post) / N; N = fewest openings that keep the spacing at or under the max.
+var RUN_MAX = 72;
+function isRun(o){ return !!(o && o.run && !o.gate); }
+function runMax(o){ var m = fNum(o.rmax); return m > 0 ? m : RUN_MAX; }
+function runInfo(o){
+  var L = fNum(o.oo); if (!(L > 0)) return null;
+  var p = postNum(), ded = opDed(o), cc = L - ded + p, want = fNum(o.rn);
+  var n = want >= 1 ? Math.round(want) : Math.max(1, Math.ceil(cc / runMax(o) - 1e-9));
+  var ch = Math.round((L - ded - (n - 1) * p) / n * 16) / 16;   // to the nearest 1/16 so every opening cuts the same on the saw
+  return { n: n, ch: ch, cc: ch + p, oo: ch + ded, auto: !(want >= 1) };
+}
 function fenceCalc(o){
   var oo = fNum(o.oo); if (!(oo > 0)) return null;
-  var ded = opDed(o), ch = oo - (isNaN(ded) ? 0 : ded), pw = FENCE_PUNCH[String(header.fB9 || '')];
+  var ri = isRun(o) ? runInfo(o) : null;
+  var ded = opDed(o), ch = ri ? ri.ch : oo - (isNaN(ded) ? 0 : ded), pw = FENCE_PUNCH[String(header.fB9 || '')];
+  if (ri && !pw) return { ch: ch, run: ri };
   if (!pw) return { ch: ch };
   var P = pw[0], W = pw[1], n = Math.max(0, Math.ceil((ch - (P - W)) / P - 1e-9));
-  return { ch: ch, n: n, first: n === 0 ? ch : (ch - (n - 1) * P - W) / 2 };
+  return { ch: ch, n: n, first: n === 0 ? ch : (ch - (n - 1) * P - W) / 2, run: ri };
 }
 function topRailLen(c){ return c.ch - fStd('fH12'); }
 // channels cut per opening (top rail counted separately): open top 2, top rail 1, plus the middle rail on a 3-rail mech screen
@@ -3473,9 +3490,10 @@ function fenceResTxt(o){
 function fenceResTxt0(o){
   var c = fenceCalc(o); if (!c) return 'Enter the O-O to see the channel cut, pickets and 1st space.';
   var nch = fChPer(), cut = fTopRail() ? 'Channel ' + fmtFrac(c.ch) + (nch > 1 ? ' × ' + nch : '') + ' · top rail ' + fmtFrac(topRailLen(c)) : 'Channel ' + fmtFrac(c.ch) + ' × ' + nch;
-  if (c.n == null) return cut + ' · pick the picket size (Job Info) for pickets and 1st space';
+  if (c.n == null) return (c.run ? c.run.n + ' openings, posts every ' + fmtFrac(c.run.cc) + ' C-C · ' : '') + cut + ' · pick the picket size (Job Info) for pickets and 1st space';
   if (c.ch <= 0) return 'Channel ' + fmtFrac(c.ch) + ' · check the O-O';
-  return cut + ' · ' + c.n + ' picket' + (c.n === 1 ? '' : 's') + ' · 1st space ' + fmtFrac(c.first);
+  var each = c.run ? ' each' : '', pre = c.run ? c.run.n + ' opening' + (c.run.n === 1 ? '' : 's') + ', posts every ' + fmtFrac(c.run.cc) + ' C-C · ' : '';
+  return pre + cut + ' · ' + c.n + ' picket' + (c.n === 1 ? '' : 's') + each + ' · 1st space ' + fmtFrac(c.first);
 }
 // ---------- laser post heights: a reading per post (laser line down to the surface), compared within each laser setup ----------
 function fLaserOn(){ return !!header.fLaser; }
@@ -3485,7 +3503,7 @@ function fencePosts(){
   fenceOps().forEach(function(o, i){
     if (i > 0 && o.ls) g++;
     if (o.lp !== 'Open') out.push({ k: i + ':l', i: i, f: 'lr', side: 'Left', code: o.lp, g: g });
-    if (o.rp !== 'Open') out.push({ k: i + ':r', i: i, f: 'rr', side: 'Right', code: o.rp, g: g });
+    if (o.rp !== 'Open' && !isRun(o)) out.push({ k: i + ':r', i: i, f: 'rr', side: 'Right', code: o.rp, g: g });
   });
   return out;
 }
@@ -3524,7 +3542,7 @@ function tieTxt(tie){ return tie.linked ? '✓ Carries the same level line on fr
 function laserMap(){ var m = {}; fenceLaser().forEach(function(p){ m[p.k] = p; }); return m; }
 function laserOutTxt(p){ return !p || p.h == null ? '' : '→ ' + fmtFrac(p.h) + ' post' + (p.top ? ' · highest' : ''); }
 // the height a post will get: from the laser when that's on, else what was typed (blank = standard)
-function postHt(o, i, side, L){ if (fLaserOn()){ var p = (L || laserMap())[i + ':' + side]; return p && p.h != null ? numVal(p.h) : ''; } return side === 'l' ? o.lh : o.rh; }
+function postHt(o, i, side, L){ if (isRun(o)) side = 'l'; if (fLaserOn()){ var p = (L || laserMap())[i + ':' + side]; return p && p.h != null ? numVal(p.h) : ''; } return side === 'l' ? o.lh : o.rh; }
 function laserField(o, i, side, L){
   var f = side === 'l' ? 'lr' : 'rr', k = i + ':' + side;
   return '<div class="g2" data-fracslot><div class="fld"><label for="f' + i + f + '">' + (side === 'l' ? 'Left' : 'Right') + ' post laser reading</label>' +
@@ -3607,7 +3625,7 @@ function postChips(i, side, cur, more){
 function postCol(o, i, side, LM){
   var pk = side === 'l' ? 'lp' : 'rp', f = side === 'l' ? 'lr' : 'rr', k = i + ':' + side;
   return '<div class="fpcol"><div class="lbl">' + (side === 'l' ? 'Left post' : 'Right post') + '</div>' + postChips(i, pk, o[pk], o._more && o._more[pk]) +
-    (o[pk] !== 'Open' && LM ? '<div class="flz"><input id="f' + i + f + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="' + f + '" placeholder="Laser: line to surface" value="' + esc(o[f] || '') + '" aria-label="' + (side === 'l' ? 'Left' : 'Right') + ' post laser reading">' +
+    (o[pk] !== 'Open' && LM && !(isRun(o) && side === 'r') ? '<div class="flz"><input id="f' + i + f + '" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="' + f + '" placeholder="Laser: line to surface" value="' + esc(o[f] || '') + '" aria-label="' + (side === 'l' ? 'Left' : 'Right') + ' post laser reading">' +
       '<div class="lvout" data-flout="' + k + '">' + esc(laserOutTxt(LM[k])) + '</div></div>' : '') + '</div>';
 }
 // the railing read-back: once an O-O is typed, a box asks to check it against the tape before it counts
@@ -3615,7 +3633,7 @@ function fConfHtml(o){
   var raw = String(o.oo == null ? '' : o.oo).trim(); if (!raw || o.ok) return '';
   var v = parseLen(raw); if (v === null || isNaN(v) || !(v > 0)) return '';
   return '<div class="confbox"><div class="t"><div class="q">Read it back. Does this match the tape?</div><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><span class="big">' + esc(fmtFrac(v) + ' ' + measName(opMeas(o)) + (o.gate ? ' gate' : '')) + '</span></div>' +
-    lenWarn(raw, v).map(function(x){ return '<div class="warn">' + esc(x) + '</div>'; }).join('') + '</div><button type="button" class="btn pri" data-fact="ok">' + CHECK + 'Confirm</button></div>';
+    (isRun(o) ? [] : lenWarn(raw, v)).map(function(x){ return '<div class="warn">' + esc(x) + '</div>'; }).join('') + '</div><button type="button" class="btn pri" data-fact="ok">' + CHECK + 'Confirm</button></div>';
 }
 function openingHtml(o, i){
   var LM = fLaserOn() ? laserMap() : null;
@@ -3623,24 +3641,29 @@ function openingHtml(o, i){
   if (o.ok && !o._open){
     return '<button type="button" class="secrow fop" data-fo="' + i + '" data-fact="open"><span class="lab">' + esc(String(o.u || '?')) + (o.gate ? ' <em class="fgate">Gate</em>' : '') + '</span>' +
       '<span class="ends">' + esc(postTag(o.lp, postHt(o, i, 'l', LM)) + ' → ' + postTag(o.rp, postHt(o, i, 'r', LM))) + (stepTxtF(o) ? ' · ' + esc(stepTxtF(o)) : '') + '</span>' +
-      '<span class="len">' + esc(fmtFrac(parseLen(String(o.oo)))) + '</span><span class="fsum">' + esc(fenceResTxt(o).replace(/^Channel /, '')) + '</span></button>';
+      '<span class="len">' + esc(fmtFrac(parseLen(String(o.oo)))) + (isRun(o) && runInfo(o) ? ' run ÷ ' + runInfo(o).n : '') + '</span><span class="fsum">' + esc(fenceResTxt(o).replace(/^Channel /, '')) + '</span></button>';
   }
   var oo = fNum(o.oo), rb = oo > 0 ? fmtFrac(oo) : '', std = 'Std ' + numVal(fStd('fH4'));
   var extra = !!(String(o.lh || '').trim() || String(o.rh || '').trim() || o.stepon || String(o.notes || '').trim() || o.ls || o.meas);
   return '<div class="card fop" data-fo="' + i + '">' +
     '<div class="frow1"><div class="fld fnum"><label for="' + id + 'u">Opening</label><input id="' + id + 'u" type="text" autocomplete="off" data-ff="u" value="' + esc(o.u) + '"></div>' +
-      '<div class="foo" data-fracslot>' + numField(id + 'oo', (o.gate ? 'Gate ' : '') + measName(opMeas(o)) + ' (' + MEAS_WORD[opMeas(o).charAt(0)] + ' to ' + MEAS_WORD[opMeas(o).charAt(1)] + ')', o.oo, { cls: 'meas', ph: o.gate ? 'e.g. 41 1/4' : '65 then tap 3/8', attrs: ' data-ff="oo"' }) + '</div>' +
-      '<label class="chk fgatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-ff="gate"' + (o.gate ? ' checked' : '') + '>Gate</label></div>' +
+      '<div class="foo" data-fracslot>' + numField(id + 'oo', (o.gate ? 'Gate ' : (isRun(o) ? 'Whole run ' : '')) + measName(opMeas(o)) + ' (' + MEAS_WORD[opMeas(o).charAt(0)] + ' to ' + MEAS_WORD[opMeas(o).charAt(1)] + ')', o.oo, { cls: 'meas', ph: o.gate ? 'e.g. 41 1/4' : '65 then tap 3/8', attrs: ' data-ff="oo"' }) + '</div>' +
+      '<div class="fchks"><label class="chk fgatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-ff="gate"' + (o.gate ? ' checked' : '') + '>Gate</label>' +
+      (o.gate ? '' : '<label class="chk fgatechk" for="' + id + 'run"><input type="checkbox" id="' + id + 'run" data-ff="run"' + (o.run ? ' checked' : '') + '>Long run</label>') + '</div></div>' +
+    (isRun(o) ? '<div class="frun"><div class="g2" data-fracslot>' + numField(id + 'rmax', 'Max post spacing (C-C)', o.rmax, { ph: String(RUN_MAX), attrs: ' data-ff="rmax"' }) +
+      numField(id + 'rn', 'Openings', o.rn, { ph: runInfo(o) ? 'auto ' + runInfo(o).n : 'auto', attrs: ' data-ff="rn" inputmode="numeric"' }) + '</div>' +
+      '<div class="stephint">Measure the whole straight run once, end to end. It splits into equal openings, posts evenly spaced, every post the same height. Leave Openings blank to use the fewest that keep posts at or under the max.</div></div>' : '') +
     '<div class="conf" data-fconf>' + fConfHtml(o) + '</div>' +
     '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
-    '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · step · measured · notes' : 'Post heights · step · measured · notes') + (extra || LM ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
-      (!LM ? '<div class="g2" data-fracslot>' +
+    '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · ' + (isRun(o) ? '' : 'step · ') + 'measured · notes' : (isRun(o) ? 'Post height · measured · notes' : 'Post heights · step · measured · notes')) + (extra || LM ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
+      (!LM && isRun(o) ? '<div class="g2" data-fracslot>' + numField(id + 'lh', 'Post height, every post (in)', o.lh, { ph: std, attrs: ' data-ff="lh"' }) + '<div></div></div>' : '') +
+      (!LM && !isRun(o) ? '<div class="g2" data-fracslot>' +
         (o.lp !== 'Open' ? numField(id + 'lh', 'Left post height (in)', o.lh, { ph: std, attrs: ' data-ff="lh"' }) : '<div class="stephint">Left: Open (no post)</div>') +
         (o.rp !== 'Open' ? numField(id + 'rh', 'Right post height (in)', o.rh, { ph: std, attrs: ' data-ff="rh"' }) : '<div class="stephint">Right: Open (no post)</div>') + '</div>' : '') +
       (LM && i > 0 ? '<label class="chk" for="' + id + 'ls"><input type="checkbox" id="' + id + 'ls" data-ff="ls"' + (o.ls ? ' checked' : '') + '>Laser moved: new setup starts at this opening</label>' + (o.ls ? tieHtml(o, i, fenceLaser(), 'f') : '') : '') +
-      '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-ff="stepon"' + (o.stepon ? ' checked' : '') + '>Steps up or down at the right post</label>' +
-      (o.stepon ? '<div class="stepdir">' + [['', 'Whole fence steps'], ['bottom', 'Bottom channel only (top stays level)'], ['top', (fTopRail() ? 'Top rail' : 'Top channel') + ' only (bottom stays level)']].map(function(x){ var on = (o.sk || '') === x[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fact="sk" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      (isRun(o) ? '' : '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-ff="stepon"' + (o.stepon ? ' checked' : '') + '>Steps up or down at the right post</label>') +
+      (o.stepon && !isRun(o) ? '<div class="stepdir">' + [['', 'Whole fence steps'], ['bottom', 'Bottom channel only (top stays level)'], ['top', (fTopRail() ? 'Top rail' : 'Top channel') + ' only (bottom stays level)']].map(function(x){ var on = (o.sk || '') === x[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fact="sk" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
         '<div class="stepdir">' + ['up', 'down'].map(function(d){ var on = (o.sd || 'up') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-fact="sd" data-v="' + d + '">' + (d === 'up' ? '▲ Up' : '▼ Down') + '</button>'; }).join('') + '</div>' +
         '<div class="g2" data-fracslot>' + numField(id + 'st', 'Step height (in)', o.st, { ph: 'e.g. 4', attrs: ' data-ff="st"' }) + '<div></div></div>' : '') +
       '<div class="fld"><label for="' + id + 'meas">Measured</label><select id="' + id + 'meas" data-ff="meas"><option value="">Same as the job (' + esc(measName(o.gate ? gateMeas() : jobMeas())) + ')</option>' + MEAS.map(function(m){ return '<option value="' + m + '"' + (o.meas === m ? ' selected' : '') + '>' + esc(measLong(m)) + '</option>'; }).join('') + '</select></div>' +
@@ -3670,7 +3693,7 @@ function renderFence(){
 }
 function fenceTotals(ops){
   var n = 0, g = 0, pk = 0, ft = 0, tr = 0, f1 = function(v){ return Math.round(v / 12 * 10) / 10; };
-  ops.forEach(function(o){ var c = fenceCalc(o); if (!c) return; n++; if (o.gate) g++; if (c.n != null) pk += c.n; ft += Math.max(0, c.ch) * fChPer(); if (fTopRail()) tr += Math.max(0, topRailLen(c)); });
+  ops.forEach(function(o){ var c = fenceCalc(o); if (!c) return; var k = c.run ? c.run.n : 1; n += k; if (o.gate) g++; if (c.n != null) pk += c.n * k; ft += Math.max(0, c.ch) * fChPer() * k; if (fTopRail()) tr += Math.max(0, topRailLen(c)) * k; });
   return n ? n + ' opening' + (n === 1 ? '' : 's') + (g ? ' (' + g + ' gate' + (g === 1 ? '' : 's') + ')' : '') + ' · ' + pk + ' pickets · ' + f1(ft) + ' ft of channel' + (fTopRail() ? ' · ' + f1(tr) + ' ft of top rail' : '') : 'Openings in order along the fence. Each one: O-O, the posts at each end, and the app shows the channel cut, pickets and 1st space.';
 }
 function fenceAt(t){ var c = t.closest('[data-fo]'); if (!c) return null; var i = +c.getAttribute('data-fo'); return { i: i, o: fenceOps()[i], card: c }; }
@@ -3683,6 +3706,7 @@ el('fence').addEventListener('input', function(e){
   if (k === 'u') updDoneLbl();
   if (k === 'oo'){ p.o.ok = false; var cb = p.card.querySelector('[data-fconf]'); if (cb) cb.innerHTML = fConfHtml(p.o); }
   if (k === 'lr' || k === 'rr' || k === 'lt') updLaserOuts();
+  if ((k === 'oo' || k === 'rmax') && isRun(p.o)){ var rn = el('f' + p.i + 'rn'), ri = runInfo(p.o); if (rn) rn.placeholder = ri ? 'auto ' + ri.n : 'auto'; }
   updFres(p); changed();
 });
 el('fence').addEventListener('change', function(e){
@@ -3694,6 +3718,7 @@ el('fence').addEventListener('change', function(e){
     if (t.checked && p.o._dp){ p.o.lp = 'Float E'; p.o.rp = 'Float E'; }   // gates usually hang on float posts
   }
   if (k === 'ls') p.o.ls = t.checked;
+  if (k === 'run'){ p.o.run = t.checked; if (t.checked){ p.o.stepon = false; p.o.st = ''; p.o.rh = ''; } }
   if (k === 'stepon'){ p.o.stepon = t.checked; if (!t.checked) p.o.st = ''; }
   renderFence(); changed();
   if (k === 'stepon' && t.checked){ var s = el('f' + p.i + 'st'); if (s) s.focus(); }
@@ -3768,12 +3793,14 @@ function fenceSheets(errs){
     if (FENCE_POSTS.indexOf(o.lp) < 0 || FENCE_POSTS.indexOf(o.rp) < 0) errs.push(who + ': pick both posts');
     if (fLaserOn()) [['lr', 'lp', 'left'], ['rr', 'rp', 'right']].forEach(function(x){ var r = fNum(o[x[0]]); if (o[x[1]] !== 'Open' && (r === null || isNaN(r) || r < 0)) errs.push(who + ': enter the laser reading for the ' + x[2] + ' post'); });
     else [['lh', 'lp', 'left'], ['rh', 'rp', 'right']].forEach(function(x){ if (o[x[1]] !== 'Open' && isNaN(fNum(o[x[0]]))) errs.push(who + ': the ' + x[2] + ' post height is not a number'); });
-    if (o.stepon && !(fNum(o.st) > 0)) errs.push(who + ': enter the step height (or untick the step)');
+    if (o.stepon && !isRun(o) && !(fNum(o.st) > 0)) errs.push(who + ': enter the step height (or untick the step)');
+    if (isRun(o)){ var ri = runInfo(o), rn = String(o.rn || '').trim(); if (rn && !(fNum(rn) >= 1)) errs.push(who + ': Openings should be a number (or blank)'); if (String(o.rmax || '').trim() && !(fNum(o.rmax) > 0)) errs.push(who + ': check the max post spacing'); if (ri && !(ri.ch > 0)) errs.push(who + ': the run is too short for that many openings'); }
   });
   if (!ops.length){ errs.push('Add at least one opening'); return []; }
-  if (ops.length > FENCE_MAX) errs.push('The fence sheet holds ' + FENCE_MAX + ' openings; this job has ' + ops.length);
+  var nrows = ops.reduce(function(t, o){ var ri = isRun(o) ? runInfo(o) : null; return t + (ri ? ri.n : 1); }, 0);
+  if (nrows > FENCE_MAX) errs.push('The fence sheet holds ' + FENCE_MAX + ' openings; this job has ' + nrows);
   var g = ops.filter(function(o){ return o.gate; }).length, name = mainFileName();
-  return [{ name: name, main: true, rows: [], units: ops.length, info: name + ' (' + ops.length + ' opening' + (ops.length === 1 ? '' : 's') + (g ? ', ' + g + ' gate' + (g === 1 ? '' : 's') : '') + ')', make: function(){ return buildFenceBlob(ops); } }];
+  return [{ name: name, main: true, rows: [], units: ops.length, info: name + ' (' + nrows + ' opening' + (nrows === 1 ? '' : 's') + (g ? ', ' + g + ' gate' + (g === 1 ? '' : 's') : '') + ')', make: function(){ return buildFenceBlob(ops); } }];
 }
 function buildFenceBlob(ops){
   var r6 = function(v){ return Math.round(v * 1e6) / 1e6; }, num = function(v){ var p = fNum(v); return p === null || isNaN(p) ? '' : r6(p); };
@@ -3788,14 +3815,31 @@ function buildFenceBlob(ops){
       cells.L4 = isMech() ? 'Mech screen' : 'Fence'; cells.L5 = isMech() ? mechRails() : 2; cells.L6 = isMech() && mechRails() === 3 ? r6(fStd('fMid')) : '';
       Object.keys(cells).forEach(function(c){ xml = writeCell(xml, c, cells[c]); });
       var all = fenceOps(), LM = fLaserOn() ? laserMap() : null;
-      for (var i = 0; i < FENCE_MAX; i++){
-        var row = FENCE_FIRST + i, o = ops[i], u = o ? String(o.u || '').trim() : '', st = o && o.stepon ? fNum(o.st) : null;
-        var v = o ? { A: /^\d+$/.test(u) ? +u : u, B: num(o.oo), C: o.gate ? 'Yes' : '', D: o.lp, E: o.lp === 'Open' ? '' : num(postHt(o, all.indexOf(o), 'l', LM)), F: o.rp, G: o.rp === 'Open' ? '' : num(postHt(o, all.indexOf(o), 'r', LM)),
-          H: st > 0 ? r6(o.sd === 'down' ? -st : st) : '', I: String(o.notes || '').trim(), J: st > 0 && o.sk === 'bottom' ? 'Bottom only' : (st > 0 && o.sk === 'top' ? 'Top only' : ''), P: o.meas ? r6(opDed(o)) : '' } : {};
+      var out = [];
+      ops.forEach(function(o, i){
+        var u = String(o.u || '').trim(), st = o.stepon && !isRun(o) ? fNum(o.st) : null;
+        var v = { A: /^\d+$/.test(u) ? +u : u, B: num(o.oo), C: o.gate ? 'Yes' : '', D: o.lp, E: o.lp === 'Open' ? '' : num(postHt(o, all.indexOf(o), 'l', LM)), F: o.rp, G: o.rp === 'Open' ? '' : num(postHt(o, all.indexOf(o), 'r', LM)),
+          H: st > 0 ? r6(o.sd === 'down' ? -st : st) : '', I: String(o.notes || '').trim(), J: st > 0 && o.sk === 'bottom' ? 'Bottom only' : (st > 0 && o.sk === 'top' ? 'Top only' : ''), P: o.meas ? r6(opDed(o)) : '' };
         // laser readings kept beside the openings (K, L) with setup breaks (M), so the job reopens ready to carry on; the sheet's maths never reads them
-        if (o && LM){ v.K = o.lp === 'Open' ? '' : num(o.lr); v.L = o.rp === 'Open' ? '' : num(o.rr); v.M = o.ls && i > 0 ? 'New setup' : ''; v.N = o.ls && i > 0 ? num(o.lt) : ''; }
-        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P'].forEach(function(c){ xml = writeCell(xml, c + row, v[c] == null ? '' : v[c]); });
+        if (LM){ v.K = o.lp === 'Open' ? '' : num(o.lr); v.L = o.rp === 'Open' ? '' : num(o.rr); v.M = o.ls && i > 0 ? 'New setup' : ''; v.N = o.ls && i > 0 ? num(o.lt) : ''; }
+        var ri = isRun(o) ? runInfo(o) : null;
+        if (!ri){ out.push(v); return; }
+        var ht = LM ? num(postHt(o, all.indexOf(o), 'l', LM)) : num(o.lh);
+        // a long run goes on the sheet as its equal openings 5.1, 5.2 … with mid posts between; Q keeps the run so it reopens as one
+        for (var k = 0; k < ri.n; k++){
+          var w = JSON.parse(JSON.stringify(v));
+          w.A = u + '.' + (k + 1); w.B = r6(ri.oo); w.C = '';
+          if (k > 0){ w.D = 'Mid'; w.E = ht; w.I = ''; w.K = ''; w.M = ''; w.N = ''; }
+          if (k < ri.n - 1){ w.F = 'Mid'; w.G = ht; w.L = ''; } else { w.F = o.rp; w.G = o.rp === 'Open' ? '' : ht; w.L = ''; }
+          w.Q = k === 0 ? 'Long run ' + r6(fNum(o.oo)) + ' / ' + (ri.auto ? 'auto' : ri.n) + ' max ' + r6(runMax(o)) : 'Long run ' + u;
+          out.push(w);
+        }
+      });
+      for (var i = 0; i < FENCE_MAX; i++){
+        var row = FENCE_FIRST + i, v = out[i] || {};
+        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P', 'Q'].forEach(function(c){ xml = writeCell(xml, c + row, v[c] == null ? '' : v[c]); });
       }
+      xml = writeCell(xml, 'Q19', out.some(function(v){ return v.Q; }) ? 'Long run' : '');
       [['K19', 'Laser reading L'], ['L19', 'Laser reading R'], ['M19', 'Laser setup'], ['N19', 'Laser tie-in']].forEach(function(x){ xml = writeCell(xml, x[0], LM ? x[1] : ''); });
       z.file(path, xml, { createFolders: false });
       if (/<calcPr\b[^>]*fullCalcOnLoad=/.test(wb)) wb = wb.replace(/fullCalcOnLoad="[^"]*"/, 'fullCalcOnLoad="1"');
@@ -3821,11 +3865,15 @@ function fenceFromSheet(xml){
   var L6 = readCell(xml, 'L6'); h.fMid = h.fStyle === 'Mech' && typeof L6 === 'number' && Math.abs(L6 - parseLen(MECH_STD.fMid)) > 1e-6 ? numVal(L6) : '';
   for (var r = FENCE_FIRST; r < FENCE_FIRST + FENCE_MAX; r++){
     var A = rv('A' + r), B = rv('B' + r); if (A === '' && B === '') continue;
+    // a long run saved as its equal openings: fold them back into one run card
+    var Q = String(readCell(xml, 'Q' + r) || ''), qm = Q.match(/^Long run ([\d.]+) \/ (auto|\d+) max ([\d.]+)$/);
+    if (/^Long run /.test(Q) && !qm){ var lo = h.fops[h.fops.length - 1]; if (lo && lo.run){ lo.rp = rv('F' + r) || 'Open'; } continue; }
     var H = readCell(xml, 'H' + r), D = rv('D' + r) || 'Open', F = rv('F' + r) || 'Open';
     var P = readCell(xml, 'P' + r), isG = /^yes$/i.test(rv('C' + r)), om = '';
     if (typeof P === 'number') for (var mi = 0; mi < MEAS.length && !om; mi++) if (Math.abs((isG ? gateDed(h.fPost, MEAS[mi]) : endsDed(MEAS[mi], pp)) - P) < 1e-6) om = MEAS[mi];
     h.fops.push({ meas: om && om !== (isG ? h.fGateMeas : h.fMeas) ? om : '', u: A, oo: B, ok: B !== '', gate: isG, lp: D, lh: D === 'Open' ? '' : rv('E' + r), rp: F, rh: F === 'Open' ? '' : rv('G' + r),
       sk: /bottom/i.test(rv('J' + r)) ? 'bottom' : (/top only/i.test(rv('J' + r)) ? 'top' : ''), lr: rv('K' + r), rr: rv('L' + r), ls: /new setup/i.test(rv('M' + r)), lt: rv('N' + r), stepon: typeof H === 'number' && H !== 0, st: typeof H === 'number' && H !== 0 ? numVal(Math.abs(H)) : '', sd: typeof H === 'number' && H < 0 ? 'down' : 'up', notes: rv('I' + r), _open: false, _dp: false });
+    if (qm){ var ro = h.fops[h.fops.length - 1]; ro.run = true; ro.u = String(A).replace(/\.1$/, ''); ro.oo = numVal(+qm[1]); ro.rn = qm[2] === 'auto' ? '' : qm[2]; ro.rmax = +qm[3] === RUN_MAX ? '' : numVal(+qm[3]); ro.rp = rv('F' + r) || 'Open'; ro.rh = ''; ro.rr = ''; }
   }
   if (h.fops.some(function(o){ return o.lr !== '' || o.rr !== ''; })) h.fLaser = true;
   return h;
