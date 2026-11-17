@@ -649,7 +649,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-2370dd';
+var APP_VERSION = '2026.11.17-816c1a';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3641,13 +3641,15 @@ function fenceSetupHtml(colourOpts, col, isOther){
 var FENCE_QUICK = ['Open', 'End', 'Mid', 'Cor', 'Float E'];   // the common ones; "More" shows the rest
 // a long run only asks for its two end codes; everything between is Mid
 var RUN_ENDS = ['End', 'Cor', 'InCor', 'Float E', 'Float IC', 'Tran E', 'Tran C', 'Tran IC'];
+var CORNER_POSTS = ['Cor', 'InCor', 'Float IC', 'Tran C', 'Tran IC'];
 function runEndCol(o, i, side, LM){
-  var pk = side === 'l' ? 'lp' : 'rp', cur = o[pk];
+  var pk = side === 'l' ? 'lp' : 'rp', cur = o[pk], prev = side === 'l' && i > 0 ? fenceOps()[i - 1] : null, share = prev && prev.rp && prev.rp !== 'Open';
   return '<div class="fpcol"><div class="lbl">' + (side === 'l' ? 'Start of run' : 'End of run') + '</div><div class="qends fposts" role="group" aria-label="' + (side === 'l' ? 'Start' : 'End') + ' of run">' +
+    (share ? '<button type="button" class="qend" data-fpost="lp" data-val="Open" aria-pressed="' + (cur === 'Open') + '">Shared · ' + esc(String(prev.u || i)) + ' ' + esc(prev.rp) + '</button>' : '') +
     RUN_ENDS.map(function(c){ return '<button type="button" class="qend" data-fpost="' + pk + '" data-val="' + esc(c) + '" aria-pressed="' + (cur === c) + '">' + esc(c) + '</button>'; }).join('') + '</div>' +
     (side === 'l' && LM ? '<div class="flz"><input id="f' + i + 'lr" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="lr" placeholder="Laser: first post (optional)" value="' + esc(o.lr || '') + '" aria-label="First post laser reading"></div>' : '') + '</div>';
 }
-function runEndsTxt(o){ var ri = runInfo(o); if (!ri) return ''; var a = [o.lp]; for (var k = 1; k < ri.n; k++) a.push('Mid'); a.push(o.rp); return fmtFrac(fNum(o.oo)) + ' · ' + o.lp + ' → ' + o.rp + ' · posts: ' + a.join(', '); }
+function runEndsTxt(o){ var ri = runInfo(o); if (!ri) return ''; var sh = o.lp === 'Open', a = sh ? [] : [o.lp]; for (var k = 1; k < ri.n; k++) a.push('Mid'); a.push(o.rp); return fmtFrac(fNum(o.oo)) + ' · ' + (sh ? 'shared post' : o.lp) + ' → ' + o.rp + ' · new posts: ' + a.join(', '); }
 function postChips(i, side, cur, more){
   var all = more || FENCE_QUICK.indexOf(cur) < 0, list = all ? FENCE_POSTS : FENCE_QUICK;
   return '<div class="qends fposts" role="group" aria-label="' + (side === 'lp' ? 'Left' : 'Right') + ' post">' + list.map(function(c){
@@ -3752,7 +3754,7 @@ el('fence').addEventListener('change', function(e){
     if (t.checked && p.o._dp){ p.o.lp = 'Float E'; p.o.rp = 'Float E'; }   // gates usually hang on float posts
   }
   if (k === 'ls') p.o.ls = t.checked;
-  if (k === 'run'){ p.o.run = t.checked; if (t.checked){ p.o.stepon = false; p.o.st = ''; p.o.rh = ''; if (RUN_ENDS.indexOf(p.o.lp) < 0) p.o.lp = 'End'; if (RUN_ENDS.indexOf(p.o.rp) < 0) p.o.rp = 'End'; } }
+  if (k === 'run'){ p.o.run = t.checked; if (t.checked){ p.o.stepon = false; p.o.st = ''; p.o.rh = ''; var pv = p.i > 0 ? fenceOps()[p.i - 1] : null; if (pv && pv.rp && ['Open', 'End', 'Float E', 'Tran E'].indexOf(pv.rp) < 0) p.o.lp = 'Open'; else if (RUN_ENDS.indexOf(p.o.lp) < 0) p.o.lp = 'End'; if (RUN_ENDS.indexOf(p.o.rp) < 0) p.o.rp = 'End'; } }
   if (k === 'stepon'){ p.o.stepon = t.checked; if (!t.checked) p.o.st = ''; }
   renderFence(); changed();
   if (k === 'stepon' && t.checked){ var s = el('f' + p.i + 'st'); if (s) s.focus(); }
@@ -3836,6 +3838,7 @@ function fenceSheets(errs){
     if (o.stepon && !isRun(o) && !(fNum(o.st) > 0)) errs.push(who + ': enter the step height (or untick the step)');
     if (isRun(o)){ var ri = runInfo(o), rn = String(o.rn || '').trim(); if (rn && !(fNum(rn) >= 1)) errs.push(who + ': Openings should be a number (or blank)'); if (String(o.rmax || '').trim() && !(fNum(o.rmax) > 0)) errs.push(who + ': check the max post spacing'); if (ri && !(ri.ch > 0)) errs.push(who + ': the run is too short for that many openings'); }
   });
+  ops.forEach(function(o, k){ var nx = ops[k + 1]; if (nx && CORNER_POSTS.indexOf(o.rp) >= 0 && CORNER_POSTS.indexOf(nx.lp) >= 0) errs.push('Openings ' + (o.u || k + 1) + ' and ' + (nx.u || k + 2) + ' both have a ' + o.rp + ' post where they meet. Set opening ' + (nx.u || k + 2) + '’s left post to Open (it shares the same post)'); });
   if (!ops.length){ errs.push('Add at least one opening'); return []; }
   var nrows = ops.reduce(function(t, o){ var ri = isRun(o) ? runInfo(o) : null; return t + (ri ? ri.n : 1); }, 0);
   if (nrows > FENCE_MAX) errs.push('The fence sheet holds ' + FENCE_MAX + ' openings; this job has ' + nrows);
