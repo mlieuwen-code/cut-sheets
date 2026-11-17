@@ -649,7 +649,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-1808b6';
+var APP_VERSION = '2026.11.17-2a1f50';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3639,6 +3639,15 @@ function fenceSetupHtml(colourOpts, col, isOther){
     '</div></details>';
 }
 var FENCE_QUICK = ['Open', 'End', 'Mid', 'Cor', 'Float E'];   // the common ones; "More" shows the rest
+// a long run only asks for its two end codes; everything between is Mid
+var RUN_ENDS = ['End', 'Cor', 'InCor', 'Float E', 'Float IC', 'Tran E', 'Tran C', 'Tran IC'];
+function runEndCol(o, i, side, LM){
+  var pk = side === 'l' ? 'lp' : 'rp', cur = o[pk];
+  return '<div class="fpcol"><div class="lbl">' + (side === 'l' ? 'Start of run' : 'End of run') + '</div><div class="qends fposts" role="group" aria-label="' + (side === 'l' ? 'Start' : 'End') + ' of run">' +
+    RUN_ENDS.map(function(c){ return '<button type="button" class="qend" data-fpost="' + pk + '" data-val="' + esc(c) + '" aria-pressed="' + (cur === c) + '">' + esc(c) + '</button>'; }).join('') + '</div>' +
+    (side === 'l' && LM ? '<div class="flz"><input id="f' + i + 'lr" type="text" inputmode="decimal" autocomplete="off" data-frac data-ff="lr" placeholder="Laser: first post (optional)" value="' + esc(o.lr || '') + '" aria-label="First post laser reading"></div>' : '') + '</div>';
+}
+function runEndsTxt(o){ var ri = runInfo(o); if (!ri) return ''; var a = [o.lp]; for (var k = 1; k < ri.n; k++) a.push('Mid'); a.push(o.rp); return fmtFrac(fNum(o.oo)) + ' · ' + o.lp + ' → ' + o.rp + ' · posts: ' + a.join(', '); }
 function postChips(i, side, cur, more){
   var all = more || FENCE_QUICK.indexOf(cur) < 0, list = all ? FENCE_POSTS : FENCE_QUICK;
   return '<div class="qends fposts" role="group" aria-label="' + (side === 'lp' ? 'Left' : 'Right') + ' post">' + list.map(function(c){
@@ -3678,7 +3687,8 @@ function openingHtml(o, i){
       numField(id + 'rn', 'Openings', o.rn, { ph: runInfo(o) ? 'auto ' + runInfo(o).n : 'auto', attrs: ' data-ff="rn" inputmode="numeric"' }) + '</div>' +
       '<div class="stephint">Measure the whole straight run once, end to end, and pick the end posts. Confirm fills it in as equal openings, posts evenly spaced' + (LM ? '; read each post with the laser after (Laser readings).' : ', every post the same height.') + ' You can still change any opening or post after. Leave Openings blank to use the fewest that keep posts at or under the max.</div></div>' : '') +
     '<div class="conf" data-fconf>' + fConfHtml(o) + '</div>' +
-    '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
+    (isRun(o) ? '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + runEndCol(o, i, 'l', LM) + runEndCol(o, i, 'r', LM) + '</div>' + '<div class="stephint" data-frunposts>' + esc(runEndsTxt(o)) + '</div>'
+      : '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>') +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
     '<details class="fold fextra"' + (extra ? ' open' : '') + '><summary>' + (LM ? 'Laser setup · ' + (isRun(o) ? '' : 'step · ') + 'measured · notes' : (isRun(o) ? 'Post height · measured · notes' : 'Post heights · step · measured · notes')) + (extra || LM ? '' : ' <span class="muted">(only if needed)</span>') + ' <span>›</span></summary><div class="in">' +
       (!LM && isRun(o) ? '<div class="g2" data-fracslot>' + numField(id + 'lh', 'Post height, every post (in)', o.lh, { ph: std, attrs: ' data-ff="lh"' }) + '<div></div></div>' : '') +
@@ -3730,7 +3740,7 @@ el('fence').addEventListener('input', function(e){
   if (k === 'u') updDoneLbl();
   if (k === 'oo'){ p.o.ok = false; var cb = p.card.querySelector('[data-fconf]'); if (cb) cb.innerHTML = fConfHtml(p.o); }
   if (k === 'lr' || k === 'rr' || k === 'lt') updLaserOuts();
-  if ((k === 'oo' || k === 'rmax') && isRun(p.o)){ var rn = el('f' + p.i + 'rn'), ri = runInfo(p.o); if (rn) rn.placeholder = ri ? 'auto ' + ri.n : 'auto'; }
+  if ((k === 'oo' || k === 'rmax' || k === 'rn') && isRun(p.o)){ var rn = el('f' + p.i + 'rn'), ri = runInfo(p.o); if (rn) rn.placeholder = ri ? 'auto ' + ri.n : 'auto'; var rp = p.card.querySelector('[data-frunposts]'); if (rp) rp.textContent = runEndsTxt(p.o); if (k !== 'oo'){ var cb2 = p.card.querySelector('[data-fconf]'); if (cb2) cb2.innerHTML = fConfHtml(p.o); } }
   updFres(p); changed();
 });
 el('fence').addEventListener('change', function(e){
@@ -3742,7 +3752,7 @@ el('fence').addEventListener('change', function(e){
     if (t.checked && p.o._dp){ p.o.lp = 'Float E'; p.o.rp = 'Float E'; }   // gates usually hang on float posts
   }
   if (k === 'ls') p.o.ls = t.checked;
-  if (k === 'run'){ p.o.run = t.checked; if (t.checked){ p.o.stepon = false; p.o.st = ''; p.o.rh = ''; } }
+  if (k === 'run'){ p.o.run = t.checked; if (t.checked){ p.o.stepon = false; p.o.st = ''; p.o.rh = ''; if (RUN_ENDS.indexOf(p.o.lp) < 0) p.o.lp = 'End'; if (RUN_ENDS.indexOf(p.o.rp) < 0) p.o.rp = 'End'; } }
   if (k === 'stepon'){ p.o.stepon = t.checked; if (!t.checked) p.o.st = ''; }
   renderFence(); changed();
   if (k === 'stepon' && t.checked){ var s = el('f' + p.i + 'st'); if (s) s.focus(); }
