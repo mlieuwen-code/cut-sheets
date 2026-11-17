@@ -641,7 +641,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-2a1f50';
+var APP_VERSION = '2026.11.17-2370dd';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1057,7 +1057,7 @@ function renderHeader(){
   el('tab-job').innerHTML =
     '<div class="card"><div class="jobrow' + (header._kind ? '' : ' solo') + '"><div class="fld job"><label for="h_B4">' + (header._kind ? 'Building name' : 'Building or job name') + '</label><input id="h_B4" data-jn="name" type="text" autocomplete="off" placeholder="e.g. Woodbine" value="' + esc(header._name) + '">' +
         '<div class="kinds"><label class="chk" for="h_kapt"><input type="checkbox" id="h_kapt" data-kind="apt"' + (header._kind === 'apt' ? ' checked' : '') + '>Apartment</label><label class="chk" for="h_kth"><input type="checkbox" id="h_kth" data-kind="th"' + (header._kind === 'th' ? ' checked' : '') + '>Townhouse</label><label class="chk" for="h_fence"><input type="checkbox" id="h_fence" data-fence="1"' + (header.fence ? ' checked' : '') + '>Fencing</label></div></div>' +
-      (header._kind ? '<div class="fld job"><label for="h_floor">' + (header._kind === 'th' ? 'Building #' : 'Floor') + '</label><input id="h_floor" data-jn="floor" type="text" inputmode="' + (/^\d*$/.test(floorBox()) ? 'numeric' : 'text') + '" autocomplete="off" placeholder="' + (header._kind === 'th' ? 'e.g. 12' : 'e.g. 4') + '" value="' + esc(floorBox()) + '"></div>' : '') + '</div>' +
+      (header._kind ? '<div class="fld job"><label for="h_floor">' + (header._kind === 'th' ? 'Building #' : 'Floor') + '</label><input id="h_floor" data-jn="floor" type="text" inputmode="text" autocomplete="off" placeholder="' + (header._kind === 'th' ? 'e.g. 12 or Clubhouse' : 'e.g. 4 or Rooftop') + '" value="' + esc(floorBox()) + '"></div>' : '') + '</div>' +
       '<div class="boardrow"><button type="button" class="btn ghost" id="boardPick">Pick job from the Crew Board</button><span class="boardhint" id="boardHint">' + boardHint() + '</span></div>' +
       '<div class="jobhelp" id="jobFileName">' + jobFileHint() + '</div><div class="jobwarn" id="jobWarn" hidden></div>' +
       '<div class="g2">' + selField('h_measBy', 'Measured by', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
