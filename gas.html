@@ -641,7 +641,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-438984';
+var APP_VERSION = '2026.11.17-1808b6';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3476,7 +3476,9 @@ function splitRun(i){
   var u = String(o.u || '').trim(), m = u.match(/^(.*?)(\d+)$/), n = ri.n, out = [];
   for (var k = 0; k < n; k++){
     out.push({ u: m ? m[1] + (parseInt(m[2], 10) + k) : (u ? u + '.' + (k + 1) : ''), oo: numVal(ri.oo), ok: true, gate: false, meas: o.meas || '',
-      lp: k === 0 ? o.lp : 'Mid', lh: o.lh || '', rp: k === n - 1 ? o.rp : 'Mid', rh: o.lh || '', lr: o.lr || '', rr: o.lr || '', ls: k === 0 && !!o.ls, lt: k === 0 ? (o.lt || '') : '',
+      // each post once: the opening's right post is the next one's left (Open), same as openings added one at a time.
+      // Laser: only the reading already taken carries over; every other post is left to read at its own spot.
+      lp: k === 0 ? o.lp : 'Open', lh: k === 0 ? (o.lh || '') : '', rp: k === n - 1 ? o.rp : 'Mid', rh: o.lh || '', lr: k === 0 ? (o.lr || '') : '', rr: '', ls: k === 0 && !!o.ls, lt: k === 0 ? (o.lt || '') : '',
       stepon: false, st: '', sd: 'up', notes: k === 0 ? String(o.notes || '').trim() : '', _open: false, _dp: false });
   }
   if (m && n > 1) ops.slice(i + 1).forEach(function(x){ var xm = String(x.u || '').match(/^(.*?)(\d+)(-G)?$/); if (xm && xm[1] === m[1] && parseInt(xm[2], 10) > parseInt(m[2], 10)) x.u = xm[1] + (parseInt(xm[2], 10) + n - 1) + (xm[3] || ''); });
@@ -3666,7 +3668,7 @@ function openingHtml(o, i){
       (o.gate ? '' : '<label class="chk fgatechk" for="' + id + 'run"><input type="checkbox" id="' + id + 'run" data-ff="run"' + (o.run ? ' checked' : '') + '>Long run</label>') + '</div></div>' +
     (isRun(o) ? '<div class="frun"><div class="g2" data-fracslot>' + numField(id + 'rmax', 'Max post spacing (C-C)', o.rmax, { ph: String(RUN_MAX), attrs: ' data-ff="rmax"' }) +
       numField(id + 'rn', 'Openings', o.rn, { ph: runInfo(o) ? 'auto ' + runInfo(o).n : 'auto', attrs: ' data-ff="rn" inputmode="numeric"' }) + '</div>' +
-      '<div class="stephint">Measure the whole straight run once, end to end, and pick the end posts. Confirm fills it in as equal openings, posts evenly spaced, every post the same height. You can still change any opening or post after. Leave Openings blank to use the fewest that keep posts at or under the max.</div></div>' : '') +
+      '<div class="stephint">Measure the whole straight run once, end to end, and pick the end posts. Confirm fills it in as equal openings, posts evenly spaced' + (LM ? '; read each post with the laser after (Laser readings).' : ', every post the same height.') + ' You can still change any opening or post after. Leave Openings blank to use the fewest that keep posts at or under the max.</div></div>' : '') +
     '<div class="conf" data-fconf>' + fConfHtml(o) + '</div>' +
     '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
@@ -3849,7 +3851,7 @@ function buildFenceBlob(ops){
         for (var k = 0; k < ri.n; k++){
           var w = JSON.parse(JSON.stringify(v));
           w.A = u + '.' + (k + 1); w.B = r6(ri.oo); w.C = '';
-          if (k > 0){ w.D = 'Mid'; w.E = ht; w.I = ''; w.K = ''; w.M = ''; w.N = ''; }
+          if (k > 0){ w.D = 'Open'; w.E = ''; w.I = ''; w.K = ''; w.M = ''; w.N = ''; }
           if (k < ri.n - 1){ w.F = 'Mid'; w.G = ht; w.L = ''; } else { w.F = o.rp; w.G = o.rp === 'Open' ? '' : ht; w.L = ''; }
           w.Q = k === 0 ? 'Long run ' + r6(fNum(o.oo)) + ' / ' + (ri.auto ? 'auto' : ri.n) + ' max ' + r6(runMax(o)) : 'Long run ' + u;
           out.push(w);
