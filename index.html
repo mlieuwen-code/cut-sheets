@@ -649,7 +649,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-e30dcb';
+var APP_VERSION = '2026.11.17-438984';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -3477,6 +3477,20 @@ function runInfo(o){
   var ch = Math.round((L - ded - (n - 1) * p) / n * 16) / 16;   // to the nearest 1/16 so every opening cuts the same on the saw
   return { n: n, ch: ch, cc: ch + p, oo: ch + ded, auto: !(want >= 1) };
 }
+// Confirming a long run fills it in as its separate openings (posts End/Mid … Mid/End, same height, equal O-O), so every
+// opening and post can still be changed like any other: a corner partway, a Tran post, a gate. Later numbered openings move up.
+function splitRun(i){
+  var ops = fenceOps(), o = ops[i], ri = runInfo(o); if (!ri) return;
+  var u = String(o.u || '').trim(), m = u.match(/^(.*?)(\d+)$/), n = ri.n, out = [];
+  for (var k = 0; k < n; k++){
+    out.push({ u: m ? m[1] + (parseInt(m[2], 10) + k) : (u ? u + '.' + (k + 1) : ''), oo: numVal(ri.oo), ok: true, gate: false, meas: o.meas || '',
+      lp: k === 0 ? o.lp : 'Mid', lh: o.lh || '', rp: k === n - 1 ? o.rp : 'Mid', rh: o.lh || '', lr: o.lr || '', rr: o.lr || '', ls: k === 0 && !!o.ls, lt: k === 0 ? (o.lt || '') : '',
+      stepon: false, st: '', sd: 'up', notes: k === 0 ? String(o.notes || '').trim() : '', _open: false, _dp: false });
+  }
+  if (m && n > 1) ops.slice(i + 1).forEach(function(x){ var xm = String(x.u || '').match(/^(.*?)(\d+)(-G)?$/); if (xm && xm[1] === m[1] && parseInt(xm[2], 10) > parseInt(m[2], 10)) x.u = xm[1] + (parseInt(xm[2], 10) + n - 1) + (xm[3] || ''); });
+  Array.prototype.splice.apply(ops, [i, 1].concat(out));
+  return out;
+}
 function fenceCalc(o){
   var oo = fNum(o.oo); if (!(oo > 0)) return null;
   var ri = isRun(o) ? runInfo(o) : null;
@@ -3641,7 +3655,7 @@ function fConfHtml(o){
   var raw = String(o.oo == null ? '' : o.oo).trim(); if (!raw || o.ok) return '';
   var v = parseLen(raw); if (v === null || isNaN(v) || !(v > 0)) return '';
   return '<div class="confbox"><div class="t"><div class="q">Read it back. Does this match the tape?</div><div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap"><span class="big">' + esc(fmtFrac(v) + ' ' + measName(opMeas(o)) + (o.gate ? ' gate' : '')) + '</span></div>' +
-    (isRun(o) ? [] : lenWarn(raw, v)).map(function(x){ return '<div class="warn">' + esc(x) + '</div>'; }).join('') + '</div><button type="button" class="btn pri" data-fact="ok">' + CHECK + 'Confirm</button></div>';
+    (isRun(o) ? [] : lenWarn(raw, v)).map(function(x){ return '<div class="warn">' + esc(x) + '</div>'; }).join('') + '</div><button type="button" class="btn pri" data-fact="ok">' + CHECK + (isRun(o) && runInfo(o) ? 'Confirm · fill in ' + runInfo(o).n + ' openings' : 'Confirm') + '</button></div>';
 }
 function openingHtml(o, i){
   var LM = fLaserOn() ? laserMap() : null;
@@ -3660,7 +3674,7 @@ function openingHtml(o, i){
       (o.gate ? '' : '<label class="chk fgatechk" for="' + id + 'run"><input type="checkbox" id="' + id + 'run" data-ff="run"' + (o.run ? ' checked' : '') + '>Long run</label>') + '</div></div>' +
     (isRun(o) ? '<div class="frun"><div class="g2" data-fracslot>' + numField(id + 'rmax', 'Max post spacing (C-C)', o.rmax, { ph: String(RUN_MAX), attrs: ' data-ff="rmax"' }) +
       numField(id + 'rn', 'Openings', o.rn, { ph: runInfo(o) ? 'auto ' + runInfo(o).n : 'auto', attrs: ' data-ff="rn" inputmode="numeric"' }) + '</div>' +
-      '<div class="stephint">Measure the whole straight run once, end to end. It splits into equal openings, posts evenly spaced, every post the same height. Leave Openings blank to use the fewest that keep posts at or under the max.</div></div>' : '') +
+      '<div class="stephint">Measure the whole straight run once, end to end, and pick the end posts. Confirm fills it in as equal openings, posts evenly spaced, every post the same height. You can still change any opening or post after. Leave Openings blank to use the fewest that keep posts at or under the max.</div></div>' : '') +
     '<div class="conf" data-fconf>' + fConfHtml(o) + '</div>' +
     '<div class="fpcols"' + (LM ? ' data-fracslot' : '') + '>' + postCol(o, i, 'l', LM) + postCol(o, i, 'r', LM) + '</div>' +
     '<div class="fres" data-fres>' + esc(fenceResTxt(o)) + '</div>' +
@@ -3744,6 +3758,12 @@ el('fence').addEventListener('click', function(e){
   if (a === 'sk'){ o.sk = b.getAttribute('data-v'); renderFence(); changed(); return; }   // later cards' bottom ch block re-render with it
   if (a === 'sd'){ o.sd = b.getAttribute('data-v'); renderFence(); changed(); return; }
   if (a === 'done'){ o._open = false; if (!o.ok && fNum(o.oo) > 0){ renderFence(); var cf = el('fence').querySelector('[data-fo="' + p.i + '"] [data-fconf] .confbox'); if (cf) cf.scrollIntoView({ block: 'center' }); return; } renderFence(); var rw = el('fence').querySelector('[data-fo="' + p.i + '"]'); if (rw) rw.scrollIntoView({ block: 'center' }); return; }
+  if (a === 'ok' && isRun(o)){
+    if (!runInfo(o) || !(runInfo(o).ch > 0)) return;
+    var made = splitRun(p.i); renderFence(); changed();
+    var last = el('fence').querySelector('[data-fo="' + (p.i + made.length - 1) + '"]'); if (last) last.scrollIntoView({ block: 'center' });
+    return;
+  }
   if (a === 'ok'){ if (!(fNum(o.oo) > 0)) return; o.ok = true; o._open = true; renderFence(); changed(); return; }   // stays open for the posts; Done or + New opening folds it
   if (a === 'copy'){
     var c2 = JSON.parse(JSON.stringify(o)); delete c2._more; c2.u = nextOpeningNum(o.u) + (o.gate ? '-G' : ''); if (c2.u === (o.gate ? '-G' : '')) c2.u = '';
