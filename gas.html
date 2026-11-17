@@ -639,7 +639,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-838caf';
+var APP_VERSION = '2026.11.17-bf248f';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -4295,12 +4295,13 @@ function radField(i, k, label, ph, frac){
 }
 // the little key drawing: straight, curve, straight, with the three measurements
 function radSketch(){
-  return '<svg class="radsk" viewBox="0 0 320 150" role="img" aria-label="E to R start, R start to R end along the curve, R end to E">' +
-    '<path d="M20 120 H110 A90 90 0 0 0 200 30 H300" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
-    '<circle cx="20" cy="120" r="6" fill="var(--accent)"/><circle cx="110" cy="120" r="5" fill="#fff" stroke="var(--accent)" stroke-width="3"/>' +
-    '<circle cx="200" cy="30" r="5" fill="#fff" stroke="var(--accent)" stroke-width="3"/><circle cx="300" cy="30" r="6" fill="var(--accent)"/>' +
-    '<text x="14" y="142" class="t">E</text><text x="98" y="142" class="t">R start</text><text x="170" y="18" class="t">R end</text><text x="296" y="52" class="t">E</text>' +
-    '<text x="65" y="112" class="m" text-anchor="middle">1</text><text x="172" y="96" class="m" text-anchor="middle">2</text><text x="250" y="22" class="m" text-anchor="middle">3</text></svg>' +
+  return '<svg class="radsk" viewBox="0 0 320 200" role="img" aria-label="E to R start, R start to R end along the curve, R end to E">' +
+    '<path d="M30 40 H150 A90 90 0 0 1 240 130 V185" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
+    '<circle cx="30" cy="40" r="6" fill="var(--accent)"/><circle cx="150" cy="40" r="5" fill="#fff" stroke="var(--accent)" stroke-width="3"/>' +
+    '<circle cx="240" cy="130" r="5" fill="#fff" stroke="var(--accent)" stroke-width="3"/><circle cx="240" cy="185" r="6" fill="var(--accent)"/>' +
+    '<text x="30" y="24" class="t" text-anchor="middle">E</text><text x="150" y="24" class="t" text-anchor="middle">R start</text>' +
+    '<text x="252" y="134" class="t">R end</text><text x="252" y="190" class="t">E</text>' +
+    '<text x="90" y="62" class="m" text-anchor="middle">1</text><text x="226" y="58" class="m" text-anchor="middle">2</text><text x="226" y="162" class="m" text-anchor="middle">3</text></svg>' +
     '<div class="stephint"><b>1</b> End to R start, straight. <b>2</b> R start to R end, <b>along the curve</b> (bend the tape around the edge). <b>3</b> R end to end, straight. Leave 1 or 3 blank (or 0) if the curve runs right to the end.</div>';
 }
 function renderRadius(){
