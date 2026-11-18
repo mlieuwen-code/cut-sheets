@@ -27,6 +27,8 @@ body[data-mount="Top"]{--accent:#2D5577;--tint:#EDF2F7;--tint2:#E1E9F2;--deep:#1
 .radsk{display:block;width:100%;max-width:420px;margin:6px auto 0;color:var(--ink,#222)}
 .radsk .t{font:600 12px system-ui,sans-serif;fill:currentColor}
 .radsk .m{font:700 13px system-ui,sans-serif;fill:var(--accent)}
+.tmnote{margin:6px 0 0;padding:6px 10px;border-radius:10px;background:#e8f3ea;color:#1d5b2c;font-size:13px;font-weight:600}
+.tmnote.warn{background:#fdecea;color:#8a1f11}
 .radhd{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .radtot{font-size:20px;font-weight:700;padding:8px 0;color:var(--accent)}
 .unit[data-mount="Top"]{--accent:#2D5577;--tint:#EDF2F7;--tint2:#E1E9F2;--deep:#1F3B54;--aline:#CBD9E7}
@@ -641,7 +643,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.17-a1fa50';
+var APP_VERSION = '2026.11.18-260f4e';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -1224,9 +1226,71 @@ function pieceAdj(run, mount, so){
   return { v: (a === null ? 0 : a) + (b === null ? 0 : b), guess: a === null || b === null };
 }
 function chanInfo(W, run){
-  var I = railMax[String(header.B8 || '')] || 46, mid = parseInt(run.mid, 10) || 0;
+  var I = railMax[String(header.B8 || '')] || 46, mid = (parseInt(run.mid, 10) || 0) + (run._tm > 0 ? run._tm : 0);
   var V = Math.max(0, Math.max(0, Math.ceil((W - I) / (I + 2) - 1e-9)) + mid), P = V + 1;
   return { n: P, each: Math.round((W - 2 * V) / P * 16) / 16 };
+}
+// ---------- tower match: the same section on every floor of a stack (611.2, 511.2, 411.2 …) gets the same number of posts ----------
+// Looking up from the ground, a tower should show the same channels and posts on every floor. A section a hair short of
+// needing another mid post gets one added (never taken away) to match the others, when their lengths are within 6".
+// Further apart than that it's left alone and flagged. Split rails and gates aren't matched. The added posts go in the
+// sheet's "Mid ±" column with any typed in by hand.
+var TOWER_TOL = 6;
+function towerKey(u){ var m = String(u.unit == null ? '' : u.unit).trim().match(/^(\d+)(\d\d)([A-Za-z]*)$/); return m ? m[2] + m[3].toUpperCase() : null; }
+function natMids(u, run){
+  var st = unitSetup(u), L = parseLen(String(run.len == null ? '' : run.len)); if (!(L > 0)) return null;
+  var I = railMax[String(header.B8 || '')] || 46, W = L + pieceAdj(run, st.mount, st.standoff).v;
+  return Math.max(0, Math.ceil((W - I) / (I + 2) - 1e-9)) + (parseInt(run.mid, 10) || 0);
+}
+function towerMatch(){
+  if (isFence()) return [];
+  syncFloor();
+  var fl = floors ? floors : [{ units: units }], groups = {}, touched = [];
+  fl.forEach(function(f, fi){
+    (f.units || []).forEach(function(u){
+      var key = towerKey(u); if (!key) { u.secs.forEach(function(r){ delete r._tm; delete r._tmFrom; delete r._tmFlag; }); return; }
+      var li = -1, seen = {};
+      u.secs.forEach(function(r, j){
+        if (r._sp){ if (!seen[r._sp.id]){ seen[r._sp.id] = 1; li++; } delete r._tm; delete r._tmFrom; delete r._tmFlag; return; }
+        li++;
+        if (isGateSec(u, r)){ delete r._tm; delete r._tmFrom; delete r._tmFlag; return; }
+        var L = parseLen(String(r.len == null ? '' : r.len)), V = L > 0 ? natMids(u, r) : null;
+        var g = groups[key + '|' + li] = groups[key + '|' + li] || [];
+        g.push({ fi: fi, u: u, j: j, r: r, L: L, V: V });
+      });
+    });
+  });
+  Object.keys(groups).forEach(function(k){
+    var g = groups[k];
+    g.forEach(function(e){
+      var was = e.r._tm || 0, tm = 0, from = '', flag = [];
+      if (e.V !== null){
+        g.forEach(function(o){
+          if (o === e || o.V === null || o.u === e.u) return;
+          if (Math.abs(o.L - e.L) <= TOWER_TOL + 1e-9){ if (o.V - e.V > tm){ tm = o.V - e.V; from = secLabel(o.u, o.j); } }
+          else if (o.V !== e.V) flag.push(secLabel(o.u, o.j) + ' (' + (o.V + 1) + ' channel' + (o.V ? 's' : '') + ')');
+        });
+      }
+      if (tm > 0){ e.r._tm = tm; e.r._tmFrom = from; } else { delete e.r._tm; delete e.r._tmFrom; }
+      if (flag.length) e.r._tmFlag = flag; else delete e.r._tmFlag;
+      if ((e.r._tm || 0) !== was){ touched.push(e); if (floors && e.fi !== curFloor && floors[e.fi]) floors[e.fi].saved = false; }
+    });
+  });
+  return touched;
+}
+function towerNote(u, run){
+  if (!run) return '';
+  var out = '';
+  if (run._tm > 0) out += '<div class="tmnote">+' + run._tm + ' post' + (run._tm > 1 ? 's' : '') + ' to match ' + esc(run._tmFrom || 'the tower') + ' (same tower, within ' + TOWER_TOL + '")</div>';
+  if (run._tmFlag && run._tmFlag.length) out += '<div class="tmnote warn">Tower doesn’t match: ' + esc(run._tmFlag.join(', ')) + ' is more than ' + TOWER_TOL + '" different, so it was left alone. Check it.</div>';
+  return out;
+}
+function towerNotes(u){ return u.secs.map(function(r, j){ return r._tm > 0 ? secLabel(u, j) + ': +' + r._tm + ' mid post' + (r._tm > 1 ? 's' : '') + ' to match ' + (r._tmFrom || 'the tower') : ''; }).filter(Boolean).join('\n'); }
+function updTowerNotes(){
+  document.querySelectorAll('.unit[data-u]').forEach(function(ue){
+    var u = units[+ue.getAttribute('data-u')]; if (!u) return;
+    ue.querySelectorAll('[data-tmw]').forEach(function(w){ w.innerHTML = towerNote(u, u.secs[+w.getAttribute('data-tmw')]); });
+  });
 }
 // lengths for a set of pieces that add up to the total and all end up with the same channel run
 // custom joints: n−1 positions from the left end of the original rail, each one past the last and short of the end; otherwise null (equal pieces)
@@ -1626,7 +1690,6 @@ function splitJob(b4){ b4 = String(b4 || '').trim(); var m = b4.match(FLOOR_RE);
 function joinJob(h){ return [String(h._name || '').trim(), String(h._floor || '').trim()].filter(Boolean).join(' '); }
 // what "next" means for this job: floor (apartment), building (townhouse) or job (a house)
 function nextWord(h){ h = h || header; var k = h._kind != null ? h._kind : kindOf(h._floor != null ? h._floor : splitJob(h.B4)[1]); return k === 'th' ? 'building' : k === 'apt' ? 'floor' : 'job'; }
-function cap(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
 function fmtFloor(kind, raw){
   raw = String(raw == null ? '' : raw).trim(); if (!raw) return '';
   if (/^\d+$/.test(raw)) return kind === 'th' ? 'Bldg ' + (+raw) : ordinal(+raw) + ' Floor';
@@ -1712,6 +1775,7 @@ function secHtml(u, i, run, j){
     return '<button type="button" class="secrow" data-s="' + j + '" data-act="open" aria-label="Edit section ' + esc(secLabel(u, j)) + '"><span class="ck" style="color:var(--onaccent)">' + CHECK + '</span>' +
       '<span class="lab" data-lab>' + esc(secLabel(u, j)) + '</span><span class="ends">' + esc((run.l || '–') + ' → ' + (run.r || '–')) + (run._sp ? ' · split' : '') + (stepSigned(run) ? ' · ' + stepTxt(stepSigned(run)) : hasStep(run) ? ' · step ' + (String(run.ph || '').trim() ? numVal(parseLen(String(run.ph))) + '/' : '') + (String(run.bh || '').trim() ? numVal(parseLen(String(run.bh))) : '') : '') + '</span>' +
       (stepDelta(u, j) ? '<span class="stepbadge ' + (stepDelta(u, j) > 0 ? 'up' : 'down') + '">' + esc(stepTxt(stepDelta(u, j))) + '</span>' : '') +
+      (run._tm > 0 ? '<span class="stepbadge up" title="Added to match the tower">+' + run._tm + ' post</span>' : '') + (run._tmFlag ? '<span class="stepbadge down" title="Tower doesn’t match">tower?</span>' : '') +
       '<span class="len">' + esc(fmtFrac(v)) + '</span></button>';
   }
   // open "More options" only for values set there, not for Non-Sub set by "Rail is floating"
@@ -1734,7 +1798,7 @@ function secHtml(u, i, run, j){
       (run._calc ? calcHtml(id, angL, angR) : '') + '</div>' : '') +
     (isFloatCombo(run) ? '<label class="chk floatrail" for="' + id + 'floatrail"><input type="checkbox" id="' + id + 'floatrail" data-sfield="floatrail"' + (run.ns === 'Yes' ? ' checked' : '') + '>Rail is floating <span style="font-weight:700;color:var(--muted)">(marks Non-Sub = Yes)</span></label>' : '') +
     '<div data-fracslot>' + numField(id + 'len', isGateSec(u, run) ? 'Gate opening (inside of post to inside of post)' : 'Measurement (in)', run.len, { cls: 'meas', ph: '96 then tap 3/8', attrs: ' data-key="len"', hint: lenReadback(run), hintCls: 'lenrb' }) + '</div>' +
-    '<div class="conf">' + confHtml(run) + '</div>' +
+    '<div class="conf">' + confHtml(run) + '</div>' + '<div data-tmw="' + j + '">' + towerNote(u, run) + '</div>' +
     (isGateSec(u, run) ? '<div class="chkrow">' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') + '</div>' + gateSecHtml(u, j, id) : '') +
     (isGateSec(u, run) ? '' : (   // a gate needs no floats, steps or more options
     '<div class="chkrow"><label class="chk" for="' + id + 'floats"><input type="checkbox" id="' + id + 'floats" data-sfield="floats"' + (showFloats ? ' checked' : '') + '>Floats</label>' + (unitSetup(u).mount === 'Top' ? '<label class="chk gatechk" for="' + id + 'gate"><input type="checkbox" id="' + id + 'gate" data-sfield="gate"' + (run.gate ? ' checked' : '') + '>This section is a gate</label>' : '') +
@@ -1785,6 +1849,7 @@ function addButtons(u){
 '</div>';
 }
 function renderRuns(){
+  try { towerMatch(); } catch (e) {}
   parkFrac();
   var fz = isFence(); el('units').hidden = fz; el('addUnit').hidden = fz; el('fence').hidden = !fz; el('addOpening').hidden = !fz; el('fenceDone').hidden = true; el('laserGo').hidden = true; el('unitsWord').textContent = fz ? 'Openings' : 'Units';
   if (fz) return renderFence();
@@ -2734,7 +2799,8 @@ function buildXml(hdr, rows, errs){
   for (var i = 0; i < MAX_RUNS; i++){
     var row = FIRST_ROW + i, run = rows[i];
     RUN_COLS.forEach(function(c){
-      try { var cv = run ? valueFor({ label: run.tag + ' ' + c.label, type: c.type, key: c.key }, run[c.key]) : ''; xml = c.key === 'len' ? writeLen(xml, c.col + row, cv, run) : writeCell(xml, c.col + row, cv); }
+      try { var rv0 = run ? run[c.key] : ''; if (run && c.key === 'mid' && run._tm > 0) rv0 = (parseInt(run.mid, 10) || 0) + run._tm;
+        var cv = run ? valueFor({ label: run.tag + ' ' + c.label, type: c.type, key: c.key }, rv0) : ''; xml = c.key === 'len' ? writeLen(xml, c.col + row, cv, run) : writeCell(xml, c.col + row, cv); }
       catch (e) { errs.push(e.message); }
     });
   }
@@ -2984,7 +3050,7 @@ function saveNow(){
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
-  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u), npNote(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
+  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u), npNote(u), towerNotes(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
   if (!sheets.length) errs.push('Add at least one measurement');
   var who = [header.measBy ? 'measured by ' + header.measBy : '', header.inputBy ? 'input by ' + header.inputBy : ''].filter(Boolean).join(', ');
   if (notes.length || who) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + [notes.length ? notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ' with notes' : '', who].filter(Boolean).join(' · ') + ')', make: function(){ return buildNotesBlob(notes); } });
@@ -3471,7 +3537,7 @@ function runInfo(o){
 }
 // Confirming a long run fills it in as its separate openings (posts End/Mid … Mid/End, same height, equal O-O), so every
 // opening and post can still be changed like any other: a corner partway, a Tran post, a gate. Later numbered openings move up.
-function splitRun(i){
+function fenceSplitRun(i){
   var ops = fenceOps(), o = ops[i], ri = runInfo(o); if (!ri) return;
   var u = String(o.u || '').trim(), m = u.match(/^(.*?)(\d+)$/), n = ri.n, out = [];
   for (var k = 0; k < n; k++){
@@ -3783,7 +3849,7 @@ el('fence').addEventListener('click', function(e){
   if (a === 'done'){ o._open = false; if (!o.ok && fNum(o.oo) > 0){ renderFence(); var cf = el('fence').querySelector('[data-fo="' + p.i + '"] [data-fconf] .confbox'); if (cf) cf.scrollIntoView({ block: 'center' }); return; } renderFence(); var rw = el('fence').querySelector('[data-fo="' + p.i + '"]'); if (rw) rw.scrollIntoView({ block: 'center' }); return; }
   if (a === 'ok' && isRun(o)){
     if (!runInfo(o) || !(runInfo(o).ch > 0)) return;
-    var made = splitRun(p.i); renderFence(); changed();
+    var made = fenceSplitRun(p.i); renderFence(); changed();
     var last = el('fence').querySelector('[data-fo="' + (p.i + made.length - 1) + '"]'); if (last) last.scrollIntoView({ block: 'center' });
     return;
   }
@@ -4527,6 +4593,7 @@ var storeFullWarned = 0;
 var dirty = false;
 function changed(){
   dirty = true;
+  try { if (towerMatch().length) updTowerNotes(); } catch (e) {}
   if (floors && floors[curFloor]) floors[curFloor].saved = false;
   persist(); updBadge(); if (floors) renderFloors();
 }
@@ -4549,6 +4616,7 @@ function renderFloors(){
 function switchFloor(k){
   if (!floors || !floors[k]) return;
   syncFloor(); curFloor = k; header = floors[k].header; units = floors[k].units;
+  try { towerMatch(); } catch (e) {}
   clearMsg(); renderHeader(); renderRuns(); applyMount(); showTab(tab); persist(); renderFloors();
 }
 function addFloor(){
@@ -4731,7 +4799,7 @@ document.addEventListener('click', function(e){
     else go();
   }, 400);
 })();
-window.__test = { parseLen: parseLen, fmtFrac: fmtFrac, writeCell: writeCell, readCell: readCell, CARRY: CARRY };
+window.__test = { parseLen: parseLen, fmtFrac: fmtFrac, writeCell: writeCell, readCell: readCell, CARRY: CARRY, natMids: function(len, l, r){ return natMids({ secs: [] }, { len: String(len), l: l || 'E', r: r || 'E' }); }, towerKey: towerKey };
 
 // Google-hosted copy: the template and the saving both go through the Apps Script (runs as the owner).
 function startNew(restore){
