@@ -35,6 +35,7 @@ body[data-mount="Top"]{--accent:#2D5577;--tint:#EDF2F7;--tint2:#E1E9F2;--deep:#1
 .radsk{display:block;width:100%;max-width:420px;margin:6px auto 0;color:var(--ink,#222)}
 .radsk .t{font:600 12px system-ui,sans-serif;fill:currentColor}
 .radsk .m{font:700 13px system-ui,sans-serif;fill:var(--accent)}
+.slrow{border-top:1px solid var(--line,#e2ddd3);padding:10px 0 4px;margin-top:8px}
 .tmnote{margin:6px 0 0;padding:6px 10px;border-radius:10px;background:#e8f3ea;color:#1d5b2c;font-size:13px;font-weight:600}
 .tmnote.warn{background:#fdecea;color:#8a1f11}
 .radhd{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -651,7 +652,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.19-df8529';
+var APP_VERSION = '2026.11.19-5cc640';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -4283,11 +4284,11 @@ function renderStairs(){
     '<div class="card"><h3>Job</h3>' +
       '<div class="g2">' + stairField('project', 'Project', 'Job name') + stairField('location', 'Location/Unit Number', 'e.g. Unit 204 or Bldg 3 front') + '</div>' +
       stairChips('hand', 'Hand up', [['LH', 'LH'], ['RH', 'RH'], ['Both', 'LH + RH matching']]) +
-      stairChips('tread', 'Tread style', [['Open', 'Open'], ['Hidden', 'Hidden']]) +
+      stairChips('tread', 'Tread style', [['Open', 'Open'], ['Hidden', 'Hidden'], ['Sloping', 'Sloping']]) +
       '<div class="fld"><div class="lbl">Mount</div><div class="chips" style="--n:' + MOUNTS.length + '">' + MOUNTS.map(function(m){ return '<button type="button" class="chip" aria-pressed="' + (stair.mount === m) + '" data-schip="mount" data-v="' + esc(m) + '"><span class="mdot" style="background:' + MOUNT_COLOR[m] + '"></span>' + esc(m) + '</button>'; }).join('') + '</div></div>' +
-      '<div class="g2" data-fracslot>' + stairField('height', 'Height (rail, plumb above nosing)', 'e.g. 36', true) + stairField('postAdd', 'Post add', 'e.g. 4', true) + '</div>' +
-      '<div class="g2" data-fracslot>' + stairField('standoff', 'Standoff', 'e.g. 2 1/2', true) + '<div></div></div>' +
-    '</div>' +
+      (stair.tread === 'Sloping' ? '' : '<div class="g2" data-fracslot>' + stairField('height', 'Height (rail, plumb above nosing)', 'e.g. 36', true) + stairField('postAdd', 'Post add', 'e.g. 4', true) + '</div>') +
+      (stair.tread === 'Sloping' ? '' : '<div class="g2" data-fracslot>' + stairField('standoff', 'Standoff', 'e.g. 2 1/2', true) + '<div></div></div>') +
+    '</div>' + (stair.tread === 'Sloping' ? slopeHtml() : 
     '<div class="card"><h3>Steps</h3>' +
       '<div class="g2" data-fracslot>' + stairField('rise', 'RISE total (nose to nose)', 'e.g. 36 1/4', true) + stairField('run', 'RUN total (nose to nose)', 'e.g. 55', true) + '</div>' +
       '<div class="stephint">Measure rise and run between the same two points: <b>bottom tread nose to landing nose</b>. The step up from the ground goes in Bottom tread height.</div>' +
@@ -4305,7 +4306,7 @@ function renderStairs(){
       '<div class="g2">' + stairField('alt1', 'Mid Point 1', '') + stairField('alt2', 'Mid Point 2', '') + '</div>' +
       '<div class="g2">' + stairField('alt3', 'Mid Point 3', '') + '<div></div></div></details>' +
       '<div class="fld"><label for="st_notes">Notes</label><textarea id="st_notes" data-sk="notes" rows="3">' + esc(stair.notes || '') + '</textarea></div>' +
-    '</div>';
+    '</div>');
   renderStairRes();
 }
 // geometry shared by the sketch and the fab drawing: steps at the rise / run, every point on its tread nose
@@ -4359,6 +4360,7 @@ function stairErrHtml(c){
   return '<div class="stairerr" role="alert"><b>' + (e.length === 1 ? '1 thing to fix' : e.length + ' things to fix') + '</b><ul>' + e.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
 }
 function renderStairRes(){
+  if (stair.tread === 'Sloping'){ el('stairRes').innerHTML = slopeResHtml(); return; }
   var c = stairCalc(), r = el('stairRes'), rows = [];
   if (c.deg != null) rows.push(['Stair angle', c.deg.toFixed(1) + '°']);
   if (c.st.rise && c.st.run) rows.push(['Each step', 'rise ' + fmtFrac(c.st.rise) + ', run ' + fmtFrac(c.st.run) + ' (' + c.st.n + ' risers' + (c.st.guess ? ', estimated' : '') + ')']);
@@ -4373,6 +4375,90 @@ function renderStairRes(){
 }
 function openStairs(){ el('start').hidden = true; el('stairs').hidden = false; window.scrollTo(0, 0); renderStairs(); }
 function closeStairs(){ parkFrac(); el('stairs').hidden = true; el('start').hidden = false; try { applyMount(); } catch (e){} }
+// ---------- Sloping: a stair rail top-mounted on a sloping wall beside the stair (no treads to measure) ----------
+// A shortcut into the cut sheet's Sloping wall sections: E to DC along the slope + rise, DC to DC (a sloped flight or a level
+// landing), DC to E. "Add to cut sheet" turns it into a unit (one section per part) on the open job or a new one.
+function slopeRows(){ if (!Array.isArray(stair.sw) || !stair.sw.length) stair.sw = [{ t: 's', len: '', rise: '' }, { t: 'l', len: '', rise: '' }]; return stair.sw; }
+function slopeName(k, n){ return (k === 0 ? 'E' : 'DC') + ' to ' + (k === n - 1 ? 'E' : 'DC'); }
+function slopeHtml(){
+  var rows = slopeRows(), n = rows.length, hi = stair.swhi === 'L' ? 'L' : 'R';
+  return '<div class="card"><h3>Sloping wall · along the top of the wall</h3>' +
+    '<div class="stephint">Measure each part along the top of the wall: <b>E to the direction change</b>, DC to DC for a landing or second flight, then <b>DC to E</b>. Sloped parts also get their <b>rise</b> (the height gained over that same length).</div>' +
+    '<div class="fld"><div class="lbl">High end</div><div class="stepdir">' + [['L', '◀ Left'], ['R', 'Right ▶']].map(function(o){ var on = hi === o[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-swhi="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div></div>' +
+    rows.map(function(r, k){
+      var c = r.t === 's' ? swCalc({ len: r.len, rise: r.rise }) : null;
+      return '<div class="slrow" data-slr="' + k + '"><div class="radhd"><b>' + (k + 1) + ' · ' + slopeName(k, n) + '</b>' + (n > 1 ? '<button type="button" class="btn small" data-sldel="' + k + '">Remove</button>' : '') + '</div>' +
+        '<div class="stepdir">' + [['s', 'Sloped'], ['l', 'Level']].map(function(o){ var on = r.t === o[0]; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-slt="' + k + '" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+        '<div class="g2" data-fracslot><div class="fld"><label for="sl' + k + 'len">' + (r.t === 's' ? 'Length along the slope' : 'Length') + '</label><input id="sl' + k + 'len" type="text" inputmode="decimal" autocomplete="off" data-frac data-sl="' + k + '" data-slk="len" value="' + esc(r.len || '') + '"></div>' +
+        (r.t === 's' ? '<div class="fld"><label for="sl' + k + 'rise">Rise</label><input id="sl' + k + 'rise" type="text" inputmode="decimal" autocomplete="off" data-frac data-sl="' + k + '" data-slk="rise" value="' + esc(r.rise || '') + '"></div>' : '<div></div>') + '</div>' +
+        (r.t === 's' ? '<div class="stepbox up" data-slline="' + k + '">' + esc(c ? (c.bad ? 'The rise can’t be more than the length along the slope.' : 'Slope ' + c.deg.toFixed(1) + '° · level run ' + fmtFrac(c.run)) : 'Enter the length along the slope and the rise.') + '</div>' : '') + '</div>';
+    }).join('') +
+    '<button type="button" class="btn" id="slAdd">+ Add a direction change</button></div>' +
+    '<div class="card"><h3>Notes</h3><div class="fld"><label for="st_notes">Notes</label><textarea id="st_notes" data-sk="notes" rows="3">' + esc(stair.notes || '') + '</textarea></div></div>';
+}
+function slopeErrors(){
+  var e = [], rows = slopeRows(), n = rows.length;
+  if (MOUNTS.indexOf(stair.mount) < 0) e.push('Pick the mount');
+  rows.forEach(function(r, k){
+    var nm = (k + 1) + ' · ' + slopeName(k, n), L = fNum(r.len);
+    if (!(L > 0)) e.push(nm + ': length'); 
+    if (r.t === 's'){ var R = fNum(r.rise); if (!(R > 0)) e.push(nm + ': rise'); else if (L > 0 && R >= L) e.push(nm + ': rise is more than the length'); }
+  });
+  return e;
+}
+function slopeResHtml(){
+  var e = stairTried ? slopeErrors() : [], open = typeof fileName !== 'undefined' && fileName && Array.isArray(units) && !isFence();
+  return (e.length ? '<div class="stairerr" role="alert"><b>' + (e.length === 1 ? '1 thing to fix' : e.length + ' things to fix') + '</b><ul>' + e.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' : '') +
+    '<div class="stairbtns">' + (open ? '<button type="button" class="btn big pri" id="slToJob">Add to ' + esc(String(header.B4 || 'the open job')) + '</button><button type="button" class="btn" id="slToNew">New cut sheet</button>'
+      : '<button type="button" class="btn big pri" id="slToNew">Add to a new cut sheet</button>') + '<button type="button" class="btn ghost" id="stairClear">Clear</button></div>' +
+    '<div class="stairmsg" id="stairMsg">It goes on the cut sheet as one unit, a section per part, with the Sloping wall boxes filled in. Pick the end codes at the DCs there.</div>';
+}
+function slopeUnit(){
+  var rows = slopeRows(), n = rows.length, hi = stair.swhi === 'L' ? 'L' : 'R';
+  var u = blankUnit(String(stair.location || '').trim() || 'Stair'); u.secs = [];
+  rows.forEach(function(r, k){
+    var run = blankRun(); run.len = String(r.len || '').trim(); run.lenOk = true;
+    if (k === 0) run.l = 'E'; if (k === n - 1) run.r = 'E';
+    if (r.t === 's'){ run._sw = true; run.rise = String(r.rise || '').trim(); run.hi = hi; swSync(run); }
+    u.secs.push(run);
+  });
+  if (stair.notes){ u.hasNotes = true; u.notes = String(stair.notes).trim(); }
+  return u;
+}
+function slopeGo(toOpen){
+  stairTried = true; if (slopeErrors().length){ renderStairRes(); var b = document.querySelector('#stairRes .stairerr'); if (b) b.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+  var u = slopeUnit();
+  el('stairs').hidden = true;
+  if (toOpen){
+    units.push(u); el('start').hidden = true; el('app').hidden = false; el('bar').hidden = false;
+    renderRuns(); showTab('units'); applyMount(); changed();
+  } else {
+    startNew({ header: { B4: String(stair.project || '').trim(), B7: stair.mount || '' }, units: [u], tab: 'units', quiet: true });
+    changed();
+  }
+  stair = { project: stair.project, mount: stair.mount, tread: 'Sloping' }; stairTried = false; stairSave();
+  setTimeout(function(){ var ue = document.querySelector('.unit[data-u="' + (units.length - 1) + '"]'); if (ue) ue.scrollIntoView({ block: 'start' }); msg('Added ' + u.unit + ': ' + u.secs.length + ' section' + (u.secs.length === 1 ? '' : 's') + ' from the sloping wall. Pick the end codes at the direction changes, then confirm each section.', true); }, 300);
+}
+el('stairs').addEventListener('input', function(e){
+  var t = e.target, k = t.getAttribute('data-sl'); if (k == null) return;
+  var r = slopeRows()[+k]; r[t.getAttribute('data-slk')] = t.value; stairSave(); if (t.hasAttribute('data-frac')) showHint(t);
+  var ln = el('stairBody').querySelector('[data-slline="' + k + '"]');
+  if (ln){ var c = swCalc({ len: r.len, rise: r.rise }); ln.textContent = c ? (c.bad ? 'The rise can’t be more than the length along the slope.' : 'Slope ' + c.deg.toFixed(1) + '° · level run ' + fmtFrac(c.run)) : 'Enter the length along the slope and the rise.'; }
+  if (stairTried) renderStairRes();
+});
+el('stairs').addEventListener('click', function(e){
+  if (stair.tread !== 'Sloping') return;
+  var t;
+  if ((t = e.target.closest('[data-swhi]'))){ stair.swhi = t.getAttribute('data-swhi'); stairSave(); renderStairs(); return; }
+  if ((t = e.target.closest('[data-slt]'))){ slopeRows()[+t.getAttribute('data-slt')].t = t.getAttribute('data-v'); stairSave(); renderStairs(); return; }
+  if ((t = e.target.closest('[data-sldel]'))){
+    if (t.getAttribute('data-sure') !== '1'){ t.setAttribute('data-sure', '1'); t.textContent = 'Sure?'; setTimeout(function(){ if (t.isConnected){ t.removeAttribute('data-sure'); t.textContent = 'Remove'; } }, 3000); return; }
+    slopeRows().splice(+t.getAttribute('data-sldel'), 1); stairSave(); renderStairs(); return;
+  }
+  if (e.target.closest('#slAdd')){ var rows = slopeRows(); rows.splice(rows.length - 1, 0, { t: 's', len: '', rise: '' }); stairSave(); renderStairs(); var f = el('sl' + (rows.length - 2) + 'len'); if (f) f.focus(); return; }
+  if (e.target.closest('#slToJob')){ slopeGo(true); return; }
+  if (e.target.closest('#slToNew')){ slopeGo(false); return; }
+});
 el('stairsOpen').onclick = openStairs;
 el('stairsBack').onclick = closeStairs;
 el('stairs').addEventListener('input', function(e){
