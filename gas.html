@@ -685,7 +685,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.19-bfa768';
+var APP_VERSION = '2026.11.19-5f85f7';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -847,6 +847,7 @@ function updTopDim(){
 }
 function updStd(){
   var slot = el('stdSlot'); if (!slot) return;
+  if (scrMounted()){ slot.innerHTML = ''; return; }   // railing standards don't fit a screen post
   var m = String(header.B7 || ''), st = stdFor(m);
   if (!st){ slot.innerHTML = m && STD[m] ? '<div class="stdok" style="background:none;padding:4px 2px;color:var(--muted)">No standard for ' + esc(m) + ' mount: standoff, post and block height vary by site.</div>' : ''; return; }
   var names = { B11: 'standoff', B12: 'post', B13: 'block' }, parts = [], same = true, br = STD_BRACKET[m];
@@ -992,6 +993,7 @@ function loadData(data, name, isNew, opts, restore){
       header[c] = ov !== '' ? ov : (st && c in st ? fmtFrac(st[c]).replace(/"$/, '') : header[c]);
     });
     READ_ONLY.forEach(function(c){ header[c] = readCell(sheetXml, c); });
+    if (/ - Privacy Screens\b[^\/]*\.xlsx$/i.test(String(name || ''))){ header.scrOnly = true; header.scrMount = MOUNTS.indexOf(String(header.B7)) >= 0 ? String(header.B7) : 'Top'; }   // a mounted screen job on the regular cut sheet
     var runs = [];
     for (var i = 0; i < MAX_RUNS; i++){
       var row = FIRST_ROW + i, run = {}, any = false;
@@ -1102,22 +1104,22 @@ function renderHeader(){
   var nChan = [7,8,9].filter(function(r){ return String(header['D' + r] || '') !== ''; }).length;
   el('tab-job').innerHTML =
     '<div class="card"><div class="jobrow' + (header._kind ? '' : ' solo') + '"><div class="fld job"><label for="h_B4">' + (header._kind ? 'Building name' : 'Building or job name') + '</label><input id="h_B4" data-jn="name" type="text" autocomplete="off" placeholder="e.g. Woodbine" value="' + esc(header._name) + '">' +
-        '<div class="kinds"><label class="chk" for="h_kapt"><input type="checkbox" id="h_kapt" data-kind="apt"' + (header._kind === 'apt' ? ' checked' : '') + '>Apartment</label><label class="chk" for="h_kth"><input type="checkbox" id="h_kth" data-kind="th"' + (header._kind === 'th' ? ' checked' : '') + '>Townhouse</label><label class="chk" for="h_fence"><input type="checkbox" id="h_fence" data-fence="1"' + (header.fence ? ' checked' : '') + '>Fencing</label><label class="chk" for="h_scronly"><input type="checkbox" id="h_scronly" data-scronly="1"' + (isScrOnly() ? ' checked' : '') + '>Privacy screens only</label></div></div>' +
+        '<div class="kinds"><label class="chk" for="h_kapt"><input type="checkbox" id="h_kapt" data-kind="apt"' + (header._kind === 'apt' ? ' checked' : '') + '>Apartment</label><label class="chk" for="h_kth"><input type="checkbox" id="h_kth" data-kind="th"' + (header._kind === 'th' ? ' checked' : '') + '>Townhouse</label><label class="chk" for="h_fence"><input type="checkbox" id="h_fence" data-fence="1"' + (header.fence ? ' checked' : '') + '>Fencing</label><label class="chk" for="h_scronly"><input type="checkbox" id="h_scronly" data-scronly="1"' + (isScrJob() ? ' checked' : '') + '>Privacy screens only</label></div></div>' +
       (header._kind ? '<div class="fld job"><label for="h_floor">' + (header._kind === 'th' ? 'Building #' : 'Floor') + '</label><input id="h_floor" data-jn="floor" type="text" inputmode="text" autocomplete="off" placeholder="' + (header._kind === 'th' ? 'e.g. 12 or Clubhouse' : 'e.g. 4 or Rooftop') + '" value="' + esc(floorBox()) + '"></div>' : '') + '</div>' +
       '<div class="boardrow"><button type="button" class="btn ghost" id="boardPick">Pick job from the Crew Board</button><span class="boardhint" id="boardHint">' + boardHint() + '</span></div>' +
       '<div class="jobhelp" id="jobFileName">' + jobFileHint() + '</div><div class="jobwarn" id="jobWarn" hidden></div>' +
       '<div class="g2">' + selField('h_measBy', 'Measured by', MEASURERS, header.measBy || '', ' data-cell="measBy"') + selField('h_inputBy', 'Input by', INPUT_BY, header.inputBy || '', ' data-cell="inputBy"') + '</div></div>' +
-    (isFence() ? fenceSetupHtml(colourOpts, col, isOther) : isScrOnly() ? scrSetupHtml(colourOpts, col, isOther) : '<div class="card"><h3>Rail setup</h3>' +
+    (isScrJob() ? scrMountHtml() : '') + (isFence() ? fenceSetupHtml(colourOpts, col, isOther) : isScrOnly() ? scrSetupHtml(colourOpts, col, isOther) : '<div class="card"><h3>' + (scrMounted() ? 'Screen setup' : 'Rail setup') + '</h3>' +
       '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
         '<input id="h_B6o" type="text" autocomplete="off" aria-label="Other colour" placeholder="Type the colour" value="' + esc(isOther ? col : '') + '"' + (isOther ? '' : ' hidden') + ' style="margin-top:4px;border-color:var(--need);background:var(--needbg)"></div>' +
         selField('h_B8', 'Rail type', lists.railTypes, header.B8, ' data-cell="B8"', railLabel) + '</div>' +
-      chips('B7', 'Mount', MOUNTS, null, MOUNT_COLOR) +
+      (scrMounted() ? '' : chips('B7', 'Mount', MOUNTS, null, MOUNT_COLOR)) +
       '<div id="stdSlot"></div>' +
       '<div class="g2 topdim" id="topDim" data-fracslot>' + chips('B9', 'Bracket height', ['4','4.5','5'], ['4"','4½"','5"']) +
         numField('h_B11', 'Standoff (in)', header.B11, { need: true, ph: 'Std Fascia 1 1/2 · Top 0', attrs: ' data-cell="B11"' }) +
         '<div class="topnote">Top mount has no bracket or standoff</div></div>' +
-      '<div class="g2" data-fracslot>' + numField('h_B12', 'Post height (in)', header.B12, { need: true, ph: 'Std Fascia 49 1/2 · Top 40 1/2', attrs: ' data-cell="B12"' }) +
-        numField('h_B13', 'Block height (in)', header.B13, { need: true, ph: 'Std 38 5/16', attrs: ' data-cell="B13"' }) + '</div>' +
+      '<div class="g2" data-fracslot>' + numField('h_B12', 'Post height (in)', header.B12, { need: true, ph: scrMounted() ? 'Screen post height' : 'Std Fascia 49 1/2 · Top 40 1/2', attrs: ' data-cell="B12"' }) +
+        numField('h_B13', 'Block height (in)', header.B13, { need: true, ph: scrMounted() ? 'Screen block height' : 'Std 38 5/16', attrs: ' data-cell="B13"' }) + '</div>' +
     '</div>' +
     // glass only for glass rail types; substrate on its own
     '<div class="card" id="glassCard"' + (isGlassRail(header.B8) ? '' : ' hidden') + '><h3>Glass</h3><div class="g2">' + selField('h_B14', 'Glass', lists.glass, header.B14, ' data-cell="B14"') + '<div></div></div>' +
@@ -1128,11 +1130,11 @@ function renderHeader(){
     '<details class="fold"><summary>Post wall <em id="pwSum" style="font-style:normal;color:var(--muted);font-weight:700;margin-left:auto">' + esc(String(header.B10 || POST_WALLS[0]).replace('2x2 - ', '')) + '</em></summary><div class="in">' +
       chips('B10', 'Post wall', POST_WALLS, ['2x2 · .095', '2x2 · .125']) + '</div></details>' +
     '<details class="fold"' + (nChan ? ' open' : '') + '><summary>Extra channels <em class="fsum"><b id="chanSum">' + (nChan ? nChan + ' added' : 'None') + '</b> <span>›</span></em></summary><div class="in">' + chan + '</div></details>' +
-    '<details class="fold"' + (units.some(function(u){ return u.screen; }) ? ' open' : '') + '><summary>Privacy Screen Height</summary><div class="in">' +
+    (scrMounted() ? '' : '<details class="fold"' + (units.some(function(u){ return u.screen; }) ? ' open' : '') + '><summary>Privacy Screen Height</summary><div class="in">' +
       '<div class="g2" data-fracslot>' + numField('h_scrH', 'Screen height (in)', header.scrH, { need: true, ph: 'e.g. 78', attrs: ' data-cell="scrH"' }) +
         numField('h_scrD', 'DBL channel down (in)', header.scrD, { ph: 'e.g. 34', attrs: ' data-cell="scrD"' }) + '</div>' +
-      chips('scrT', 'Top rail', ['Glass', 'Flat Glass']) + '</div></details>') +
-    '<button type="button" class="btn big pri" id="toUnits">' + (isPostsOnly() ? 'Next: posts ›' : isScrOnly() ? 'Next: measure screens ›' : isFence() ? 'Next: measure openings ›' : 'Next: measure units ›') + '</button>' +
+      chips('scrT', 'Top rail', ['Glass', 'Flat Glass']) + '</div></details>')) +
+    '<button type="button" class="btn big pri" id="toUnits">' + (isPostsOnly() ? 'Next: posts ›' : isScrJob() ? 'Next: measure screens ›' : isFence() ? 'Next: measure openings ›' : 'Next: measure units ›') + '</button>' +
     '<button type="button" class="btn big" id="nextFloorJob" style="background:var(--chip2)">Start next ' + nextWord() + ' · same setup ›</button>';
   el('toUnits').onclick = function(){ showTab('units'); };
   el('nextFloorJob').onclick = nextFloorFromHere;
@@ -1158,7 +1160,7 @@ el('tab-job').addEventListener('input', function(e){
 el('tab-job').addEventListener('change', function(e){
   var t = e.target;
   if (t.hasAttribute('data-scronly')){   // Privacy screens only: no railing, each unit is just its screens → the Privacy Screens sheet
-    header.scrOnly = t.checked; if (t.checked){ header.fence = false; if (!header.scrT) header.scrT = 'Glass'; }
+    header.scrOnly = t.checked; if (t.checked){ header.fence = false; if (!header.scrT) header.scrT = 'Glass'; if (!header.scrMount) header.scrMount = 'RW'; if (scrMounted()) header.B7 = header.scrMount; }
     renderHeader(); renderRuns(); changed(); return;
   }
   if (t.hasAttribute('data-fence')){   // Fencing: the whole job fills the open top fence template instead of the railing cut sheet
@@ -1193,6 +1195,7 @@ el('tab-job').addEventListener('click', function(e){
   }
   var b = e.target.closest('[data-chip]'); if (!b) return;
   var c = b.getAttribute('data-chip'), v = b.getAttribute('data-val');
+  if (c === 'scrMount'){ header.scrMount = v; if (MOUNTS.indexOf(v) >= 0){ header.B7 = v; applyMount(); } renderHeader(); renderRuns(); changed(); return; }
   header[c] = String(header[c]) === v ? '' : v;
   Array.prototype.forEach.call(b.parentNode.children, function(x){ x.setAttribute('aria-pressed', String(header[c]) === x.getAttribute('data-val') ? 'true' : 'false'); });
   if (c === 'B7'){ applyMount(); renderRuns(); updStd(); updTopDim(); }
@@ -1733,6 +1736,7 @@ function driveNamesQuick(){
 }
 // the main sheet's file name: an opened sheet (e.g. "Woodbine - 42 in posts.xlsx") keeps its own name until the job name is changed
 function mainFileName(){
+  if (scrMounted()) return jobFile() + ' - Privacy Screens.xlsx';
   if (!floors && fileName && fileName !== 'new-job' && header._openB4 != null && String(header.B4 || '').trim() === String(header._openB4).trim()) return fileName.replace(/\s*\(\d+\)(?=\.xlsx$)/i, '');
   return jobFile() + '.xlsx';
 }
@@ -1765,7 +1769,7 @@ function floorBox(){
 }
 function kindOf(floor){ floor = String(floor || '').trim(); return !floor ? '' : /\b(bldg|building|block|blk)\b/i.test(floor) ? 'th' : 'apt'; }
 function ensureJobParts(h){ if (h._name == null || (!String(h._name).trim() && !String(h._floor || '').trim() && String(h.B4 || '').trim())){ var p = splitJob(h.B4); h._name = p[0]; h._floor = p[1]; } if (h._kind == null) h._kind = kindOf(h._floor); }
-function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + (isScrOnly() ? ' - Privacy Screens' : '') + '.xlsx</b>' : ''; }
+function jobFileHint(){ return String(header.B4 || '').trim() ? 'Saves as <b>' + esc(jobFile()) + (isScrJob() ? ' - Privacy Screens' : '') + '.xlsx</b>' : ''; }
 // next floor / next building: bump the number ("4th Floor" -> "5th Floor", "Bldg 12" -> "Bldg 13", "4" -> "5")
 function bumpPart(t, d){
   d = d || 1; t = String(t || '');
@@ -1821,7 +1825,7 @@ function sheetName(s){
   if (nkey(s.post) !== nkey(m.post)) parts.push(inches(s.post) + ' in posts');
   else if (nkey(s.block) !== nkey(m.block)) parts.push(inches(s.block) + ' in blocks');
   if (!parts.length && setupKey(s) !== setupKey(m)) parts.push(inches(s.standoff) + ' in standoff');
-  return jobFile() + (parts.length ? ' - ' + parts.join(' - ') : '') + '.xlsx';
+  return jobFile() + (scrMounted() ? ' - Privacy Screens' : '') + (parts.length ? ' - ' + parts.join(' - ') : '') + '.xlsx';
 }
 function noteText(u){
   if (u.mountDiff && MOUNTS.indexOf(u.mount) < 0) return 'Pick the mount for this unit.';
@@ -1899,7 +1903,7 @@ function unitHtml(u, i){
     '<div class="uacts"><button type="button" class="btn" data-act="draw" aria-pressed="' + (!!u._dr) + '">Draw</button><button type="button" class="btn" data-act="layout" aria-pressed="' + (!!u._layout) + '">' + (u._layout ? 'Hide layout' : 'Layout') + '</button><button type="button" class="btn" data-act="ucopy">Copy unit</button><button type="button" class="btn" data-act="ucodes">Copy post codes to next unit</button><button type="button" class="btn danger" data-act="udel">Delete</button></div></div>' +
     '<div class="uchecks"><label class="chk" for="u' + i + '_cust"><input type="checkbox" id="u' + i + '_cust" data-ufield="custom"' + (u.custom ? ' checked' : '') + '>Custom post height</label>' +
       '<label class="chk" for="u' + i + '_md"><input type="checkbox" id="u' + i + '_md" data-ufield="mountdiff"' + (u.mountDiff ? ' checked' : '') + '>Different mount</label>' +
-      '<label class="chk" for="u' + i + '_scr"><input type="checkbox" id="u' + i + '_scr" data-ufield="screen"' + (u.screen ? ' checked' : '') + '>Privacy screen</label>' +
+      (scrMounted() ? '' : '<label class="chk" for="u' + i + '_scr"><input type="checkbox" id="u' + i + '_scr" data-ufield="screen"' + (u.screen ? ' checked' : '') + '>Privacy screen</label>') +
       '<label class="chk" for="u' + i + '_nt"><input type="checkbox" id="u' + i + '_nt" data-ufield="hasnotes"' + (u.hasNotes ? ' checked' : '') + '>Notes</label>' +
       (unitSetup(u).mount === 'Top' ? '<label class="chk" for="u' + i + '_lz"><input type="checkbox" id="u' + i + '_lz" data-ufield="laser"' + (u.laser ? ' checked' : '') + '>Laser post heights</label>' : '') + '</div>' +
     (u.hasNotes ? '<div class="custbox"><div class="fld"><label for="u' + i + '_notes">Notes <em style="font-style:normal;color:var(--muted)">· saved to the job’s notes file for review before fabrication</em></label>' +
@@ -1907,7 +1911,7 @@ function unitHtml(u, i){
     (u.custom ? '<div class="custbox"><div class="g2" data-fracslot>' +
       numField('u' + i + '_post', 'Post height (in)', u.post, { need: true, ph: 'This unit only', attrs: ' data-ufield="post"' }) +
       numField('u' + i + '_block', 'Block height (in)', u.block, { need: true, ph: 'This unit only', attrs: ' data-ufield="block"' }) + '</div></div>' : '') +
-    mountBox + note + (u.screen ? screenBox(u, i) : '') +
+    mountBox + note + (u.screen && !scrMounted() ? screenBox(u, i) : '') +
     (u._dr ? drawHtml(u, i) : '') +
     (u._layout ? '<div class="layout' + (u._full ? ' full' : '') + '" id="u' + i + '_lay">' + layoutSvg(u) + '</div>' : '') +
     u.secs.map(function(run, j){ return secHtml(u, i, run, j); }).join('') +
@@ -2431,7 +2435,15 @@ function screenBox(u, i){
     '<button type="button" class="addsec" data-act="scradd">+ Add another screen for this unit</button></div>';
 }
 // ---------- privacy screens only (a job type): no railing; each unit is a unit number and its screens ----------
-function isScrOnly(){ return !!(header && header.scrOnly && !header.fence); }
+function isScrJob(){ return !!(header && header.scrOnly && !header.fence); }
+// a mounted screen (Top / Fascia / Inside) is measured like railing and saves on the regular cut sheet as "<Job> - Privacy Screens.xlsx"
+function scrMounted(){ return isScrJob() && MOUNTS.indexOf(String(header.scrMount || '')) >= 0; }
+function isScrOnly(){ return isScrJob() && !scrMounted(); }   // rail / wall screens: the Privacy Screens template
+function scrMountHtml(){
+  return '<div class="card"><h3>Privacy screens</h3>' + chips('scrMount', 'Screen mount', ['RW'].concat(MOUNTS), ['Rail / wall'].concat(MOUNTS)) +
+    '<div class="stephint">' + (scrMounted() ? 'Measured like railing: each screen is a section with its end codes and length. Enter the screen’s post and block heights below. Saves on the regular cut sheet as “' + esc(jobFile()) + ' - Privacy Screens.xlsx”.'
+      : 'Rail / wall: screens between the railing and a wall, or wall to wall. Pick Top, Fascia or Inside for a screen mounted on its own posts.') + '</div></div>';
+}
 function scrSetupHtml(colourOpts, col, isOther){
   return '<div class="card"><h3>Privacy screens</h3>' +
     '<div class="g2"><div class="fld"><label for="h_B6">Colour</label><select id="h_B6">' + colourOpts + '</select>' +
@@ -2883,7 +2895,7 @@ el('newJob').onclick = function(){
 };
 // start page tool: a new job already set to Privacy screens only
 el('screensOpen').onclick = function(){
-  var go = function(){ startNew({ header: { scrOnly: true, scrT: 'Glass' }, quiet: true, tab: 'job' }); };
+  var go = function(){ startNew({ header: { scrOnly: true, scrT: 'Glass', scrMount: 'RW' }, quiet: true, tab: 'job' }); };
   if (readDraft('new-job')) return ask('Start fresh? This replaces the unsaved draft on this tablet.', 'Start new', function(){ try { localStorage.removeItem(DRAFT_PREFIX + 'new-job'); } catch (e) {} go(); });
   go();
 };
@@ -3148,7 +3160,7 @@ function saveNow(){
   });
   if (isFence()) sheets = fenceSheets(errs);
   var rw = [], ww = [];
-  (isFence() ? [] : units).forEach(function(u, ui){
+  (isFence() || scrMounted() ? [] : units).forEach(function(u, ui){
     if (!u.screen) return;
     var un = String(u.unit).trim(), who = 'Unit ' + (un || (ui + 1));
     (u.screens || []).forEach(function(sc, k){
