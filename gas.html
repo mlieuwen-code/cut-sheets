@@ -643,7 +643,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 'use strict';
 var MAX_RUNS = 100, FIRST_ROW = 20, DRAFT_PREFIX = 'ridgeway-cutsheet:';
 function el(id){ return document.getElementById(id); }
-var APP_VERSION = '2026.11.18-912043';
+var APP_VERSION = '2026.11.19-df8529';
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function xmlEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function xmlUnesc(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
@@ -954,7 +954,7 @@ function loadData(data, name, isNew, opts, restore){
       RUN_COLS.forEach(function(c){ var v = readCell(sheetXml, c.col + row); run[c.key] = v; if (v !== '') any = true; });
       var fm = (sheetXml.match(cellRe('F' + row)) || [])[2], ff = fm && fm.match(/<f(?:\s[^>]*)?>\s*=?\(\s*(\d+(?:\.\d+)?)\s*(?:[+-]\s*\d+(?:\.\d+)?)?\s*\)\s*\/\s*(\d)\s*<\/f>/);
       if (ff) run._spLoad = { total: parseFloat(ff[1]), n: +ff[2] };
-      if (any) runs.push(run);
+      if (any){ var sd0 = fNum(run.slope), L0 = parseLen(String(run.len)); if (sd0 > 0 && sd0 < 90 && L0 > 0){ run._sw = true; run.rise = numVal(Math.round(L0 * Math.sin(sd0 * Math.PI / 180) * 16) / 16); if (!run.hi) run.hi = 'R'; } runs.push(run); }
     }
     if (isNew){ header.B4 = ''; runs = []; }
     if (String(header.B10 || '') === '') header.B10 = POST_WALLS[0];
@@ -1206,6 +1206,20 @@ function confHtml(run){
 function needsConf(run){ var raw = String(run.len == null ? '' : run.len).trim(); return raw !== '' && !run.lenOk; }
 function totalSecs(){ return units.reduce(function(n, u){ return n + u.secs.length; }, 0); }
 function secLabel(u, j){ return (String(u.unit).trim() || '?') + '.' + (j + 1); }
+// Sloping wall: a stair rail top-mounted on a wall that runs up beside the stair. The crew measures the section along the
+// slope (E to DC, DC to DC …) and the rise over that length; the app works out Slope ° (and the level run) for the sheet's
+// Slope / High end columns. A section is sloped when its rise is entered; the high end is picked (default the right / DC end).
+function swOn(run){ return !!(run && (run._sw || fNum(run.rise) > 0)); }
+function swCalc(run){
+  var L = parseLen(String(run.len == null ? '' : run.len)), R = fNum(run.rise);
+  if (!(L > 0) || !(R > 0)) return null;
+  if (R >= L) return { bad: true };
+  var deg = Math.asin(R / L) * 180 / Math.PI;
+  return { deg: Math.round(deg * 100) / 100, run: Math.round(Math.sqrt(L * L - R * R) * 16) / 16 };
+}
+function swSync(run){ var c = swCalc(run); if (c && !c.bad){ run.slope = String(c.deg); run.hi = run.hi === 'L' ? 'L' : 'R'; } else if (swOn(run)) run.slope = ''; }
+function swLine(run){ var c = swCalc(run); if (!c) return 'Enter the length along the slope and the rise.'; if (c.bad) return 'The rise can’t be more than the length along the slope.'; return 'Slope ' + c.deg.toFixed(1) + '° · level run ' + fmtFrac(c.run) + ' · high end ' + (run.hi === 'L' ? 'left' : 'right'); }
+function swNotes(u){ return u.secs.map(function(r, j){ var c = swOn(r) ? swCalc(r) : null; return c && !c.bad ? secLabel(u, j) + ': sloping wall, ' + fmtFrac(parseLen(String(r.len))) + ' along the slope, rise ' + fmtFrac(fNum(r.rise)) + ' (' + c.deg.toFixed(1) + '°, level run ' + fmtFrac(c.run) + ', high end ' + (r.hi === 'L' ? 'L' : 'R') + ')' : ''; }).filter(Boolean).join('\n'); }
 
 // ---------- long-rail splitter: over 255" splits into pieces joined by CJ / CJO, every piece gets the same channels ----------
 var MAX_RAIL = 255, endCh = {}, railMax = {}, railFam = {}, geo = { p: 2, ang: 90, gap: 1.25, top: 0, dir: { FA: 1, I6A: -1, '6EPA': -1 } };
@@ -1808,6 +1822,11 @@ function secHtml(u, i, run, j){
       '<div class="floatrow"><button type="button" class="btn pri" data-act="floatok"' + (run._floatsOk ? ' hidden' : '') + '>Confirm floats</button><span class="floathint"' + (run._floatsOk ? '' : ' hidden') + '>✓ Floats set</span></div>' : '') +
     // a section that sits higher or lower than the one before (e.g. an Allan block wall that jumps a block): its own post / block height,
     // and the post where the two meet becomes a transition post on the Custom Posts tab
+    '<label class="chk" for="' + id + 'sw"><input type="checkbox" id="' + id + 'sw" data-sfield="sw"' + (swOn(run) ? ' checked' : '') + '>Sloping wall (stair, measured along the slope)</label>' +
+    (swOn(run) ? '<div class="g2" data-fracslot>' + numField(id + 'rise', 'Rise over this section', run.rise, { ph: 'E to DC height', attrs: ' data-key="rise"' }) +
+      '<div class="fld"><div class="lbl">High end</div><div class="stepdir">' + ['L', 'R'].map(function(d){ var on = (run.hi === 'L' ? 'L' : 'R') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="swhi" data-v="' + d + '">' + (d === 'L' ? '◀ Left' : 'Right ▶') + '</button>'; }).join('') + '</div></div></div>' +
+      '<div class="stepbox up" data-swline>' + esc(swLine(run)) + '</div>' +
+      '<div class="stephint">Length = along the top of the wall, E to the direction change (or DC to DC, DC to E). Rise = the height gained over that same length. The sheet gets the slope and high end.</div>' : '') +
     (j > 0 || hasStep(run) ? '<label class="chk" for="' + id + 'step"><input type="checkbox" id="' + id + 'step" data-sfield="step"' + (run._step || hasStep(run) ? ' checked' : '') + '>Steps up or down from the last section</label>' : '') +
     (run._step || hasStep(run) ? '<div class="stepdir">' + ['up', 'down'].map(function(d){ var on = (run.sd || 'up') === d; return '<button type="button" class="btn' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="stepdir" data-v="' + d + '">' + (d === 'up' ? '▲ Up' : '▼ Down') + '</button>'; }).join('') + '</div>' +
       '<div class="g2" data-fracslot>' + numField(id + 'st', 'Step height', run.st, { ph: 'e.g. 8', attrs: ' data-key="st"' }) + '</div>' +
@@ -2435,6 +2454,7 @@ el('units').addEventListener('input', function(e){
     if ((key === 'np' || key === 'mid') && p.sec){ var nw = p.sec.querySelector('[data-npw]'); if (nw) nw.innerHTML = npWarnHtml(p.u, p.j); }
     if (key === 'len' && isGateSec(p.u, run)){ var gcb = p.sec && p.sec.querySelector('[data-gatecalc]'); if (gcb) gcb.outerHTML = gateSecHtml(p.u, p.j, 'u' + p.i + 's' + p.j + '_').split('</div>')[0] + '</div>'; }
     if (key === 'ar' || key === 'al') updLayout(p.i);
+    if ((key === 'rise' || key === 'len') && swOn(run)){ swSync(run); var swl = p.sec && p.sec.querySelector('[data-swline]'); if (swl) swl.textContent = swLine(run); var sli = el('u' + p.i + 's' + p.j + '_slope'); if (sli) sli.value = run.slope || ''; }
     if (key === 'st'){ run.ph = ''; run.bh = ''; var sl = p.sec && p.sec.querySelector('[data-stepline]'); if (sl){ sl.textContent = stepLine(p.u, p.j); sl.className = 'stepbox ' + ((stepDelta(p.u, p.j) || 1) > 0 ? 'up' : 'down'); } updLayout(p.i); }
     if (key === 'fl' || key === 'fr'){
       run._floatsOk = false; updLayout(p.i);
@@ -2514,6 +2534,13 @@ el('units').addEventListener('change', function(e){
   }
   if (t.getAttribute('data-sfield') === 'npz' && p.j >= 0){ var nr = p.u.secs[p.j]; nr._np = t.checked; if (!t.checked && !nr._npSplit){ nr.np = ''; delete nr.npz; } renderRuns(); changed(); var nf = el('u' + p.i + 's' + p.j + '_npa0'); if (nf && t.checked) nf.focus(); return; }
   if (t.getAttribute('data-sfield') === 'gposts' && p.j >= 0){ p.u.secs[p.j].gposts = t.checked; renderRuns(); changed(); return; }
+  if (t.getAttribute('data-sfield') === 'sw' && p.j >= 0){
+    var sw = p.u.secs[p.j]; sw._sw = t.checked;
+    if (!t.checked){ sw.rise = ''; sw.slope = ''; sw.hi = ''; } else if (!sw.hi) sw.hi = 'R';
+    renderRuns(); changed();
+    if (t.checked){ var rf = el('u' + p.i + 's' + p.j + '_rise'); if (rf) rf.focus(); }
+    return;
+  }
   if (t.getAttribute('data-sfield') === 'step' && p.j >= 0){
     var stp = p.u.secs[p.j]; stp._step = t.checked;
     if (!t.checked){ stp.ph = ''; stp.bh = ''; stp.st = ''; stp.sd = ''; }
@@ -2618,6 +2645,7 @@ el('units').addEventListener('click', function(e){
   else if (act === 'npadd'){ npRows(u.secs[j]).push({ a: '', b: '' }); focus = 'u' + p.i + 's' + j + '_npa' + (u.secs[j].npz.length - 1); }
   else if (act === 'npdel'){ npRows(u.secs[j]).splice(+b.getAttribute('data-k'), 1); npSync(u.secs[j]); }
   else if (act === 'gpm'){ u.secs[j].gpm = b.getAttribute('data-v'); renderRuns(); changed(); if (u.secs[j].gpm === 'Side'){ var gsf = el('u' + p.i + 's' + j + '_gso'); if (gsf) gsf.focus(); } return; }
+  else if (act === 'swhi'){ u.secs[j].hi = b.getAttribute('data-v'); swSync(u.secs[j]); renderRuns(); changed(); return; }
   else if (act === 'stepdir'){ u.secs[j].sd = b.getAttribute('data-v'); u.secs[j].ph = ''; u.secs[j].bh = ''; renderRuns(); changed(); return; }
   else if (act === 'turn'){ var tj = +b.getAttribute('data-j'), tv = b.getAttribute('data-t'), sec = u.secs[tj]; sec._turn = autoTurnName(sec, unitSetup(u).mount) === { L:'Left', S:'Straight', R:'Right' }[tv] ? '' : tv; updLayout(p.i); changed(); return; }
   else if (act === 'rot'){ u._rot = ((u._rot || 0) + 90) % 360; if (u._feetXY) u._feetXY = { x: -u._feetXY.y, y: u._feetXY.x }; updLayout(p.i); changed(); return; }   // moved feet turn with the drawing
@@ -3050,7 +3078,7 @@ function saveNow(){
     if (rw.length > SCR_MAX || ww.length > SCR_MAX) errs.push('The screen cut sheet holds ' + SCR_MAX + ' rail-to-wall and ' + SCR_MAX + ' wall-to-wall screens');
     sheets.push({ name: jobFile() + ' - Privacy Screens.xlsx', rows: [], units: rw.length + ww.length, info: jobFile() + ' - Privacy Screens.xlsx (' + rw.length + ' rail-to-wall, ' + ww.length + ' wall-to-wall)', make: function(){ return buildScreenBlob(rw, ww); } });
   }
-  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u), npNote(u), towerNotes(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
+  var notes = (isFence() ? [] : units).map(function(u){ return { unit: String(u.unit).trim(), mount: unitSetup(u).mount, text: [u.hasNotes ? String(u.notes || '').trim() : '', gatePostNote(u), npNote(u), towerNotes(u), swNotes(u)].filter(Boolean).join('\n') }; }).filter(function(n){ return n.text; });
   if (!sheets.length) errs.push('Add at least one measurement');
   var who = [header.measBy ? 'measured by ' + header.measBy : '', header.inputBy ? 'input by ' + header.inputBy : ''].filter(Boolean).join(', ');
   if (notes.length || who) sheets.push({ name: jobFile() + ' - Notes.xlsx', rows: [], units: notes.length, info: jobFile() + ' - Notes.xlsx (' + [notes.length ? notes.length + ' unit' + (notes.length === 1 ? '' : 's') + ' with notes' : '', who].filter(Boolean).join(' · ') + ')', make: function(){ return buildNotesBlob(notes); } });
